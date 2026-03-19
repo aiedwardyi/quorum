@@ -8,13 +8,9 @@ import type { Message } from "@/types"
 const projectId = process.env.VERTEX_PROJECT_ID!
 const location = process.env.VERTEX_LOCATION!
 
-export async function queryGemini(
-  systemPrompt: string,
-  messages: Message[]
-): Promise<string> {
+function getModel() {
   const vertexAI = new VertexAI({ project: projectId, location })
-
-  const model = vertexAI.getGenerativeModel({
+  return vertexAI.getGenerativeModel({
     model: "gemini-2.5-flash",
     safetySettings: [
       {
@@ -27,24 +23,55 @@ export async function queryGemini(
       },
     ],
   })
+}
 
-  const contents = messages.map((msg) => ({
+function buildContents(messages: Message[]) {
+  return messages.map((msg) => ({
     role: msg.sender === "user" ? "user" : "model",
     parts: [{ text: `[${msg.displayName}]: ${msg.content}` }],
   }))
+}
+
+// Non-streaming (used by consensus check later)
+export async function queryGemini(
+  systemPrompt: string,
+  messages: Message[]
+): Promise<string> {
+  const model = getModel()
+  const contents = buildContents(messages)
 
   const result = await model.generateContent({
     systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
     contents,
   })
 
-  const response = result.response
   const text =
-    response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
   if (!text) {
     throw new Error("Gemini returned an empty response")
   }
 
   return text
+}
+
+// Streaming (used by chat route)
+export async function* streamGemini(
+  systemPrompt: string,
+  messages: Message[]
+): AsyncGenerator<string> {
+  const model = getModel()
+  const contents = buildContents(messages)
+
+  const result = await model.generateContentStream({
+    systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
+    contents,
+  })
+
+  for await (const chunk of result.stream) {
+    const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text
+    if (text) {
+      yield text
+    }
+  }
 }
