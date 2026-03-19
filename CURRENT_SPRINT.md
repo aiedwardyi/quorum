@@ -4,27 +4,27 @@
 
 ---
 
-## 📦 Task 1: Provider Wrappers
+## ✅ Task 1: Provider Wrappers — COMPLETE
 
 Simple functions that take a system prompt + messages and return a string.
 
-- `src/lib/providers/gemini.ts` — Vertex AI SDK wrapper (gemini-2.5-flash)
-- `src/lib/providers/perplexity.ts` — REST API wrapper (sonar-pro)
-- Test both with a simple "Hello" call
-- Each provider independent — one failing doesn't break the other
+- [x] `src/lib/providers/gemini.ts` — Vertex AI SDK wrapper (gemini-2.5-flash)
+- [x] `src/lib/providers/perplexity.ts` — REST API wrapper (sonar-pro)
+- [x] Test both with a simple "Hello" call
+- [x] Each provider independent — one failing doesn't break the other
 
-**Done when:** Both providers return a response to a test prompt.
+**Done when:** Both providers return a response to a test prompt. ✅
 
 ---
 
-## 🔌 Task 2: Chat API Route
+## ✅ Task 2: Chat API Route — COMPLETE
 
-- `POST /api/chat` — accepts message + full thread + selected model
-- Queries the selected model with full conversation context
-- Streams response back via SSE
-- Returns: sender, content, timestamp
+- [x] `POST /api/chat` — accepts message + full thread + selected model
+- [x] Queries the selected model with full conversation context
+- [x] Streams response back via SSE
+- [x] Returns: sender, content, timestamp
 
-**Done when:** Can hit the endpoint and get a streamed AI response.
+**Done when:** Can hit the endpoint and get a streamed AI response. ✅
 
 ---
 
