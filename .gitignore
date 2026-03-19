@@ -47,3 +47,11 @@ next-env.d.ts
 # Credentials
 service-account*.json
 *.pem
+
+# Environment
+.env
+.env.local
+
+# Credentials
+service-account*.json
+*.pem

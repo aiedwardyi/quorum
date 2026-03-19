@@ -1,32 +1,67 @@
-# Quorum - Roadmap
+# 🏛️ Quorum — Roadmap
 
-## v1: Working Group Chat (Current)
+> Multi-AI group chat for consensus
+
+---
+
+## 🔨 v1: Working Group Chat *(Current)*
+
+The core experience — a group chat where you + Gemini + Perplexity discuss a topic together.
+
 - [x] Project scaffolding (Next.js + Tailwind + shadcn/ui)
 - [ ] Gemini + Perplexity provider wrappers
-- [ ] API route: send message, get AI response (SSE)
-- [ ] API route: consensus check
-- [ ] Chat UI: thread, bubbles, input, model selector
+- [ ] Chat API route (SSE streaming)
+- [ ] Consensus scoring API route
+- [ ] Chat UI — thread, bubbles, input bar, model selector
 - [ ] Consensus meter + summary card
-- [ ] Wire everything into working flow
+- [ ] Wire end-to-end flow
 - [ ] Home page with prompt input
 
-## v2: More Models + Persistence
-- [ ] Add Claude (Anthropic) + GPT (OpenAI) providers
-- [ ] SQLite/Prisma for session persistence
+**Ship when:** You can ask a question, watch two AIs discuss it, steer the conversation, and see consensus form.
+
+---
+
+## 📋 v2: More Models + Persistence
+
+Expand the roster and remember conversations.
+
+- [ ] Add Claude (Anthropic SDK) + GPT (OpenAI SDK)
+- [ ] Session persistence (SQLite / Prisma)
 - [ ] Chat history page
-- [ ] Document upload (PDF/text)
+- [ ] Document upload (PDF/text injected into thread)
 - [ ] Export conversation as markdown
 
-## v3: Polish + Multi-user
-- [ ] Korean/English i18n
-- [ ] BYOK API key management with encryption
+---
+
+## 🎨 v3: Polish + Configuration
+
+Make it beautiful and configurable.
+
+- [ ] Korean / English i18n
+- [ ] BYOK — users manage their own API keys
 - [ ] Settings page
 - [ ] Dark mode
 - [ ] Voice input (Watson STT)
 
-## v4: Power Features
-- [ ] Devil's advocate mode
-- [ ] Debate templates
+---
+
+## ⚡ v4: Power Features
+
+For power users and advanced workflows.
+
+- [ ] Devil's advocate mode — force one model to argue against consensus
+- [ ] Debate templates (patent review, architecture decision, risk analysis)
 - [ ] Custom model support (any OpenAI-compatible endpoint)
 - [ ] Cost tracking dashboard
-- [ ] Shareable sessions
+- [ ] Shareable sessions via link
+
+---
+
+## 🔑 Key Decisions (Decide Later)
+
+| Decision | When | Options |
+|----------|------|---------|
+| Database | Before v2 | SQLite vs PostgreSQL |
+| API key storage | Before v3 | Browser-only vs encrypted DB vs hybrid |
+| Auth system | Before sharing features | NextAuth vs Clerk vs none |
+| Deployment | After v1 stable | Vercel vs self-hosted vs Docker |
