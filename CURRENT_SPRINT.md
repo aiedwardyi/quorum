@@ -28,14 +28,15 @@ Simple functions that take a system prompt + messages and return a string.
 
 ---
 
-## 📊 Task 3: Consensus API Route
+## ✅ Task 3: Consensus API Route — COMPLETE
 
-- `POST /api/consensus` — takes the full conversation thread
-- Asks Gemini to score agreement as JSON
-- Returns: `{ score, agreements, disagreements, summary }`
-- Score >= 80 means consensus reached
+- [x] `POST /api/consensus` — takes the full conversation thread
+- [x] Asks Gemini to score agreement as JSON
+- [x] Returns: `{ score, agreements, disagreements, summary }`
+- [x] Score >= 80 means consensus reached
+- [x] Sends thread as single user message (avoids Vertex AI role-alternation requirement)
 
-**Done when:** Returns accurate consensus JSON for a sample conversation.
+**Done when:** Returns accurate consensus JSON for a sample conversation. ✅
 
 ---
 

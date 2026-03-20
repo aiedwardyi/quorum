@@ -11,7 +11,7 @@ The core experience — a group chat where you + Gemini + Perplexity discuss a t
 - [x] Project scaffolding (Next.js + Tailwind + shadcn/ui)
 - [x] Gemini + Perplexity provider wrappers
 - [x] Chat API route (SSE streaming)
-- [ ] Consensus scoring API route
+- [x] Consensus scoring API route
 - [ ] Chat UI — thread, bubbles, input bar, model selector
 - [ ] Consensus meter + summary card
 - [ ] Wire end-to-end flow
