@@ -73,20 +73,34 @@ Simple functions that take a system prompt + messages and return a string.
 
 ---
 
-## 🏠 Task 6: Home Page
+## ✅ Task 6: Home Page — COMPLETE
 
-- Big textarea: *"What do you need consensus on?"*
-- "Start Discussion" button → navigates to `/chat` with the prompt
-- Clean, minimal, premium feel
+- [x] Big textarea: *"What do you need consensus on?"*
+- [x] "Start Discussion" button → navigates to `/chat` with the prompt
+- [x] Clean, minimal design with fade-in animation
+- [x] Prompt passed via sessionStorage (clean URL, no query params)
+- [x] `/chat` page reads sessionStorage on mount and auto-sends as first message
+- [x] Cmd/Ctrl + Enter keyboard shortcut to submit
 
-**Done when:** Can start a new discussion from the home page.
+**Done when:** Can start a new discussion from the home page. ✅
 
 ---
 
 ## ✅ v1 Complete When
 
-- [ ] Can type a question and see Gemini + Perplexity discuss it
-- [ ] Can steer the conversation mid-debate
-- [ ] Consensus bar updates after each round
-- [ ] Summary card appears when consensus reached or stopped
-- [ ] Browser tab shows: **Quorum | AI Group Chat**
+- [x] Can type a question and see Gemini + Perplexity discuss it
+- [x] Can steer the conversation mid-debate
+- [x] Consensus bar updates after each round
+- [x] Summary card appears when consensus reached or stopped
+- [x] Browser tab shows: **Quorum | AI Group Chat**
+
+**🎉 v1 is COMPLETE — all 6 tasks done.**
+
+---
+
+## Known Issues for Polish Pass
+
+- Gemini sometimes speaks in third person / prefixes with `[Gemini]:` — caused by `buildContents` formatting messages with `[DisplayName]:` prefix
+- Consensus display is duplicated (sidebar meter + summary card) — should be ONE place
+- Chat page UI needs font/color refresh
+- Response length not configurable (models default to verbose)
