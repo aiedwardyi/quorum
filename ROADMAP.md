@@ -14,7 +14,7 @@ The core experience — a group chat where you + Gemini + Perplexity discuss a t
 - [x] Consensus scoring API route
 - [x] Chat UI — thread, bubbles, input bar, model selector
 - [x] Consensus meter + summary card
-- [ ] Wire end-to-end flow
+- [x] Wire end-to-end flow
 - [ ] Home page with prompt input
 
 **Ship when:** You can ask a question, watch two AIs discuss it, steer the conversation, and see consensus form.

@@ -3,14 +3,19 @@ import type { Message } from "@/types"
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions"
 
 function buildMessages(systemPrompt: string, messages: Message[]) {
+  // Perplexity requires strictly alternating user/assistant roles.
+  // In a group chat we have multiple AI messages back-to-back,
+  // so we pack the entire thread into one user message instead.
+  const thread = messages
+    .map((m) => `[${m.displayName}]: ${m.content}`)
+    .join("\n\n")
+
   return [
     { role: "system" as const, content: systemPrompt },
-    ...messages.map((msg) => ({
-      role: (msg.sender === "user" ? "user" : "assistant") as
-        | "user"
-        | "assistant",
-      content: `[${msg.displayName}]: ${msg.content}`,
-    })),
+    {
+      role: "user" as const,
+      content: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
+    },
   ]
 }
 
@@ -25,7 +30,6 @@ function getHeaders() {
   }
 }
 
-// Non-streaming (used by consensus or simple calls)
 export async function queryPerplexity(
   systemPrompt: string,
   messages: Message[]
@@ -54,7 +58,6 @@ export async function queryPerplexity(
   return text
 }
 
-// Streaming (used by chat route)
 export async function* streamPerplexity(
   systemPrompt: string,
   messages: Message[]

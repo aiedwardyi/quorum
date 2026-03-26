@@ -55,16 +55,21 @@ Simple functions that take a system prompt + messages and return a string.
 
 ---
 
-## 🔗 Task 5: Wire It All Together
+## ✅ Task 5: Wire It All Together — COMPLETE
 
-- `chat/page.tsx` — the main group chat room
-- User sends message → model responds → next model sees full thread → responds
-- Turn order: round-robin (default) or popcorn (pick who speaks)
-- Consensus check runs after each full round
-- Stop button ends debate and generates summary
-- Typing indicator while model generates
+- [x] `src/app/chat/page.tsx` — main group chat room with useReducer state
+- [x] User sends message → models respond via SSE streaming → round-robin turns
+- [x] Turn order: round-robin (default) or popcorn (pick who speaks via dropdown)
+- [x] Consensus check runs after each full round
+- [x] Stop button ends debate and generates summary
+- [x] Typing indicator while model generates
+- [x] Perplexity role-alternation fix (pack thread into single user message)
+- [x] Per-model system prompt with identity awareness
+- [x] Citation/reference stripping via cleanResponse utility
 
-**Done when:** Full conversation loop works end-to-end.
+**Done when:** Full conversation loop works end-to-end. ✅
+
+**Known bugs (logged in Bug_Registry):** BUG-001 through BUG-008 — partial fixes applied, remaining bugs deferred to polish pass.
 
 ---
 
