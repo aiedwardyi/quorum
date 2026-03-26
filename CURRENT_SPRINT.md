@@ -40,7 +40,7 @@ Simple functions that take a system prompt + messages and return a string.
 
 ---
 
-## 🎨 Task 4: Chat UI Components
+## ✅ Task 4: Chat UI Components — COMPLETE
 
 | Component | What It Does |
 |-----------|-------------|
@@ -51,7 +51,7 @@ Simple functions that take a system prompt + messages and return a string.
 | `ModelSelector.tsx` | Toggle badges for Gemini / Perplexity |
 | `SummaryCard.tsx` | Final verdict card when consensus reached or stopped |
 
-**Done when:** All components render correctly with mock data.
+**Done when:** All components render correctly with mock data. ✅
 
 ---
 
