@@ -1,6 +1,6 @@
 "use client"
 
-import { useReducer, useCallback, useRef } from "react"
+import { useReducer, useCallback, useRef, useEffect } from "react"
 import type { Message, Provider, ConsensusResult } from "@/types"
 import { cleanResponse } from "@/lib/clean-response"
 import ChatThread from "@/components/ChatThread"
@@ -158,7 +158,7 @@ export default function ChatPage() {
 
         return { ...placeholder, content: cleaned }
       } catch (err) {
-        // Don't log abort errors — those are intentional cancellations
+        // Don't log abort errors -- those are intentional cancellations
         if (err instanceof DOMException && err.name === "AbortError") {
           dispatch({ type: "SET_TYPING", model: null })
           return null
@@ -167,7 +167,7 @@ export default function ChatPage() {
         dispatch({ type: "SET_TYPING", model: null })
         dispatch({
           type: "UPDATE_LAST_AI_CONTENT",
-          content: `⚠️ ${provider} encountered an error and couldn't respond.`,
+          content: `\u26A0\uFE0F ${provider} encountered an error and couldn't respond.`,
         })
         return null
       }
@@ -285,6 +285,23 @@ export default function ChatPage() {
     abortRef.current?.abort()
     dispatch({ type: "RESET" })
   }, [])
+
+  // On mount, check if there's a prompt from the home page and auto-send it
+  const initialPromptSent = useRef(false)
+  useEffect(() => {
+    if (initialPromptSent.current) return
+    const stored = sessionStorage.getItem("quorum_initial_prompt")
+    if (stored) {
+      initialPromptSent.current = true
+      sessionStorage.removeItem("quorum_initial_prompt")
+      const timeoutId = window.setTimeout(() => {
+        handleSend(stored, "all")
+      }, 100)
+      return () => {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [handleSend])
 
   const TypingIndicator = () => {
     if (!state.typingModel) return null

@@ -1,65 +1,132 @@
-import Image from "next/image";
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { ArrowRight } from "lucide-react"
 
 export default function Home() {
+  const router = useRouter()
+  const [prompt, setPrompt] = useState("")
+  const [mounted, setMounted] = useState(false)
+
+  // Fade-in on mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handleStart = useCallback(() => {
+    const trimmed = prompt.trim()
+    if (!trimmed) return
+    // Store the prompt so /chat can pick it up
+    sessionStorage.setItem("quorum_initial_prompt", trimmed)
+    router.push("/chat")
+  }, [prompt, router])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Cmd/Ctrl + Enter to submit
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault()
+      handleStart()
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#fafaf9]">
+      {/* Subtle background gradient orbs */}
+      <div
+        className="pointer-events-none absolute -top-40 left-1/2 h-[600px] w-[900px] -translate-x-1/2 rounded-full opacity-[0.07]"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, #3B82F6 0%, #14B8A6 40%, transparent 70%)",
+        }}
+      />
+
+      {/* Main content */}
+      <main
+        className={`relative z-10 flex w-full max-w-2xl flex-col items-center px-6 transition-all duration-700 ease-out ${
+          mounted ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+        }`}
+      >
+        {/* Brand */}
+        <div className="mb-12 flex flex-col items-center gap-3">
+          <h1
+            className="text-[2.75rem] font-[275] tracking-[-0.04em] text-neutral-900"
+            style={{ fontFamily: "'Geist', sans-serif" }}
+          >
+            Quorum
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-[0.9rem] font-light tracking-wide text-neutral-400">
+            Multi-AI consensus — one conversation
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* Prompt input area */}
+        <div className="group w-full">
+          <div
+            className="relative rounded-2xl border border-neutral-200/80 bg-white shadow-sm
+                        transition-all duration-300
+                        focus-within:border-neutral-300 focus-within:shadow-md"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            <label htmlFor="prompt-input" className="sr-only">
+              What do you need consensus on?
+            </label>
+            <textarea
+              id="prompt-input"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="What do you need consensus on?"
+              rows={4}
+              className="w-full resize-none rounded-2xl bg-transparent px-5 pb-14 pt-5
+                         text-[0.95rem] leading-relaxed text-neutral-800
+                         placeholder:text-neutral-300
+                         focus:outline-none"
+              autoFocus
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+            {/* Bottom bar inside the textarea card */}
+            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 pb-3">
+              <span className="text-[0.7rem] text-neutral-300">
+                {prompt.trim() ? "\u2318 Enter to start" : ""}
+              </span>
+
+              <button
+                onClick={handleStart}
+                disabled={!prompt.trim()}
+                className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2
+                           text-[0.8rem] font-medium text-white
+                           transition-all duration-200
+                           hover:bg-neutral-800
+                           disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                Start Discussion
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Subtle model badges */}
+        <div
+          className={`mt-8 flex items-center gap-4 transition-all delay-200 duration-700 ease-out ${
+            mounted ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+          }`}
+        >
+          <div className="flex items-center gap-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-[#3B82F6]" />
+            <span className="text-[0.7rem] font-medium tracking-wide text-neutral-400">
+              Gemini
+            </span>
+          </div>
+          <div className="h-3 w-px bg-neutral-200" />
+          <div className="flex items-center gap-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" />
+            <span className="text-[0.7rem] font-medium tracking-wide text-neutral-400">
+              Perplexity
+            </span>
+          </div>
         </div>
       </main>
     </div>
-  );
+  )
 }

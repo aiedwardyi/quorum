@@ -162,3 +162,46 @@ No embeddings. No cosine similarity. No multi-layer scoring. Just one clean API 
 - **Auto-scroll** — chat scrolls to bottom on new messages
 - **Typing indicator** — show animation while model is generating
 - **ADC auth** — Vertex AI uses `gcloud auth application-default login`, no JSON key files
+- **Less is more** — lightweight, minimal, user knows what to do on page load
+- **No duplicate info** — consensus display in ONE place, not sidebar + summary card
+- **Non-technical friendly** — subscription/token model preferred over raw API key input
+
+---
+
+## 📌 v1 Status: COMPLETE
+
+All 6 tasks done. Full loop working: home page → chat → debate → streaming → consensus → summary.
+
+**Known issues for v2 polish:**
+- Gemini third-person speech (buildContents `[Name]:` prefix causes mimicry)
+- Consensus display duplicated in sidebar + summary card
+- Chat page UI needs font/color refresh
+- Home page needs redesign (new font, remove hardcoded model badges)
+- Response length not configurable
+
+---
+
+## 🔮 v2 Planning Notes
+
+**New models:** Claude (Anthropic SDK) + GPT (OpenAI SDK) — up to 4 models, user selects
+
+**User-facing controls (chat page):**
+- Response length: short / medium / long-descriptive
+- Round count: configurable
+- Model picker: choose which AIs participate
+
+**Document upload use case:**
+- User uploads a provisional patent PDF
+- AIs analyze, suggest edits, debate until consensus on best version
+- Export final edited patent as PDF
+
+**Monetization foundation:**
+- Token/credit tracking system
+- Subscription model: flat monthly fee → token pool across all models
+- Server-side API key storage (encrypted, user doesn't re-enter)
+- User accounts for persistence
+
+**Design philosophy:**
+- Less is more — resist over-building
+- Good customization with clean UI, never cluttered
+- Theme options: light / dark / sepia / custom
