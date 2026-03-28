@@ -21,13 +21,11 @@ export default function MessageInput({
   onSend,
   onStop,
   disabled,
-  activeModels,
   locale,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
   disabled: boolean
-  activeModels: Provider[]
   locale: Locale
 }) {
   const [text, setText] = useState("")
@@ -46,7 +44,7 @@ export default function MessageInput({
   }, [text])
 
   const handleSend = () => {
-    if ((text.trim() || attachedFiles.length > 0) && !disabled) {
+    if (text.trim() && !disabled) {
       onSend(text.trim(), "all")
       setText("")
       setAttachedFiles([])

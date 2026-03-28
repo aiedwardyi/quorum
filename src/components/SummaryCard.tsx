@@ -4,7 +4,6 @@ import { useState } from "react"
 import { ConsensusResult, Locale } from "@/types"
 import { motion } from "framer-motion"
 import { CheckCircle2, XCircle, RefreshCw, Copy, Check } from "lucide-react"
-import { cn } from "@/lib/utils"
 
 const translations = {
   en: { summary: "Discussion Summary", agreements: "Agreements", disagreements: "Disagreements", newDiscussion: "New Discussion", copy: "Copy", copied: "Copied" },
@@ -46,7 +45,7 @@ export default function SummaryCard({
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    })
+    }).catch(() => {})
   }
 
   return (
@@ -58,7 +57,7 @@ export default function SummaryCard({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-zinc-100 dark:border-white/[0.04]">
         <div>
           <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">{t.summary}</h2>
-          <p className={`text-sm mt-1 font-semibold ${getScoreColor(result.score)}`}>{getStatusText(result.score)}</p>
+          <p className="text-sm mt-1 font-semibold text-green-600 dark:text-green-400">{getStatusText(result.score)}</p>
         </div>
         <div className="text-right">
           <div className="text-5xl font-mono font-light tracking-tighter text-zinc-900 dark:text-zinc-100">

@@ -60,7 +60,9 @@ Make it beautiful, configurable, and personal.
 - [ ] BYOK — users input their own API keys (UI exists, backend pending)
 - [ ] Token/credit tracking system (foundation for payment)
 - [ ] Credits button on chat header — functional (currently cosmetic)
-- [ ] Theme modes — light / dark done, sepia + customization TBD
+- [ ] Default to dark mode
+- [ ] Sepia theme (third option alongside light/dark)
+- [ ] Custom color themes (accent colors, background tones — personal power tool)
 - [ ] Settings page — exists with Account + Preferences tabs
 - [ ] Voice input (Watson STT)
 

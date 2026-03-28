@@ -98,7 +98,7 @@ export default function ChatPage() {
   const [locale, setLocale] = useState<Locale>("en")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(5)
-  const [theme, setTheme] = useState<"light" | "dark">("light")
+  const [theme, setTheme] = useState<"light" | "dark">("dark")
   const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
@@ -243,6 +243,7 @@ export default function ChatPage() {
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           dispatch({ type: "SET_TYPING", model: null })
+          dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: "Response cancelled." })
           return null
         }
         console.error(`${provider} failed:`, err)
@@ -307,17 +308,17 @@ export default function ChatPage() {
       if (target === "all") {
         let msgs = allMessages
         const rounds = models.length >= 2 ? maxRounds : 1
-        let earlyConsensus = false
+        let stoppedEarly = false
         for (let r = 0; r < rounds; r++) {
           if (stopRef.current) break
           dispatch({ type: "SET_ROUND", round: r + 1 })
           const result = await runRound(msgs, models)
           msgs = result.msgs
-          if (result.done) { earlyConsensus = true; break }
+          if (result.done) { stoppedEarly = true; break }
         }
 
-        // If all rounds finished without early consensus, fetch final consensus and show summary
-        if (!earlyConsensus && !stopRef.current && models.length >= 2) {
+        // If all rounds finished without being stopped early, fetch final consensus and show summary
+        if (!stoppedEarly && !stopRef.current && models.length >= 2) {
           const aiCount = msgs.filter((m) => m.sender !== "user").length
           if (aiCount >= 2) {
             try {
@@ -408,6 +409,7 @@ export default function ChatPage() {
         isLoggedIn={isLoggedIn}
         onLogin={() => setIsLoggedIn(true)}
         onLogout={() => setIsLoggedIn(false)}
+        isDebating={state.isDebating}
       />
 
       <SettingsModal
@@ -419,6 +421,7 @@ export default function ChatPage() {
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         maxRounds={maxRounds}
         onChangeRounds={setMaxRounds}
+        isDebating={state.isDebating}
       />
 
       {/* Scrollable message area */}
@@ -470,7 +473,7 @@ export default function ChatPage() {
               score={state.consensus?.score ?? null}
               result={state.showSummary ? state.consensus : null}
               locale={locale}
-              variant="rail"
+
             />
           )}
         </AnimatePresence>
@@ -480,7 +483,6 @@ export default function ChatPage() {
             onSend={handleSend}
             onStop={handleStop}
             disabled={state.isDebating}
-            activeModels={state.activeModels}
             locale={locale}
           />
         )}

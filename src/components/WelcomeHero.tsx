@@ -3,7 +3,6 @@
 import { motion } from "framer-motion"
 import { Provider, Locale } from "@/types"
 import { Sparkles, MessageSquare } from "lucide-react"
-import { cn } from "@/lib/utils"
 
 const suggestions = {
   en: [

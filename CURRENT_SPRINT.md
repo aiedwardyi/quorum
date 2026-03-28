@@ -51,8 +51,8 @@ If user selects 5 rounds, counter shows "5/3" instead of "5/5". The `maxRounds` 
 ### 5. Response Length Wiring
 `responseLength` (short/medium/long) is stored in state but never sent to the API. Wire it into the system prompt with word targets: short ~75 words, medium ~150 words, long ~300 words.
 
-### 6. Stop Button - Stuck Thinking Bubble
-When user presses stop while AI is responding, the "is thinking..." bubble stays forever. Should resolve to an error/cancelled state message.
+### ~~6. Stop Button - Stuck Thinking Bubble~~ ✅
+Fixed: AbortError catch now dispatches "✖️ Response cancelled." to resolve the placeholder bubble.
 
 ### 7. API Key Limit Error Handling
 When API keys hit rate limits or quota, show a graceful error message in chat (not a crash). Something like "Gemini encountered an error. Check your API quota." with a suggested follow-up action.
@@ -79,6 +79,18 @@ Users who haven't logged in or entered API keys need a clear path. Options to co
 - Demo/preview mode with pre-recorded conversation
 - Landing page with GIF/video demo showing a real debate (like Vercel/Linear/Lovable)
 - FAQ/docs page with screenshots explaining the product
+
+### 15. Cancelled Message Styling
+The "✖️ Response cancelled." message uses a purple emoji that doesn't match the premium tone. Replace with a clean, muted text like "— Response stopped" or plain "Response cancelled." with subtle styling. No emoji.
+
+### 16. Homepage Language Toggle Label
+The homepage header shows `한` when in Korean mode. Consider whether this should be `KR`, `한국어`, or a globe icon for better clarity.
+
+### 17. Default Theme
+Switch default theme to dark mode. Power users and decision-makers expect a pro-tool aesthetic. Light mode remains available.
+
+### 18. Sepia + Custom Color Modes
+Add sepia theme as a third option alongside light/dark. Build foundation for user-customizable color themes (accent colors, background tones). Eddie wants extensive customization — this is a personal power tool.
 
 ### 13. Landing Page / Marketing Section
 Consider adding a section below the homepage prompt area (or a separate landing page) with:

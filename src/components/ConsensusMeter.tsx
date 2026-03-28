@@ -24,12 +24,10 @@ export default function ConsensusMeter({
   score,
   result,
   locale,
-  variant = "rail",
 }: {
   score: number | null
   result: ConsensusResult | null
   locale: Locale
-  variant?: "header" | "rail"
 }) {
   const t = translations[locale]
 

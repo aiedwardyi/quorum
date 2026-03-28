@@ -16,6 +16,7 @@ const translations = {
     lengthTooltip: "Set response length",
     login: "Log In",
     logout: "Log Out",
+    settings: "Settings",
   },
   ko: {
     round: "라운드",
@@ -26,6 +27,7 @@ const translations = {
     lengthTooltip: "답변 길이 설정",
     login: "로그인",
     logout: "로그아웃",
+    settings: "설정",
   },
 }
 
@@ -42,6 +44,7 @@ export default function ChatHeader({
   isLoggedIn,
   onLogin,
   onLogout,
+  isDebating = false,
 }: {
   currentRound: number
   maxRounds: number
@@ -55,6 +58,7 @@ export default function ChatHeader({
   isLoggedIn: boolean
   onLogin: () => void
   onLogout: () => void
+  isDebating?: boolean
 }) {
   const t = translations[locale]
   const [showLengthDropdown, setShowLengthDropdown] = useState(false)
@@ -104,7 +108,7 @@ export default function ChatHeader({
 
           <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-800 shrink-0" />
 
-          <div className="relative shrink-0 group" data-header-dropdown>
+          <div className={cn("relative shrink-0 group", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowLengthDropdown(!showLengthDropdown)}
@@ -226,7 +230,7 @@ export default function ChatHeader({
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
                     >
                       <Settings2 className="w-4 h-4" />
-                      Settings
+                      {t.settings}
                     </button>
                     <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
                     <button

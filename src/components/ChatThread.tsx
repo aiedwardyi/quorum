@@ -21,6 +21,8 @@ export default function ChatThread({
   const bottomRef = useRef<HTMLDivElement>(null)
   const isNearBottom = useRef(true)
 
+  const hasMessages = messages.length > 0 || !!typingModel
+
   useEffect(() => {
     const main = bottomRef.current?.closest("main")
     if (!main) return
@@ -30,7 +32,7 @@ export default function ChatThread({
     }
     main.addEventListener("scroll", handleScroll)
     return () => main.removeEventListener("scroll", handleScroll)
-  }, [])
+  }, [hasMessages])
 
   useEffect(() => {
     if (isNearBottom.current) {

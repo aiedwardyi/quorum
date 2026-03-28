@@ -60,7 +60,7 @@ type Tooltips = typeof t["en"]["tooltips"]
 
 const t = {
   en: {
-    placeholder: "What do you need consensus on?",
+    placeholder: "What should the AIs debate?",
     start: "Send",
     short: "Short",
     medium: "Medium",
@@ -89,7 +89,7 @@ const t = {
     },
   },
   ko: {
-    placeholder: "어떤 주제에 대해 합의가 필요하신가요?",
+    placeholder: "AI들이 무엇을 토론할까요?",
     start: "전송",
     short: "짧게",
     medium: "보통",
@@ -130,7 +130,7 @@ function modelDisplayName(id: Provider): string {
 
 export default function Home() {
   const router = useRouter()
-  const [theme, setTheme] = useState<"light" | "dark">("light")
+  const [theme, setTheme] = useState<"light" | "dark">("dark")
   const [locale, setLocale] = useState<Locale>("en")
   const [prompt, setPrompt] = useState("")
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
@@ -265,7 +265,7 @@ export default function Home() {
             onClick={() => setLocale(locale === "en" ? "ko" : "en")}
             className="cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
           >
-            {locale === "en" ? "EN" : "한"}
+            {locale === "en" ? "EN" : "KO"}
           </button>
           <button
             onClick={toggleTheme}
@@ -365,7 +365,7 @@ export default function Home() {
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
                 placeholder={t[locale].placeholder}
-                className="w-full bg-transparent text-xl min-[375px]:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium tracking-tight placeholder:text-zinc-400 dark:placeholder:text-zinc-600 resize-none outline-none min-h-[100px] sm:min-h-[120px] leading-[1.15]"
+                className="w-full bg-transparent text-lg min-[375px]:text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium tracking-tight placeholder:text-zinc-400 dark:placeholder:text-zinc-600 resize-none outline-none min-h-[100px] sm:min-h-[120px] leading-[1.15]"
                 autoFocus
               />
               <div className="flex items-center justify-between mt-2">

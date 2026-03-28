@@ -29,8 +29,8 @@ const ModelIcon = ({ provider, size = 16 }: { provider: Provider; size?: number 
 }
 
 const translations = {
-  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiDesc: "Google's flagship multimodal AI model", perplexityDesc: "AI search engine for up-to-date information", claudeDesc: "Anthropic's advanced reasoning model", gptDesc: "OpenAI's powerful language model", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", discussionRounds: "Discussion Rounds", rounds: "rounds", rounds3Desc: "Quick debate and consensus", rounds5Desc: "Standard back-and-forth discussion", rounds7Desc: "Deep dive with extensive analysis" },
-  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiDesc: "Google의 대표 멀티모달 AI 모델", perplexityDesc: "최신 정보를 위한 AI 검색 엔진", claudeDesc: "Anthropic의 고급 추론 모델", gptDesc: "OpenAI의 강력한 언어 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", discussionRounds: "토론 라운드", rounds: "라운드", rounds3Desc: "빠른 토론 및 합의", rounds5Desc: "표준적인 의견 교환 및 토론", rounds7Desc: "광범위한 분석을 동반한 심층 토론" },
+  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiDesc: "Google's flagship multimodal AI model", perplexityDesc: "AI search engine for up-to-date information", claudeDesc: "Anthropic's advanced reasoning model", gptDesc: "OpenAI's powerful language model", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", discussionRounds: "Discussion Rounds", rounds: "rounds", rounds3Desc: "Quick debate and consensus", rounds5Desc: "Standard back-and-forth discussion", rounds7Desc: "Deep dive with extensive analysis", toggle: "Toggle" },
+  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiDesc: "Google의 대표 멀티모달 AI 모델", perplexityDesc: "최신 정보를 위한 AI 검색 엔진", claudeDesc: "Anthropic의 고급 추론 모델", gptDesc: "OpenAI의 강력한 언어 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", discussionRounds: "토론 라운드", rounds: "라운드", rounds3Desc: "빠른 토론 및 합의", rounds5Desc: "표준적인 의견 교환 및 토론", rounds7Desc: "광범위한 분석을 동반한 심층 토론", toggle: "전환" },
 }
 
 type Tab = "account" | "preferences"
@@ -45,6 +45,7 @@ export default function SettingsModal({
   maxRounds,
   onChangeRounds,
   showPreferences,
+  isDebating = false,
 }: {
   isOpen: boolean
   onClose: () => void
@@ -55,6 +56,7 @@ export default function SettingsModal({
   maxRounds: number
   onChangeRounds: (rounds: number) => void
   showPreferences?: boolean
+  isDebating?: boolean
 }) {
   const showPrefs = showPreferences !== false
   const [activeTab, setActiveTab] = useState<Tab>("account")
@@ -150,11 +152,11 @@ export default function SettingsModal({
                       <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-md"><Globe className="w-4 h-4 text-zinc-500 dark:text-zinc-400" /></div>
                       <div><p className="text-[13px] font-medium text-zinc-900 dark:text-zinc-100">{t.language}</p><p className="text-[11px] text-zinc-500">{locale === "en" ? "English" : "한국어"}</p></div>
                     </div>
-                    <button onClick={onToggleLocale} className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-[11px] font-medium rounded-md transition-colors active:scale-95">Toggle</button>
+                    <button onClick={onToggleLocale} className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-[11px] font-medium rounded-md transition-colors active:scale-95">{t.toggle}</button>
                   </div>
                   <div className="space-y-3 pt-2">
                     <div className="flex items-center gap-2 px-1"><Bot className="w-3.5 h-3.5 text-zinc-400" /><span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">{t.activeModels}</span></div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className={cn("grid grid-cols-2 gap-2", isDebating && "pointer-events-none opacity-40")}>
                       {ALL_MODELS.map((model, modelIndex) => {
                         const isActive = activeModels.includes(model)
                         const style = modelStyles[model]
@@ -171,7 +173,7 @@ export default function SettingsModal({
                   </div>
                   <div className="space-y-3 pt-4">
                     <div className="flex items-center gap-2 px-1"><RotateCw className="w-3.5 h-3.5 text-zinc-400" /><span className="text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">{t.discussionRounds}</span></div>
-                    <div className="flex items-center gap-1 bg-zinc-50/50 dark:bg-zinc-900/30 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">
+                    <div className={cn("flex items-center gap-1 bg-zinc-50/50 dark:bg-zinc-900/30 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50", isDebating && "pointer-events-none opacity-40")}>
                       {[
                         { val: 3, desc: t.rounds3Desc },
                         { val: 5, desc: t.rounds5Desc },
