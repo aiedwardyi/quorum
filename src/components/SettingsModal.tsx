@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Eye, EyeOff, Bot, RotateCw } from "lucide-react"
 import { Locale, Provider } from "@/types"

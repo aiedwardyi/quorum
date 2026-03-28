@@ -37,7 +37,6 @@ export default function ChatHeader({
   responseLength,
   onChangeResponseLength,
   locale,
-  onToggleLocale,
   theme,
   onToggleTheme,
   onOpenSettings,
@@ -51,7 +50,6 @@ export default function ChatHeader({
   responseLength: ResponseLength
   onChangeResponseLength: (length: ResponseLength) => void
   locale: Locale
-  onToggleLocale: () => void
   theme: "light" | "dark"
   onToggleTheme: () => void
   onOpenSettings: () => void

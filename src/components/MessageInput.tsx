@@ -43,10 +43,17 @@ export default function MessageInput({
     }
   }, [text])
 
+  useEffect(() => {
+    return () => {
+      attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
+    }
+  }, [attachedFiles])
+
   const handleSend = () => {
     if (text.trim() && !disabled) {
       onSend(text.trim(), "all")
       setText("")
+      attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
       setAttachedFiles([])
       if (textareaRef.current) textareaRef.current.style.height = "auto"
     }
@@ -174,7 +181,7 @@ export default function MessageInput({
               ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleSend() }}
-                  disabled={!text.trim() && attachedFiles.length === 0}
+                  disabled={!text.trim()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
                 >
                   <Send className="w-3.5 h-3.5" />

@@ -22,12 +22,6 @@ export default function SummaryCard({
   const t = translations[locale]
   const [copied, setCopied] = useState(false)
 
-  const getScoreColor = (s: number) => {
-    if (s >= 80) return "text-green-600 dark:text-green-400"
-    if (s >= 50) return "text-yellow-600 dark:text-yellow-400"
-    return "text-red-600 dark:text-red-400"
-  }
-
   const getStatusText = (s: number) => {
     if (s >= 80) return locale === "ko" ? "합의 도달" : "Consensus Reached"
     return locale === "ko" ? "토론 완료" : "Discussion Concluded"

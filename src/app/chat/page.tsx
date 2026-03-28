@@ -402,7 +402,6 @@ export default function ChatPage() {
         responseLength={responseLength}
         onChangeResponseLength={setResponseLength}
         locale={locale}
-        onToggleLocale={() => setLocale((l) => (l === "en" ? "ko" : "en"))}
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
