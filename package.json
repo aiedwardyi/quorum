@@ -8,12 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "test:providers": "npx tsx src/lib/providers/test-providers.ts"
-    
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
     "lucide-react": "^0.577.0",
     "next": "16.2.0",
     "radix-ui": "^1.4.3",

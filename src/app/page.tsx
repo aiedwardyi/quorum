@@ -1,132 +1,685 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight } from "lucide-react"
+import { Sun, Moon, Send, Check, User, Settings, CreditCard, LogOut, Key, X, Sparkles, Eye, EyeOff, Paperclip } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import type { Provider, ResponseLength, Locale } from "@/types"
+
+/* ─── Model SVG Icons ─── */
+
+const GeminiIcon = ({ size = 24, className = "", ...props }: any) => (
+  <svg height={size} width={size} style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
+    <title>Gemini</title>
+    <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="#3186FF" />
+    <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#gemini-g0)" />
+    <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#gemini-g1)" />
+    <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#gemini-g2)" />
+    <defs>
+      <linearGradient gradientUnits="userSpaceOnUse" id="gemini-g0" x1="7" x2="11" y1="15.5" y2="12"><stop stopColor="#08B962" /><stop offset="1" stopColor="#08B962" stopOpacity="0" /></linearGradient>
+      <linearGradient gradientUnits="userSpaceOnUse" id="gemini-g1" x1="8" x2="11.5" y1="5.5" y2="11"><stop stopColor="#F94543" /><stop offset="1" stopColor="#F94543" stopOpacity="0" /></linearGradient>
+      <linearGradient gradientUnits="userSpaceOnUse" id="gemini-g2" x1="3.5" x2="17.5" y1="13.5" y2="12"><stop stopColor="#FABC12" /><stop offset=".46" stopColor="#FABC12" stopOpacity="0" /></linearGradient>
+    </defs>
+  </svg>
+)
+
+const PerplexityIcon = ({ size = 24, className = "", ...props }: any) => (
+  <svg fill="currentColor" fillRule="evenodd" height={size} width={size} style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
+    <title>Perplexity</title>
+    <path d="M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z" />
+  </svg>
+)
+
+const ClaudeIcon = ({ size = 24, className = "", ...props }: any) => (
+  <svg height={size} width={size} style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
+    <title>Claude</title>
+    <path clipRule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill="#D97757" fillRule="evenodd" />
+  </svg>
+)
+
+const GPTIcon = ({ size = 24, className = "", ...props }: any) => (
+  <svg fill="currentColor" fillRule="evenodd" height={size} width={size} style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
+    <title>OpenAI</title>
+    <path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z" />
+  </svg>
+)
+
+/* ─── Model config ─── */
+
+const MODELS: { id: Provider; color: string; icon: React.ElementType }[] = [
+  { id: "gemini", color: "#3B82F6", icon: GeminiIcon },
+  { id: "perplexity", color: "#14B8A6", icon: PerplexityIcon },
+  { id: "claude", color: "#F97316", icon: ClaudeIcon },
+  { id: "gpt", color: "#10B981", icon: GPTIcon },
+]
+
+/* ─── Translations ─── */
+
+type Tooltips = typeof t["en"]["tooltips"]
+
+const t = {
+  en: {
+    placeholder: "What do you need consensus on?",
+    start: "Send",
+    short: "Short",
+    medium: "Medium",
+    long: "Long",
+    rounds: "rounds",
+    quickTake: "quick take",
+    standard: "standard",
+    deepDive: "deep dive",
+    responseLength: "Response Length",
+    roundsCount: "Rounds",
+    models: "Participants",
+    keyboardHint: "to submit",
+    settings: "Settings",
+    apiKeys: "API Keys",
+    buyCredits: "Buy Credits",
+    signOut: "Sign Out",
+    credits: "Credits",
+    save: "Save Changes",
+    apiKeyDesc: "Use your own API keys or buy credits to use any model.",
+    tooltips: {
+      gemini: "Google's flagship multimodal AI model",
+      perplexity: "AI search engine for up-to-date information",
+      claude: "Anthropic's advanced reasoning model",
+      gpt: "OpenAI's powerful language model",
+      short: "1-2 paragraphs per response",
+      medium: "3-4 paragraphs per response",
+      long: "Comprehensive, detailed analysis",
+      rounds3: "Quick debate and consensus",
+      rounds5: "Standard back-and-forth discussion",
+      rounds7: "Deep dive with extensive analysis",
+    },
+  },
+  ko: {
+    placeholder: "어떤 주제에 대해 합의가 필요하신가요?",
+    start: "전송",
+    short: "짧게",
+    medium: "보통",
+    long: "길게",
+    rounds: "라운드",
+    quickTake: "빠른 토론",
+    standard: "기본",
+    deepDive: "심층 토론",
+    responseLength: "응답 길이",
+    roundsCount: "라운드 수",
+    models: "참여 모델",
+    keyboardHint: "눌러서 시작",
+    settings: "설정",
+    apiKeys: "API 키",
+    buyCredits: "크레딧 구매",
+    signOut: "로그아웃",
+    credits: "크레딧",
+    save: "변경사항 저장",
+    apiKeyDesc: "자체 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.",
+    tooltips: {
+      gemini: "Google의 최신 멀티모달 AI 모델",
+      perplexity: "최신 정보를 제공하는 AI 검색 엔진",
+      claude: "Anthropic의 고급 추론 모델",
+      gpt: "OpenAI의 강력한 언어 모델",
+      short: "응답당 1-2 문단",
+      medium: "응답당 3-4 문단",
+      long: "포괄적이고 상세한 분석",
+      rounds3: "빠른 토론 및 합의",
+      rounds5: "표준적인 의견 교환 및 토론",
+      rounds7: "광범위한 분석을 동반한 심층 토론",
+    },
+  },
+}
+
+/* ─── Display name helper ─── */
+
+function modelDisplayName(id: Provider): string {
+  if (id === "gpt") return "GPT"
+  return id.charAt(0).toUpperCase() + id.slice(1)
+}
+
+/* ─── Component ─── */
 
 export default function Home() {
   const router = useRouter()
+  const [theme, setTheme] = useState<"light" | "dark">("light")
+  const [locale, setLocale] = useState<Locale>("en")
   const [prompt, setPrompt] = useState("")
-  const [mounted, setMounted] = useState(false)
+  const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
+  const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
+  const [rounds, setRounds] = useState<number>(5)
+  const [isFocused, setIsFocused] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Fade-in on mount
+  // Header & Settings state
+  const [isLoggedIn, setIsLoggedIn] = useState(true)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showKey, setShowKey] = useState<Record<string, boolean>>({})
+  const [apiKeys, setApiKeys] = useState({ gemini: "", perplexity: "", claude: "", gpt: "" })
+  const [files, setFiles] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+
   useEffect(() => {
-    setMounted(true)
+    const savedTheme = localStorage.getItem("quorum_theme")
+    if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      setTheme("dark")
+      document.documentElement.classList.add("dark")
+    } else {
+      setTheme("light")
+      document.documentElement.classList.remove("dark")
+    }
   }, [])
 
-  const handleStart = useCallback(() => {
-    const trimmed = prompt.trim()
-    if (!trimmed) return
-    // Store the prompt so /chat can pick it up
-    sessionStorage.setItem("quorum_initial_prompt", trimmed)
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light"
+    setTheme(newTheme)
+    localStorage.setItem("quorum_theme", newTheme)
+    if (newTheme === "dark") {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+  }
+
+  const toggleModel = (model: Provider) => {
+    if (selectedModels.includes(model)) {
+      if (selectedModels.length > 2) {
+        setSelectedModels(selectedModels.filter((m) => m !== model))
+      }
+    } else {
+      if (selectedModels.length < 4) {
+        setSelectedModels([...selectedModels, model])
+      }
+    }
+  }
+
+  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setPrompt(e.target.value)
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+    }
+  }
+
+  const handleSubmit = () => {
+    if (!prompt.trim()) return
+    const config = {
+      prompt: prompt.trim(),
+      models: selectedModels,
+      responseLength,
+      rounds,
+      locale,
+    }
+    sessionStorage.setItem("quorum_config", JSON.stringify(config))
     router.push("/chat")
-  }, [prompt, router])
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Cmd/Ctrl + Enter to submit
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault()
-      handleStart()
+      handleSubmit()
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)])
     }
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#fafaf9]">
-      {/* Subtle background gradient orbs */}
-      <div
-        className="pointer-events-none absolute -top-40 left-1/2 h-[600px] w-[900px] -translate-x-1/2 rounded-full opacity-[0.07]"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, #3B82F6 0%, #14B8A6 40%, transparent 70%)",
-        }}
-      />
+    <div className="relative min-h-screen overflow-hidden bg-[#fafaf9] dark:bg-[#0a0a0a] text-zinc-900 dark:text-zinc-100 font-[family-name:var(--font-geist-sans)] selection:bg-zinc-200 dark:selection:bg-zinc-800 transition-colors duration-300 flex flex-col">
+      {/* Background animation */}
+      <div className="absolute inset-0 pointer-events-none">
+        <motion.div
+          animate={{ x: [0, 50, 0], y: [0, -30, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-blue-400/10 dark:bg-blue-500/5 blur-[120px]"
+        />
+        <motion.div
+          animate={{ x: [0, -50, 0], y: [0, 30, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-teal-400/10 dark:bg-teal-500/5 blur-[120px]"
+        />
+      </div>
 
-      {/* Main content */}
-      <main
-        className={`relative z-10 flex w-full max-w-2xl flex-col items-center px-6 transition-all duration-700 ease-out ${
-          mounted ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-        }`}
-      >
-        {/* Brand */}
-        <div className="mb-12 flex flex-col items-center gap-3">
-          <h1
-            className="text-[2.75rem] font-[275] tracking-[-0.04em] text-neutral-900"
-            style={{ fontFamily: "'Geist', sans-serif" }}
-          >
-            Quorum
-          </h1>
-          <p className="text-[0.9rem] font-light tracking-wide text-neutral-400">
-            Multi-AI consensus — one conversation
-          </p>
+      {/* Header */}
+      <header className="relative z-30 flex justify-between items-center p-4 sm:p-6 md:p-8 w-full max-w-5xl mx-auto">
+        <div className="font-semibold tracking-tight text-base sm:text-lg flex items-center gap-2">
+          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-sm bg-zinc-900 dark:bg-zinc-100" />
+          Quorum
         </div>
-
-        {/* Prompt input area */}
-        <div className="group w-full">
-          <div
-            className="relative rounded-2xl border border-neutral-200/80 bg-white shadow-sm
-                        transition-all duration-300
-                        focus-within:border-neutral-300 focus-within:shadow-md"
+        <div className="flex items-center gap-3 sm:gap-5">
+          <button
+            onClick={() => setLocale(locale === "en" ? "ko" : "en")}
+            className="cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
           >
-            <label htmlFor="prompt-input" className="sr-only">
-              What do you need consensus on?
-            </label>
-            <textarea
-              id="prompt-input"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="What do you need consensus on?"
-              rows={4}
-              className="w-full resize-none rounded-2xl bg-transparent px-5 pb-14 pt-5
-                         text-[0.95rem] leading-relaxed text-neutral-800
-                         placeholder:text-neutral-300
-                         focus:outline-none"
-              autoFocus
-            />
+            {locale === "en" ? "EN" : "한"}
+          </button>
+          <button
+            onClick={toggleTheme}
+            className="cursor-pointer text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            aria-label="Toggle theme"
+          >
+            {theme === "light" ? <Moon size={18} strokeWidth={2.5} /> : <Sun size={18} strokeWidth={2.5} />}
+          </button>
 
-            {/* Bottom bar inside the textarea card */}
-            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 pb-3">
-              <span className="text-[0.7rem] text-neutral-300">
-                {prompt.trim() ? "\u2318 Enter to start" : ""}
-              </span>
+          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-800 mx-1" />
 
+          {isLoggedIn ? (
+            <div className="flex items-center gap-3">
               <button
-                onClick={handleStart}
-                disabled={!prompt.trim()}
-                className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2
-                           text-[0.8rem] font-medium text-white
-                           transition-all duration-200
-                           hover:bg-neutral-800
-                           disabled:cursor-not-allowed disabled:opacity-30"
+                onClick={() => setShowSettings(true)}
+                className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-zinc-200/50 dark:border-zinc-800/50 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-all shadow-sm"
               >
-                Start Discussion
-                <ArrowRight className="h-3.5 w-3.5" />
+                <Sparkles size={14} className="text-amber-500" />
+                <span>1,250</span>
+              </button>
+
+              <div className="relative">
+                <button
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="cursor-pointer w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  <User size={16} />
+                </button>
+
+                <AnimatePresence>
+                  {showDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 overflow-hidden"
+                      >
+                        <div className="p-1.5">
+                          <button
+                            onClick={() => { setShowSettings(true); setShowDropdown(false) }}
+                            className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 rounded-xl transition-colors text-left"
+                          >
+                            <Settings size={16} />
+                            {t[locale].settings}
+                          </button>
+                          <button
+                            onClick={() => { setShowSettings(true); setShowDropdown(false) }}
+                            className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 rounded-xl transition-colors text-left"
+                          >
+                            <CreditCard size={16} />
+                            {t[locale].buyCredits}
+                          </button>
+                          <div className="h-px w-full bg-zinc-200/50 dark:bg-zinc-800/50 my-1.5" />
+                          <button
+                            onClick={() => { setIsLoggedIn(false); setShowDropdown(false) }}
+                            className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors text-left"
+                          >
+                            <LogOut size={16} />
+                            {t[locale].signOut}
+                          </button>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsLoggedIn(true)}
+              className="cursor-pointer text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            >
+              Sign In
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="relative z-10 flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 pt-6 sm:pt-12 pb-24 sm:pb-32 flex flex-col justify-center">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
+          className="flex flex-col gap-8 sm:gap-12"
+        >
+          {/* Textarea */}
+          <motion.div
+            className={`relative group rounded-3xl p-[2px] overflow-hidden -mx-4 sm:-mx-6 ${isDragging ? "ring-4 ring-purple-500" : ""}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            initial={false}
+            animate={{ scale: isFocused ? 1.02 : 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          >
+            <div className={`absolute inset-0 bg-[conic-gradient(from_0deg,red,purple,blue,red)] animate-rotate-border ${isFocused ? "opacity-100" : "opacity-50"}`} />
+
+            <div className="relative bg-[#fafaf9] dark:bg-[#0a0a0a] rounded-[22px] p-4 sm:p-6">
+              <textarea
+                ref={textareaRef}
+                value={prompt}
+                onChange={handleInput}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                placeholder={t[locale].placeholder}
+                className="w-full bg-transparent text-xl min-[375px]:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium tracking-tight placeholder:text-zinc-400 dark:placeholder:text-zinc-600 resize-none outline-none min-h-[100px] sm:min-h-[120px] leading-[1.15]"
+                autoFocus
+              />
+              <div className="flex items-center justify-between mt-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+                >
+                  <Paperclip size={20} />
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setFiles((prev) => [...prev, ...Array.from(e.target.files!)])
+                    }
+                  }}
+                />
+              </div>
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {files.map((file, index) => (
+                    <div key={index} className="flex items-center gap-2 bg-zinc-200 dark:bg-zinc-800 px-3 py-1 rounded-full text-sm">
+                      <span className="truncate max-w-[150px]">{file.name}</span>
+                      <button onClick={() => setFiles(files.filter((_, i) => i !== index))} className="hover:text-red-500">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Controls */}
+          <div className="flex flex-col gap-8 sm:gap-10">
+            {/* Models */}
+            <div className="flex flex-col gap-4">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                {t[locale].models}
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                {MODELS.map((model) => {
+                  const isSelected = selectedModels.includes(model.id)
+                  const isDisabled = !isSelected && selectedModels.length >= 4
+                  const isMinReached = isSelected && selectedModels.length <= 2
+                  const Icon = model.icon
+
+                  return (
+                    <motion.button
+                      key={model.id}
+                      onClick={() => toggleModel(model.id)}
+                      disabled={isDisabled && !isSelected}
+                      initial={false}
+                      animate={{
+                        scale: isSelected ? 1.02 : 1,
+                        opacity: isDisabled && !isSelected ? 0.3 : isSelected ? 1 : 0.6,
+                      }}
+                      whileHover={
+                        isDisabled && !isSelected
+                          ? {}
+                          : { scale: isSelected ? 1.04 : 1.02, opacity: 1 }
+                      }
+                      whileTap={{
+                        scale: (isDisabled && !isSelected) || isMinReached ? (isSelected ? 1.02 : 1) : 0.98,
+                      }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className={`group/model relative flex flex-col items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl transition-all duration-300 text-left outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600 border ${
+                        isSelected
+                          ? "bg-white dark:bg-zinc-900"
+                          : "bg-zinc-50/50 dark:bg-zinc-900/20 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-900/50"
+                      } ${(isDisabled && !isSelected) || isMinReached ? "cursor-not-allowed" : "cursor-pointer"}`}
+                      style={
+                        isSelected
+                          ? {
+                              borderColor: `${model.color}80`,
+                              boxShadow: `0 4px 24px -6px ${model.color}40`,
+                            }
+                          : {}
+                      }
+                    >
+                      {/* Tooltip */}
+                      <div className="hidden sm:block absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[11px] sm:text-xs font-medium rounded-lg opacity-0 group-hover/model:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl">
+                        {t[locale].tooltips[model.id as keyof Tooltips]}
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
+                      </div>
+
+                      <div className="flex justify-between w-full items-start">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300"
+                          style={{
+                            backgroundColor: isSelected ? `${model.color}15` : "transparent",
+                            color: isSelected ? model.color : "currentColor",
+                          }}
+                        >
+                          <Icon size={16} className={isSelected ? "" : "text-zinc-500 dark:text-zinc-400"} />
+                        </div>
+                        <div
+                          className={`w-4 h-4 mt-1 rounded-full border flex items-center justify-center transition-all duration-300 ${
+                            isSelected
+                              ? "bg-zinc-900 dark:bg-zinc-100 border-transparent text-white dark:text-zinc-900 scale-100"
+                              : "border-zinc-300 dark:border-zinc-600 text-transparent scale-90"
+                          }`}
+                        >
+                          <Check size={10} strokeWidth={3} />
+                        </div>
+                      </div>
+                      <span
+                        className={`font-medium text-xs sm:text-sm tracking-wide transition-colors ${
+                          isSelected ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400"
+                        }`}
+                      >
+                        {modelDisplayName(model.id)}
+                      </span>
+                    </motion.button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="h-px w-full bg-zinc-200/60 dark:bg-zinc-800/60" />
+
+            {/* Settings and Submit Row */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 lg:gap-8">
+              <div className="flex flex-col sm:flex-row gap-6 sm:gap-12 lg:gap-16">
+                {/* Response Length */}
+                <div className="flex flex-col gap-4 w-full sm:w-auto">
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                    {t[locale].responseLength}
+                  </span>
+                  <div className="flex items-center w-full sm:w-auto gap-1 bg-zinc-100/50 dark:bg-zinc-900/30 p-1 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
+                    {(["short", "medium", "long"] as ResponseLength[]).map((len) => (
+                      <button
+                        key={len}
+                        onClick={() => setResponseLength(len)}
+                        className={`group/len relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
+                          responseLength === len
+                            ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
+                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 border border-transparent"
+                        }`}
+                      >
+                        <div className="hidden sm:block absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[11px] sm:text-xs font-medium rounded-lg opacity-0 group-hover/len:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl">
+                          {t[locale].tooltips[len]}
+                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
+                        </div>
+                        {t[locale][len]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Rounds */}
+                <div className="flex flex-col gap-4 w-full sm:w-auto">
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                    {t[locale].roundsCount}
+                  </span>
+                  <div className="flex items-center w-full sm:w-auto gap-1 bg-zinc-100/50 dark:bg-zinc-900/30 p-1 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
+                    {[
+                      { val: 3, label: `3 ${t[locale].rounds}`, desc: t[locale].quickTake },
+                      { val: 5, label: `5 ${t[locale].rounds}`, desc: t[locale].standard },
+                      { val: 7, label: `7 ${t[locale].rounds}`, desc: t[locale].deepDive },
+                    ].map((r) => (
+                      <button
+                        key={r.val}
+                        onClick={() => setRounds(r.val)}
+                        className={`group/round relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
+                          rounds === r.val
+                            ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
+                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 border border-transparent"
+                        }`}
+                      >
+                        <div className="hidden sm:block absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[11px] sm:text-xs font-medium rounded-lg opacity-0 group-hover/round:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl">
+                          {t[locale].tooltips[`rounds${r.val}` as keyof Tooltips]}
+                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
+                        </div>
+                        {r.val} {t[locale].rounds}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                onClick={handleSubmit}
+                disabled={!prompt.trim()}
+                className="cursor-pointer w-full lg:w-auto group relative flex items-center justify-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-6 py-4 sm:py-3.5 rounded-2xl text-sm font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-zinc-900/10 dark:shadow-zinc-100/10 mt-2 lg:mt-0"
+              >
+                <Send size={16} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                {t[locale].start}
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Subtle model badges */}
-        <div
-          className={`mt-8 flex items-center gap-4 transition-all delay-200 duration-700 ease-out ${
-            mounted ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
-          }`}
-        >
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-[#3B82F6]" />
-            <span className="text-[0.7rem] font-medium tracking-wide text-neutral-400">
-              Gemini
-            </span>
-          </div>
-          <div className="h-3 w-px bg-neutral-200" />
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" />
-            <span className="text-[0.7rem] font-medium tracking-wide text-neutral-400">
-              Perplexity
-            </span>
-          </div>
-        </div>
+        </motion.div>
       </main>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSettings(false)}
+              className="absolute inset-0 bg-zinc-900/20 dark:bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
+                <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+                  <Settings size={18} className="text-zinc-500" />
+                  {t[locale].settings}
+                </h2>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="cursor-pointer p-2 -mr-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex flex-col gap-8">
+                {/* Credits Section */}
+                <div className="flex flex-col gap-4">
+                  <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <CreditCard size={16} className="text-zinc-500" />
+                    {t[locale].credits}
+                  </h3>
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-zinc-700/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center">
+                        <Sparkles size={18} className="text-amber-500" />
+                      </div>
+                      <div>
+                        <div className="text-sm text-zinc-500 dark:text-zinc-400">Available Balance</div>
+                        <div className="text-xl font-semibold tracking-tight">1,250</div>
+                      </div>
+                    </div>
+                    <button className="cursor-pointer px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:scale-105 active:scale-95 transition-all shadow-sm">
+                      {t[locale].buyCredits}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="h-px w-full bg-zinc-100 dark:bg-zinc-800" />
+
+                {/* API Keys Section */}
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2 mb-1">
+                      <Key size={16} className="text-zinc-500" />
+                      {t[locale].apiKeys}
+                    </h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{t[locale].apiKeyDesc}</p>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    {MODELS.map((model) => (
+                      <div key={model.id} className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">
+                          <model.icon size={16} />
+                        </div>
+                        <input
+                          type={showKey[model.id] ? "text" : "password"}
+                          value={apiKeys[model.id as keyof typeof apiKeys]}
+                          onChange={(e) => setApiKeys((prev) => ({ ...prev, [model.id]: e.target.value }))}
+                          placeholder={`${modelDisplayName(model.id)} API Key`}
+                          className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-10 py-3 text-sm focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 outline-none transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+                        />
+                        <button
+                          onClick={() => setShowKey((prev) => ({ ...prev, [model.id]: !prev[model.id] }))}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                        >
+                          {showKey[model.id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/20">
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="cursor-pointer w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm"
+                >
+                  {t[locale].save}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
+
