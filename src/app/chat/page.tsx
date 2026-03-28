@@ -1,13 +1,18 @@
 "use client"
 
-import { useReducer, useCallback, useRef, useEffect } from "react"
-import type { Message, Provider, ConsensusResult } from "@/types"
+import { useReducer, useCallback, useRef, useEffect, useState } from "react"
+import type { Message, Provider, ConsensusResult, Locale, ResponseLength } from "@/types"
 import { cleanResponse } from "@/lib/clean-response"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
 import ConsensusMeter from "@/components/ConsensusMeter"
-import ModelSelector from "@/components/ModelSelector"
 import SummaryCard from "@/components/SummaryCard"
+import ChatHeader from "@/components/Header"
+import SettingsModal from "@/components/SettingsModal"
+import { AnimatePresence, motion } from "framer-motion"
+import { ChevronDown } from "lucide-react"
+
+/* ─── Types ─── */
 
 type State = {
   messages: Message[]
@@ -28,17 +33,22 @@ type Action =
   | { type: "SET_ROUND"; round: number }
   | { type: "SHOW_SUMMARY" }
   | { type: "TOGGLE_MODEL"; model: Provider }
+  | { type: "SET_MODELS"; models: Provider[] }
   | { type: "RESET" }
 
-const initialState: State = {
-  messages: [],
-  activeModels: ["gemini", "perplexity"],
-  consensus: null,
-  isDebating: false,
-  currentRound: 0,
-  typingModel: null,
-  showSummary: false,
+function makeInitialState(models: Provider[]): State {
+  return {
+    messages: [],
+    activeModels: models,
+    consensus: null,
+    isDebating: false,
+    currentRound: 0,
+    typingModel: null,
+    showSummary: false,
+  }
 }
+
+const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity"]
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -47,9 +57,7 @@ function reducer(state: State, action: Action): State {
     case "UPDATE_LAST_AI_CONTENT": {
       const msgs = [...state.messages]
       const last = msgs[msgs.length - 1]
-      if (last && last.sender !== "user") {
-        msgs[msgs.length - 1] = { ...last, content: action.content }
-      }
+      if (last && last.sender !== "user") msgs[msgs.length - 1] = { ...last, content: action.content }
       return { ...state, messages: msgs }
     }
     case "SET_TYPING":
@@ -65,15 +73,12 @@ function reducer(state: State, action: Action): State {
     case "TOGGLE_MODEL": {
       const has = state.activeModels.includes(action.model)
       if (has && state.activeModels.length <= 1) return state
-      return {
-        ...state,
-        activeModels: has
-          ? state.activeModels.filter((m) => m !== action.model)
-          : [...state.activeModels, action.model],
-      }
+      return { ...state, activeModels: has ? state.activeModels.filter((m) => m !== action.model) : [...state.activeModels, action.model] }
     }
+    case "SET_MODELS":
+      return { ...state, activeModels: action.models }
     case "RESET":
-      return initialState
+      return makeInitialState(state.activeModels)
     default:
       return state
   }
@@ -82,15 +87,100 @@ function reducer(state: State, action: Action): State {
 const DISPLAY_NAMES: Record<Provider, string> = {
   gemini: "Gemini",
   perplexity: "Perplexity",
+  claude: "Claude",
+  gpt: "GPT",
 }
 
-const MAX_ROUNDS = 5
+/* ─── Page ─── */
 
 export default function ChatPage() {
-  const [state, dispatch] = useReducer(reducer, initialState)
+  // Config loaded from sessionStorage (set by homepage)
+  const [locale, setLocale] = useState<Locale>("en")
+  const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
+  const [maxRounds, setMaxRounds] = useState(5)
+  const [theme, setTheme] = useState<"light" | "dark">("light")
+  const [isLoggedIn, setIsLoggedIn] = useState(true)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  const [state, dispatch] = useReducer(reducer, makeInitialState(DEFAULT_MODELS))
   const stopRef = useRef(false)
-  // Track active AbortController so we can cancel in-flight fetches
   const abortRef = useRef<AbortController | null>(null)
+  const summaryRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  const [showScrollDown, setShowScrollDown] = useState(false)
+  const handleSendRef = useRef<(text: string, target: Provider | "all", models: Provider[]) => void>(() => {})
+
+  // Apply theme class to <html>
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+  }, [theme])
+
+  // Auto-scroll to top of summary card when it appears
+  useEffect(() => {
+    if (state.showSummary && summaryRef.current) {
+      setTimeout(() => {
+        summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 300)
+    }
+  }, [state.showSummary])
+
+  /* ─── Read config from sessionStorage on mount ─── */
+  const initialPromptSent = useRef(false)
+  const pendingPrompt = useRef<{ prompt: string; models: Provider[] } | null>(null)
+
+  useEffect(() => {
+    // Read theme from localStorage (set by homepage)
+    const savedTheme = localStorage.getItem("quorum_theme") as "light" | "dark" | null
+    if (savedTheme) {
+      setTheme(savedTheme)
+    }
+
+    const raw = sessionStorage.getItem("quorum_config")
+    if (!raw) return
+
+    try {
+      const config = JSON.parse(raw) as {
+        prompt?: string
+        models?: Provider[]
+        responseLength?: ResponseLength
+        rounds?: number
+        locale?: Locale
+      }
+
+      sessionStorage.removeItem("quorum_config")
+
+      if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
+      if (config.responseLength) setResponseLength(config.responseLength)
+      if (config.rounds) setMaxRounds(config.rounds)
+      if (config.locale) setLocale(config.locale)
+
+      if (config.prompt) {
+        pendingPrompt.current = {
+          prompt: config.prompt,
+          models: config.models ?? DEFAULT_MODELS,
+        }
+      }
+    } catch {
+      // malformed config — ignore
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Fire pending prompt after state has settled
+  useEffect(() => {
+    if (pendingPrompt.current && !initialPromptSent.current) {
+      initialPromptSent.current = true
+      const { prompt: p, models } = pendingPrompt.current
+      pendingPrompt.current = null
+      handleSendRef.current(p, "all", models)
+    }
+  })
+
+  /* ─── Streaming logic (v1 preserved) ─── */
 
   const callModel = useCallback(
     async (provider: Provider, allMessages: Message[]): Promise<Message | null> => {
@@ -106,7 +196,6 @@ export default function ChatPage() {
       }
       dispatch({ type: "ADD_MESSAGE", message: placeholder })
 
-      // Create an AbortController so we can cancel this fetch if needed
       const controller = new AbortController()
       abortRef.current = controller
 
@@ -119,7 +208,6 @@ export default function ChatPage() {
         })
 
         if (!res.ok) throw new Error(`API error: ${res.status}`)
-
         const reader = res.body?.getReader()
         if (!reader) throw new Error("No response body")
 
@@ -128,10 +216,7 @@ export default function ChatPage() {
         let fullContent = ""
 
         while (true) {
-          if (stopRef.current) {
-            await reader.cancel()
-            break
-          }
+          if (stopRef.current) { await reader.cancel(); break }
           const { done, value } = await reader.read()
           if (done) break
 
@@ -143,7 +228,6 @@ export default function ChatPage() {
             const trimmed = line.trim()
             if (!trimmed.startsWith("data:")) continue
             const data = JSON.parse(trimmed.slice(5).trim())
-
             if (data.error) throw new Error(data.error)
             if (data.chunk) {
               fullContent += data.chunk
@@ -155,43 +239,35 @@ export default function ChatPage() {
         const cleaned = cleanResponse(fullContent)
         dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: cleaned })
         dispatch({ type: "SET_TYPING", model: null })
-
         return { ...placeholder, content: cleaned }
       } catch (err) {
-        // Don't log abort errors -- those are intentional cancellations
         if (err instanceof DOMException && err.name === "AbortError") {
           dispatch({ type: "SET_TYPING", model: null })
           return null
         }
         console.error(`${provider} failed:`, err)
         dispatch({ type: "SET_TYPING", model: null })
-        dispatch({
-          type: "UPDATE_LAST_AI_CONTENT",
-          content: `\u26A0\uFE0F ${provider} encountered an error and couldn't respond.`,
-        })
+        dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: `⚠️ ${provider} encountered an error.` })
         return null
       }
     },
-    [dispatch]
+    []
   )
 
   const runRound = useCallback(
-    async (currentMessages: Message[]): Promise<{ msgs: Message[]; done: boolean }> => {
+    async (currentMessages: Message[], activeModels: Provider[]): Promise<{ msgs: Message[]; done: boolean }> => {
       let msgs = [...currentMessages]
 
-      for (const model of state.activeModels) {
+      for (const model of activeModels) {
         if (stopRef.current) break
         const result = await callModel(model, msgs)
-        if (result) {
-          msgs = [...msgs, result]
-        }
+        if (result) msgs = [...msgs, result]
       }
 
       if (stopRef.current) return { msgs, done: true }
 
-      // Only check consensus if we have 2+ active models
       const aiCount = msgs.filter((m) => m.sender !== "user").length
-      if (aiCount >= 2 && state.activeModels.length >= 2) {
+      if (aiCount >= 2 && activeModels.length >= 2) {
         try {
           const res = await fetch("/api/consensus", {
             method: "POST",
@@ -201,12 +277,6 @@ export default function ChatPage() {
           if (res.ok) {
             const result: ConsensusResult = await res.json()
             dispatch({ type: "SET_CONSENSUS", result })
-
-            if (result.score >= 80) {
-              stopRef.current = true
-              dispatch({ type: "SHOW_SUMMARY" })
-              return { msgs, done: true }
-            }
           }
         } catch (err) {
           console.error("Consensus check failed:", err)
@@ -215,11 +285,12 @@ export default function ChatPage() {
 
       return { msgs, done: false }
     },
-    [state.activeModels, callModel]
+    [callModel]
   )
 
-  const handleSend = useCallback(
-    async (text: string, target: Provider | "all") => {
+  // Internal send that accepts explicit models (used for auto-send on mount)
+  const handleSendWithModels = useCallback(
+    async (text: string, target: Provider | "all", models: Provider[]) => {
       const userMsg: Message = {
         id: `user-${Date.now()}`,
         sender: "user",
@@ -235,14 +306,35 @@ export default function ChatPage() {
 
       if (target === "all") {
         let msgs = allMessages
-        // Use a local counter so rounds aren't tied to stale state
-        const maxRounds = state.activeModels.length >= 2 ? MAX_ROUNDS : 1
-        for (let r = 0; r < maxRounds; r++) {
+        const rounds = models.length >= 2 ? maxRounds : 1
+        let earlyConsensus = false
+        for (let r = 0; r < rounds; r++) {
           if (stopRef.current) break
           dispatch({ type: "SET_ROUND", round: r + 1 })
-          const result = await runRound(msgs)
+          const result = await runRound(msgs, models)
           msgs = result.msgs
-          if (result.done) break
+          if (result.done) { earlyConsensus = true; break }
+        }
+
+        // If all rounds finished without early consensus, fetch final consensus and show summary
+        if (!earlyConsensus && !stopRef.current && models.length >= 2) {
+          const aiCount = msgs.filter((m) => m.sender !== "user").length
+          if (aiCount >= 2) {
+            try {
+              const res = await fetch("/api/consensus", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ messages: msgs }),
+              })
+              if (res.ok) {
+                const result: ConsensusResult = await res.json()
+                dispatch({ type: "SET_CONSENSUS", result })
+                dispatch({ type: "SHOW_SUMMARY" })
+              }
+            } catch (err) {
+              console.error("Final consensus failed:", err)
+            }
+          }
         }
       } else {
         await callModel(target, allMessages)
@@ -250,12 +342,20 @@ export default function ChatPage() {
 
       dispatch({ type: "SET_DEBATING", value: false })
     },
-    [state.messages, state.activeModels, callModel, runRound]
+    [state.messages, maxRounds, callModel, runRound]
+  )
+
+  handleSendRef.current = handleSendWithModels
+
+  const handleSend = useCallback(
+    async (text: string, target: Provider | "all") => {
+      handleSendWithModels(text, target, state.activeModels)
+    },
+    [handleSendWithModels, state.activeModels]
   )
 
   const handleStop = useCallback(async () => {
     stopRef.current = true
-    // Cancel any in-flight fetch
     abortRef.current?.abort()
     dispatch({ type: "SET_DEBATING", value: false })
     dispatch({ type: "SET_TYPING", model: null })
@@ -279,70 +379,101 @@ export default function ChatPage() {
     }
   }, [state.messages])
 
-  // Reset also cancels in-flight calls
   const handleReset = useCallback(() => {
     stopRef.current = true
     abortRef.current?.abort()
     dispatch({ type: "RESET" })
   }, [])
 
-  // On mount, check if there's a prompt from the home page and auto-send it
-  const initialPromptSent = useRef(false)
-  useEffect(() => {
-    if (initialPromptSent.current) return
-    const stored = sessionStorage.getItem("quorum_initial_prompt")
-    if (stored) {
-      initialPromptSent.current = true
-      sessionStorage.removeItem("quorum_initial_prompt")
-      const timeoutId = window.setTimeout(() => {
-        handleSend(stored, "all")
-      }, 100)
-      return () => {
-        window.clearTimeout(timeoutId)
-      }
-    }
-  }, [handleSend])
-
-  const TypingIndicator = () => {
-    if (!state.typingModel) return null
-    const name = DISPLAY_NAMES[state.typingModel]
-    return (
-      <div className="px-4 py-2 text-xs text-gray-400 flex items-center gap-2">
-        <span className="flex gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-          <span className="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-          <span className="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-        </span>
-        {name} is thinking...
-      </div>
-    )
+  const toggleTheme = () => {
+    const next = theme === "light" ? "dark" : "light"
+    setTheme(next)
+    localStorage.setItem("quorum_theme", next)
   }
 
-  return (
-    <div className="flex h-screen bg-white dark:bg-gray-950">
-      <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-gray-200 px-6 py-3 dark:border-gray-800">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Quorum</h1>
-            <p className="text-xs text-gray-500">
-              Round {state.currentRound}/{MAX_ROUNDS}
-            </p>
-          </div>
-          <ModelSelector
-            activeModels={state.activeModels}
-            onToggle={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
-          />
-        </header>
+  /* ─── Render ─── */
 
-        <ChatThread messages={state.messages} />
-        <TypingIndicator />
+  return (
+    <div className="relative flex flex-col h-screen bg-white dark:bg-zinc-950 overflow-hidden font-[family-name:var(--font-geist-sans)] text-zinc-900 dark:text-zinc-100 transition-colors duration-200">
+      <ChatHeader
+        currentRound={state.currentRound}
+        maxRounds={maxRounds}
+        responseLength={responseLength}
+        onChangeResponseLength={setResponseLength}
+        locale={locale}
+        onToggleLocale={() => setLocale((l) => (l === "en" ? "ko" : "en"))}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        isLoggedIn={isLoggedIn}
+        onLogin={() => setIsLoggedIn(true)}
+        onLogout={() => setIsLoggedIn(false)}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        locale={locale}
+        onToggleLocale={() => setLocale((l) => (l === "en" ? "ko" : "en"))}
+        activeModels={state.activeModels}
+        onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
+        maxRounds={maxRounds}
+        onChangeRounds={setMaxRounds}
+      />
+
+      {/* Scrollable message area */}
+      <main
+        ref={mainRef}
+        className="flex-1 min-h-0 overflow-y-auto relative thin-scrollbar scroll-smooth"
+        onScroll={() => {
+          const el = mainRef.current
+          if (!el) return
+          const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+          setShowScrollDown(distFromBottom > 200)
+        }}
+      >
+        <ChatThread
+          messages={state.messages}
+          typingModel={state.typingModel}
+          locale={locale}
+          activeModels={state.activeModels}
+          onSendMessage={(text) => handleSend(text, "all")}
+        />
 
         {state.showSummary && state.consensus && (
-          <SummaryCard
-            result={state.consensus}
-            onNewDiscussion={handleReset}
-          />
+          <div ref={summaryRef} className="px-4 pb-8">
+            <SummaryCard result={state.consensus} onNewDiscussion={handleReset} locale={locale} />
+          </div>
         )}
+
+      </main>
+
+      <AnimatePresence>
+        {showScrollDown && (
+          <motion.button
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 5 }}
+            onClick={() => mainRef.current?.scrollTo({ top: mainRef.current.scrollHeight, behavior: "smooth" })}
+            className="absolute left-1/2 -translate-x-1/2 bottom-20 sm:bottom-24 w-8 h-8 rounded-full bg-zinc-500/20 dark:bg-zinc-400/15 backdrop-blur-sm text-zinc-500 dark:text-zinc-400 flex items-center justify-center hover:bg-zinc-500/30 dark:hover:bg-zinc-400/25 transition-colors z-30"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom bar: consensus rail + input */}
+      <div className="w-full shrink-0 bg-gradient-to-t from-white via-white to-transparent dark:from-zinc-950 dark:via-zinc-950 pt-4 z-10">
+        <AnimatePresence>
+          {(state.isDebating || state.typingModel !== null || state.consensus !== null) && (
+            <ConsensusMeter
+              score={state.consensus?.score ?? null}
+              result={state.showSummary ? state.consensus : null}
+              locale={locale}
+              variant="rail"
+            />
+          )}
+        </AnimatePresence>
 
         {!state.showSummary && (
           <MessageInput
@@ -350,16 +481,10 @@ export default function ChatPage() {
             onStop={handleStop}
             disabled={state.isDebating}
             activeModels={state.activeModels}
+            locale={locale}
           />
         )}
       </div>
-
-      <aside className="hidden w-72 border-l border-gray-200 p-4 dark:border-gray-800 lg:block">
-        <ConsensusMeter
-          score={state.consensus?.score ?? null}
-          result={state.consensus}
-        />
-      </aside>
     </div>
   )
 }

@@ -1,4 +1,8 @@
-export type Provider = "gemini" | "perplexity"
+export type Provider = "gemini" | "perplexity" | "claude" | "gpt"
+
+export type Locale = "en" | "ko"
+
+export type ResponseLength = "short" | "medium" | "long"
 
 export type Message = {
   id: string

@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Send, Check, User, Settings, CreditCard, LogOut, Key, X, Sparkles, Eye, EyeOff, Paperclip } from "lucide-react"
+import { Sun, Moon, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip } from "lucide-react"
+import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
 import type { Provider, ResponseLength, Locale } from "@/types"
 
@@ -73,12 +74,7 @@ const t = {
     models: "Participants",
     keyboardHint: "to submit",
     settings: "Settings",
-    apiKeys: "API Keys",
-    buyCredits: "Buy Credits",
     signOut: "Sign Out",
-    credits: "Credits",
-    save: "Save Changes",
-    apiKeyDesc: "Use your own API keys or buy credits to use any model.",
     tooltips: {
       gemini: "Google's flagship multimodal AI model",
       perplexity: "AI search engine for up-to-date information",
@@ -107,12 +103,7 @@ const t = {
     models: "참여 모델",
     keyboardHint: "눌러서 시작",
     settings: "설정",
-    apiKeys: "API 키",
-    buyCredits: "크레딧 구매",
     signOut: "로그아웃",
-    credits: "크레딧",
-    save: "변경사항 저장",
-    apiKeyDesc: "자체 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.",
     tooltips: {
       gemini: "Google의 최신 멀티모달 AI 모델",
       perplexity: "최신 정보를 제공하는 AI 검색 엔진",
@@ -153,10 +144,19 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [showDropdown, setShowDropdown] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [showKey, setShowKey] = useState<Record<string, boolean>>({})
-  const [apiKeys, setApiKeys] = useState({ gemini: "", perplexity: "", claude: "", gpt: "" })
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest("[data-header-dropdown]")) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("quorum_theme")
@@ -279,70 +279,59 @@ export default function Home() {
 
           {isLoggedIn ? (
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowSettings(true)}
-                className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-zinc-200/50 dark:border-zinc-800/50 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-all shadow-sm"
-              >
-                <Sparkles size={14} className="text-amber-500" />
-                <span>1,250</span>
-              </button>
+              <div className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group">
+                <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100">1,250</span>
+              </div>
 
-              <div className="relative">
-                <button
+              <div className="relative" data-header-dropdown>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="cursor-pointer w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
                 >
-                  <User size={16} />
-                </button>
+                  <User className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+                </motion.button>
 
                 <AnimatePresence>
                   {showDropdown && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xl z-50 overflow-hidden"
-                      >
-                        <div className="p-1.5">
-                          <button
-                            onClick={() => { setShowSettings(true); setShowDropdown(false) }}
-                            className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 rounded-xl transition-colors text-left"
-                          >
-                            <Settings size={16} />
-                            {t[locale].settings}
-                          </button>
-                          <button
-                            onClick={() => { setShowSettings(true); setShowDropdown(false) }}
-                            className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 rounded-xl transition-colors text-left"
-                          >
-                            <CreditCard size={16} />
-                            {t[locale].buyCredits}
-                          </button>
-                          <div className="h-px w-full bg-zinc-200/50 dark:bg-zinc-800/50 my-1.5" />
-                          <button
-                            onClick={() => { setIsLoggedIn(false); setShowDropdown(false) }}
-                            className="cursor-pointer w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors text-left"
-                          >
-                            <LogOut size={16} />
-                            {t[locale].signOut}
-                          </button>
-                        </div>
-                      </motion.div>
-                    </>
+                    <motion.div
+                      initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                      className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg overflow-hidden z-[60]"
+                    >
+                      <div className="p-1">
+                        <button
+                          onClick={() => { setShowDropdown(false); setShowSettings(true) }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                        >
+                          <Settings2 className="w-4 h-4" />
+                          {t[locale].settings}
+                        </button>
+                        <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+                        <button
+                          onClick={() => { setShowDropdown(false); setIsLoggedIn(false) }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          {t[locale].signOut}
+                        </button>
+                      </div>
+                    </motion.div>
                   )}
                 </AnimatePresence>
               </div>
             </div>
           ) : (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.95 }}
               onClick={() => setIsLoggedIn(true)}
-              className="cursor-pointer text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+              className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
             >
-              Sign In
-            </button>
+              <LogIn className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-xs font-bold">Sign In</span>
+            </motion.button>
           )}
         </div>
       </header>
@@ -577,108 +566,17 @@ export default function Home() {
       </main>
 
       {/* Settings Modal */}
-      <AnimatePresence>
-        {showSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSettings(false)}
-              className="absolute inset-0 bg-zinc-900/20 dark:bg-black/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-md bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl rounded-3xl overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
-                <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-                  <Settings size={18} className="text-zinc-500" />
-                  {t[locale].settings}
-                </h2>
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="cursor-pointer p-2 -mr-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="p-6 overflow-y-auto flex flex-col gap-8">
-                {/* Credits Section */}
-                <div className="flex flex-col gap-4">
-                  <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    <CreditCard size={16} className="text-zinc-500" />
-                    {t[locale].credits}
-                  </h3>
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-zinc-700/50">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-500/10 flex items-center justify-center">
-                        <Sparkles size={18} className="text-amber-500" />
-                      </div>
-                      <div>
-                        <div className="text-sm text-zinc-500 dark:text-zinc-400">Available Balance</div>
-                        <div className="text-xl font-semibold tracking-tight">1,250</div>
-                      </div>
-                    </div>
-                    <button className="cursor-pointer px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:scale-105 active:scale-95 transition-all shadow-sm">
-                      {t[locale].buyCredits}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="h-px w-full bg-zinc-100 dark:bg-zinc-800" />
-
-                {/* API Keys Section */}
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2 mb-1">
-                      <Key size={16} className="text-zinc-500" />
-                      {t[locale].apiKeys}
-                    </h3>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{t[locale].apiKeyDesc}</p>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    {MODELS.map((model) => (
-                      <div key={model.id} className="relative">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">
-                          <model.icon size={16} />
-                        </div>
-                        <input
-                          type={showKey[model.id] ? "text" : "password"}
-                          value={apiKeys[model.id as keyof typeof apiKeys]}
-                          onChange={(e) => setApiKeys((prev) => ({ ...prev, [model.id]: e.target.value }))}
-                          placeholder={`${modelDisplayName(model.id)} API Key`}
-                          className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl pl-10 pr-10 py-3 text-sm focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 outline-none transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
-                        />
-                        <button
-                          onClick={() => setShowKey((prev) => ({ ...prev, [model.id]: !prev[model.id] }))}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                        >
-                          {showKey[model.id] ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/20">
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="cursor-pointer w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm"
-                >
-                  {t[locale].save}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        locale={locale}
+        onToggleLocale={() => setLocale((l) => (l === "en" ? "ko" : "en"))}
+        activeModels={selectedModels}
+        onToggleModel={toggleModel}
+        maxRounds={rounds}
+        onChangeRounds={setRounds}
+        showPreferences={false}
+      />
     </div>
   )
 }
