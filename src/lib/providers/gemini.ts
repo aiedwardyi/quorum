@@ -28,7 +28,7 @@ function getModel() {
 function buildContents(messages: Message[]) {
   return messages.map((msg) => ({
     role: msg.sender === "user" ? "user" : "model",
-    parts: [{ text: `[${msg.displayName}]: ${msg.content}` }],
+    parts: [{ text: msg.content }],
   }))
 }
 
@@ -75,3 +75,4 @@ export async function* streamGemini(
     }
   }
 }
+
