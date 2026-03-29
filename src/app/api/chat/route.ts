@@ -1,6 +1,10 @@
 import { streamGemini } from "@/lib/providers/gemini"
 import { streamPerplexity } from "@/lib/providers/perplexity"
+import { streamClaude } from "@/lib/providers/claude"
+import { streamGPT } from "@/lib/providers/gpt"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
+
+const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
 
 const DISPLAY_NAMES: Record<Provider, string> = {
   gemini: "Gemini",
@@ -22,9 +26,9 @@ function getResponseLengthInstruction(length: ResponseLength): string {
 
 function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength): string {
   const lengthLine = getResponseLengthInstruction(responseLength)
-  const localeLine = locale === "ko" ? "\nAlways respond in Korean." : ""
+  const isKorean = locale === "ko"
 
-  return `You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
+  return `${isKorean ? "IMPORTANT: You MUST respond entirely in Korean (한국어). Every word of your response must be in Korean, regardless of what language the user writes in.\n\n" : ""}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
 Your name is ${DISPLAY_NAMES[provider]}. Always speak as yourself in first person.
 NEVER speak as another model. NEVER prefix your response with any name like "[Gemini]:" or "[Claude]:".
 The human is the decision-maker. Respond to the full conversation naturally.
@@ -32,7 +36,20 @@ If you disagree with another model, say so directly and explain why.
 If you changed your mind based on new points, say that too.
 ${lengthLine} This is a discussion, not an essay.
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
-Do NOT add a "References" or "Refs" section. Just give your opinion directly.${localeLine}`
+Do NOT add a "References" or "Refs" section. Just give your opinion directly.`
+}
+
+function getStreamFn(provider: Provider) {
+  switch (provider) {
+    case "gemini":
+      return streamGemini
+    case "claude":
+      return streamClaude
+    case "gpt":
+      return streamGPT
+    case "perplexity":
+      return streamPerplexity
+  }
 }
 
 export async function POST(request: Request) {
@@ -58,16 +75,20 @@ export async function POST(request: Request) {
       )
     }
 
-    const streamFn =
-      provider === "gemini" ? streamGemini : streamPerplexity
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid provider: ${provider}` }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      )
+    }
 
+    const streamFn = getStreamFn(provider)
     const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
     const encoder = new TextEncoder()
     let fullContent = ""
 
     const stream = new ReadableStream({
       async start(controller) {
-        // Listen for client disconnect so we stop generating tokens
         const aborted = request.signal?.aborted
         if (aborted) {
           controller.close()
@@ -79,7 +100,7 @@ export async function POST(request: Request) {
         })
 
         try {
-          for await (const chunk of streamFn(systemPrompt, messages)) {
+          for await (const chunk of streamFn(systemPrompt, messages, request.signal)) {
             if (request.signal?.aborted) break
             fullContent += chunk
             const event = `data: ${JSON.stringify({ chunk })}\n\n`
@@ -101,10 +122,21 @@ export async function POST(request: Request) {
             controller.close()
             return
           }
-          const msg =
-            error instanceof Error ? error.message : "Unknown error"
-          const errEvent = `data: ${JSON.stringify({ error: msg })}\n\n`
-          controller.enqueue(encoder.encode(errEvent))
+          const msg = error instanceof Error ? error.message : "Unknown error"
+          const sanitized = msg.replace(/sk-[a-zA-Z0-9-_]+/g, "sk-***").replace(/pplx-[a-zA-Z0-9-_]+/g, "pplx-***")
+          const friendlyError = `${DISPLAY_NAMES[provider]} encountered an error: ${sanitized}`
+
+          // Send error as a chat bubble so the debate can continue with other models
+          const errorChunk = `data: ${JSON.stringify({ chunk: friendlyError })}\n\n`
+          controller.enqueue(encoder.encode(errorChunk))
+
+          const done = `data: ${JSON.stringify({
+            done: true,
+            sender: provider,
+            displayName: DISPLAY_NAMES[provider],
+            content: friendlyError,
+          })}\n\n`
+          controller.enqueue(encoder.encode(done))
           controller.close()
         }
       },
@@ -125,4 +157,3 @@ export async function POST(request: Request) {
     })
   }
 }
-
