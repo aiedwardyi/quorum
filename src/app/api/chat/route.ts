@@ -45,7 +45,13 @@ export async function POST(request: Request) {
       responseLength?: ResponseLength
     }
 
-    if (!messages || !provider) {
+    const validatedLocale: Locale = locale === "en" || locale === "ko" ? locale : "en"
+    const validatedResponseLength: ResponseLength =
+      responseLength === "short" || responseLength === "medium" || responseLength === "long"
+        ? responseLength
+        : "medium"
+
+    if (!messages || !Array.isArray(messages) || !provider) {
       return new Response(
         JSON.stringify({ error: "Missing messages or provider" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
@@ -55,7 +61,7 @@ export async function POST(request: Request) {
     const streamFn =
       provider === "gemini" ? streamGemini : streamPerplexity
 
-    const systemPrompt = getSystemPrompt(provider, locale, responseLength)
+    const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
     const encoder = new TextEncoder()
     let fullContent = ""
 

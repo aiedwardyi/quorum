@@ -27,7 +27,7 @@ Expand the roster, remember conversations, and fix core UX.
 
 - [ ] Add Claude (Anthropic SDK) + GPT (OpenAI SDK) — currently both route to Perplexity as placeholder
 - [x] Model selection UI — users choose which AIs participate (up to 4)
-- [x] Response length control UI (short / medium / long) — UI done, API wiring pending
+- [x] Response length control (short / medium / long) — UI + API wired with word targets
 - [x] Configurable round count (3 / 5 / 7) — wired end-to-end, homepage -> settings -> debate loop
 - [x] Deduplicate consensus display — ONE location, not sidebar + summary card
 - [x] Fix Gemini third-person / name-prefix bug (BUG-009 — buildContents formatting)
@@ -37,10 +37,10 @@ Expand the roster, remember conversations, and fix core UX.
 - [x] Consensus bar real-time updates (fills after each round)
 - [x] Smart auto-scroll + scroll-to-bottom button
 - [x] Thinking indicator with colored model icons (merged into ChatBubble)
-- [ ] Wire response length to system prompt (short ~75w, medium ~150w, long ~300w)
-- [ ] i18n for AI-generated content — pass locale to system prompt for chat + consensus API
+- [x] Wire response length to system prompt (short ~75w, medium ~150w, long ~300w)
+- [x] i18n for AI-generated content — locale passed to system prompts for chat + consensus API
 - [ ] Between-round status feedback (brief "analyzing..." bubble)
-- [ ] Stop button stuck state fix
+- [x] Stop button stuck state fix (BUG-012)
 - [ ] API error graceful handling (rate limits, quota)
 - [ ] Session persistence (SQLite / Prisma)
 - [ ] Chat history page
@@ -60,9 +60,9 @@ Make it beautiful, configurable, and personal.
 - [ ] BYOK — users input their own API keys (UI exists, backend pending)
 - [ ] Token/credit tracking system (foundation for payment)
 - [ ] Credits button on chat header — functional (currently cosmetic)
-- [ ] Default to dark mode
-- [ ] Sepia theme (third option alongside light/dark)
-- [ ] Custom color themes (accent colors, background tones — personal power tool)
+- [x] Default to dark mode
+- [x] Theme system — 4 themes (light/dark/Tokyo Night/Lovelace) with swatch picker in Settings
+- [ ] Additional custom themes (accent colors, more palettes)
 - [ ] Settings page — exists with Account + Preferences tabs
 - [ ] Voice input (Watson STT)
 
