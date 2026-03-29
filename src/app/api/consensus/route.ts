@@ -28,6 +28,9 @@ Evaluate how much the participants agree with each other. Return ONLY valid JSON
 Rules:
 - score must be an integer from 0 to 100
 - agreements and disagreements must each have at least one item
+- summary must be a single crisp sentence, under 24 words, focused on the final takeaway
+- agreements should be short, scannable takeaway bullets rather than full explanations
+- disagreements should capture only the main nuance or unresolved caveat, not minor repetition
 - If everyone agrees on everything, score should be 90-100
 - If there are minor differences in framing but same conclusion, score 70-89
 - If there are substantive disagreements, score 40-69

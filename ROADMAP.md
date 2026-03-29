@@ -33,6 +33,7 @@ Expand the roster, remember conversations, and fix core UX.
 - [x] Fix Gemini third-person / name-prefix bug (BUG-009 — buildContents formatting)
 - [x] Home page redesign — v2 with model selector, dark mode, i18n, rainbow border
 - [x] Chat page UI refresh — v2 components ported, wired to v1 streaming logic
+- [x] Premium summary/final verdict polish — higher-contrast summary card, final verdict eyebrow, stronger dark-mode presentation
 - [x] Homepage -> chat page config passthrough (sessionStorage, all settings carry over)
 - [x] Consensus bar real-time updates (fills after each round)
 - [x] Smart auto-scroll + scroll-to-bottom button
@@ -40,6 +41,7 @@ Expand the roster, remember conversations, and fix core UX.
 - [x] Wire response length to system prompt (short ~75w, medium ~150w, long ~300w)
 - [x] i18n for AI-generated content — locale passed to system prompts for chat + consensus API
 - [ ] Between-round status feedback (brief "analyzing..." bubble)
+- [ ] Round divider labels in chat thread ("ROUND 1", "ROUND 2" visual separators)
 - [x] Stop button stuck state fix (BUG-012)
 - [ ] API error graceful handling (rate limits, quota)
 - [ ] Session persistence (SQLite / Prisma)

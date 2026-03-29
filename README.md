@@ -1,73 +1,142 @@
-<div align="center">
-
-# 🏛️ Quorum
+# Quorum
 
 **Multi-AI group chat for consensus**
 
-Ask a question. AI models discuss it with each other.
-You steer the conversation. They converge on an answer.
+Replaces the manual workflow of copy-pasting between AI tabs. Instead of switching between Gemini, Perplexity, ChatGPT, and Claude to get multiple perspectives - just ask once and let them talk it out.
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-4285F4?logo=google&logoColor=white)](https://cloud.google.com/vertex-ai)
 [![Perplexity](https://img.shields.io/badge/Perplexity-Sonar_Pro-14B8A6)](https://docs.perplexity.ai/)
+[![Claude](https://img.shields.io/badge/Claude-Anthropic-F97316?logo=anthropic&logoColor=white)](https://anthropic.com/)
+[![GPT](https://img.shields.io/badge/GPT-OpenAI-10B981?logo=openai&logoColor=white)](https://openai.com/)
+
+https://github.com/user-attachments/assets/265d9414-4eb4-4ab8-a7f3-831c82b4ae9e
 
 ---
 
-</div>
+## How It Works
 
-## What It Does
-
-Replaces the manual workflow of copy-pasting between AI tabs. Instead of switching between Gemini, Perplexity, ChatGPT, and Claude to get multiple perspectives — just ask once and let them talk it out.
 ```
-You:         "Should I file this patent as provisional or non-provisional?"
+You:           "Should we use microservices or a monolith for our MVP?"
 
-Gemini 🔵:   "Provisional gives you 12 months to refine claims..."
-Perplexity 🟢: "I'd push back — if claims are well-defined, go direct..."
-Gemini 🔵:   "Fair point on fees, but the risk is..."
-You:         "What about cost? I have a limited budget."
-Perplexity 🟢: "Given budget constraints, I'm revising my position..."
+Gemini:        "Start with a monolith. Microservices add deployment complexity too early."
+Perplexity:    "Monolith for speed, but design with clean module boundaries from day one."
+Claude:        "Agreed on monolith-first. The bigger startup risk is building too slowly."
+GPT:           "Use a monolith until real scaling bottlenecks appear."
 
-✅ Consensus reached: 85%
+Quorum:        "Final verdict: Start with a monolith for MVP speed.
+               Keep clear module boundaries so you can split later if needed."
+
+               Consensus: 92%
 ```
+
+Each model sees what the others said, debates across rounds, and then Quorum returns a final verdict with a consensus score.
+
+---
+
+## Themes
+
+Switch instantly from the header or settings.
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/assets/theme-light.png" alt="Quorum light theme" width="356" /><br />
+      <img alt="Light" src="https://img.shields.io/badge/Light-F8FAFC?style=flat-square&labelColor=E5E7EB&color=F8FAFC" />
+    </td>
+    <td align="center">
+      <img src="docs/assets/theme-dark.png" alt="Quorum dark theme" width="356" /><br />
+      <img alt="Dark" src="https://img.shields.io/badge/Dark-0B0B0F?style=flat-square&labelColor=111827&color=0B0B0F" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/assets/theme-tokyonight.png" alt="Quorum Tokyo Night theme" width="356" /><br />
+      <img alt="Tokyo Night" src="https://img.shields.io/badge/Tokyo_Night-7AA2F7?style=flat-square&labelColor=1A1B26&color=7AA2F7" />
+    </td>
+    <td align="center">
+      <img src="docs/assets/theme-lovelace.png" alt="Quorum Lovelace theme" width="356" /><br />
+      <img alt="Lovelace" src="https://img.shields.io/badge/Lovelace-C792EA?style=flat-square&labelColor=1F2335&color=C792EA" />
+    </td>
+  </tr>
+</table>
+
+---
 
 ## Quick Start
+
 ```bash
-# Clone and install
 git clone https://github.com/aiedwardyi/quorum.git
 cd quorum
 npm install
+```
 
-# Authenticate with Google Cloud (for Gemini)
+Create a `.env` file from [`.env.example`](./.env.example):
+
+```bash
+cp .env.example .env
+```
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Fill in your provider credentials:
+
+```env
+# Google Vertex AI
+VERTEX_PROJECT_ID=your_google_cloud_project_id
+VERTEX_LOCATION=us-central1
+
+# Model Providers
+PERPLEXITY_API_KEY=your_perplexity_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+
+Required for the current MVP: `VERTEX_PROJECT_ID`, `VERTEX_LOCATION`, and `PERPLEXITY_API_KEY`.
+
+Gemini uses Google Cloud Application Default Credentials:
+
+```bash
 gcloud auth application-default login
+```
 
-# Add your Perplexity key to .env
-# Then run
+Then run:
+
+```bash
 npm run dev
 ```
+
+Open [localhost:3000](http://localhost:3000) and start debating.
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 14+, TypeScript, App Router |
-| Styling | Tailwind CSS + shadcn/ui |
+| Framework | Next.js 16, React 19, TypeScript 5 |
+| Styling | Tailwind CSS 4, shadcn/ui, Framer Motion |
 | AI Models | Gemini 2.5 Flash (Vertex AI), Perplexity Sonar Pro |
 | Streaming | Server-Sent Events (SSE) |
-| State | React useState / useReducer |
+| i18n | English / Korean |
+| Themes | Light, Dark, Tokyo Night, Lovelace (more coming) |
 
 ## Roadmap
 
-See [ROADMAP.md](./ROADMAP.md) for the full plan.
+See [ROADMAP.md](./ROADMAP.md) for details.
 
 | Version | Focus | Status |
 |---------|-------|--------|
-| **v1** | Working group chat (Gemini + Perplexity) | 🔨 In Progress |
-| **v2** | More models + persistence | 📋 Planned |
-| **v3** | i18n + BYOK + polish | 📋 Planned |
-| **v4** | Power features | 💭 Future |
+| **v1** | Core group chat - Gemini + Perplexity | Done |
+| **v2** | Claude + GPT, persistence, UI refresh | In Progress |
+| **v3** | BYOK, OAuth, more themes | In Progress |
+| **v4** | Monetization, debate templates | Future |
 
 ## License
 
-Proprietary — Copyright (c) 2026 Edward Yi. All rights reserved.
+This project is proprietary software. Copyright (c) 2026 Edward Yi. All rights reserved.
+Unauthorized copying, modification, or distribution is prohibited. See [LICENSE](./LICENSE) for full terms.

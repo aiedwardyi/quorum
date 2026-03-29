@@ -31,6 +31,7 @@
 - [x] Thin scrollbar (4px, subtle, light/dark mode)
 - [x] Homepage -> chat page prompt passthrough fix (React strict mode compatible)
 - [x] Settings wired: models, rounds, response length, locale, theme all carry from homepage
+- [x] Premium summary/final verdict polish (higher-contrast SummaryCard, final verdict eyebrow, clearer alignment treatment, demo-ready dark mode)
 
 ---
 
@@ -42,8 +43,8 @@ Wired locale to both `/api/chat` and `/api/consensus` system prompts. AI respons
 ### 2. Between-Round Feedback
 After last model in a round finishes and before next round starts, show a brief status bubble (e.g. "Analyzing responses and preparing next round...") so user doesn't think the debate stalled.
 
-### 3. Discussion Concluded Color
-The "Discussion Concluded" / "Consensus Reached" text under Discussion Summary changes color based on score. Make it static green or blue regardless of score.
+### ~~3. Discussion Concluded Color~~ ✅
+Resolved during summary card polish. Status text under Discussion Summary is now a static green treatment, independent of score.
 
 ### ~~4. Round Counter Overflow (BUG-011)~~ ✅
 Fixed via `setTimeout(() => ..., 0)` in pending prompt useEffect. React state update now completes before handleSendWithModels fires.
@@ -91,6 +92,9 @@ Switch default theme to dark mode. Power users and decision-makers expect a pro-
 
 ### 18. Sepia + Custom Color Modes
 Add sepia theme as a third option alongside light/dark. Build foundation for user-customizable color themes (accent colors, background tones). Eddie wants extensive customization — this is a personal power tool.
+
+### 19. Round Divider Labels Between Rounds
+Show a visual "ROUND 1", "ROUND 2", etc. divider/label between rounds in the chat thread. Gives the debate clear visual structure so users can scan which round they're reading. Spotted in a Claude Code promotional demo build — clean horizontal rule with centered round number text.
 
 ### 13. Landing Page / Marketing Section
 Consider adding a section below the homepage prompt area (or a separate landing page) with:

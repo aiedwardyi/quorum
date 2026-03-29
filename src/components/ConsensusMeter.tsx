@@ -30,6 +30,7 @@ export default function ConsensusMeter({
   locale: Locale
 }) {
   const t = translations[locale]
+  const isFinal = !!result
 
   const scoreValue = useMotionValue(0)
   const springScore = useSpring(scoreValue, { stiffness: 60, damping: 15 })
@@ -81,7 +82,7 @@ export default function ConsensusMeter({
                 </>
               )}
             </div>
-            <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">
+            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em] transition-colors", isFinal ? "text-emerald-600 dark:text-emerald-300" : "text-zinc-500 dark:text-zinc-400")}>
               {result ? t.verdict : t.consensus}
             </span>
             <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] font-medium rounded opacity-0 group-hover/label:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-sm">
@@ -94,7 +95,7 @@ export default function ConsensusMeter({
               key={score}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className={cn("flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500", getTextColor(score))}
+              className={cn("flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500", getTextColor(score), isFinal && "drop-shadow-[0_0_8px_rgba(16,185,129,0.25)]")}
             >
               <motion.span>{displayScore}</motion.span>
               <span className="text-xs ml-0.5">%</span>
@@ -106,7 +107,7 @@ export default function ConsensusMeter({
           )}
         </div>
 
-        <div className="h-1.5 w-full bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full overflow-hidden">
+        <div className={cn("h-1.5 w-full rounded-full overflow-hidden transition-colors duration-500", isFinal ? "bg-zinc-200/70 dark:bg-zinc-800/70 ring-1 ring-zinc-200/60 dark:ring-white/[0.04]" : "bg-zinc-200/50 dark:bg-zinc-800/50")}>
           {score !== null && (
             <motion.div
               className={cn("h-full rounded-full transition-colors duration-500", getColor(score))}

@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=800, height=600, initial-scale=1">
+<title>Quorum - Pipeline Demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #09090b;
+    --card: #18181b;
+    --border: rgba(255,255,255,0.08);
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --dim: #71717a;
+    --gemini: #60a5fa;
+    --gemini-bg: #0c1a2e;
+    --gemini-border: #1e3a5f;
+    --perplexity: #2dd4bf;
+    --perplexity-bg: #0a1f1c;
+    --perplexity-border: #1a3f38;
+    --claude: #fb923c;
+    --claude-bg: #1c1008;
+    --claude-border: #3d2510;
+    --gpt: #34d399;
+    --gpt-bg: #081c14;
+    --gpt-border: #153d2a;
+    --emerald: #34d399;
+    --amber: #fbbf24;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    width: 800px;
+    height: 600px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(9,9,11,0.85);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .header-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+  .header-value {
+    font-size: 11px;
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .header-sep {
+    width: 1px;
+    height: 12px;
+    background: rgba(255,255,255,0.1);
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    background: var(--card);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    font-size: 10px;
+    font-family: monospace;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .header-pill svg { color: #f59e0b; }
+  .header-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--dim);
+  }
+
+  /* Chat area */
+  .chat-area {
+    padding: 16px 20px;
+    height: calc(600px - 50px - 52px);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+  .chat-area::-webkit-scrollbar { width: 4px; }
+  .chat-area::-webkit-scrollbar-track { background: transparent; }
+  .chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+  /* Messages */
+  .message {
+    display: flex;
+    width: 100%;
+    margin-bottom: 12px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .message.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .message.user { justify-content: flex-end; }
+  .message.ai { justify-content: flex-start; }
+
+  .msg-wrapper {
+    display: flex;
+    flex-direction: column;
+    max-width: 78%;
+    min-width: 0;
+  }
+  .user .msg-wrapper { align-items: flex-end; }
+  .ai .msg-wrapper { align-items: flex-start; }
+
+  .msg-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    padding: 0 4px;
+  }
+  .msg-meta .model-icon {
+    display: flex;
+    align-items: center;
+  }
+  .msg-meta .model-name {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .msg-meta .msg-time {
+    font-size: 9px;
+    color: var(--dim);
+    font-family: monospace;
+  }
+
+  .msg-bubble {
+    padding: 10px 14px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    border-radius: 16px;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .user .msg-bubble {
+    background: #f4f4f5;
+    color: #18181b;
+    border-top-right-radius: 4px;
+  }
+  .ai .msg-bubble {
+    border: 1px solid;
+    border-top-left-radius: 4px;
+    color: #e4e4e7;
+  }
+  .ai.gemini .msg-bubble { background: var(--gemini-bg); border-color: var(--gemini-border); }
+  .ai.perplexity .msg-bubble { background: var(--perplexity-bg); border-color: var(--perplexity-border); }
+  .ai.claude .msg-bubble { background: var(--claude-bg); border-color: var(--claude-border); }
+  .ai.gpt .msg-bubble { background: var(--gpt-bg); border-color: var(--gpt-border); }
+
+  .gemini .model-name { color: var(--gemini); }
+  .perplexity .model-name { color: var(--perplexity); }
+  .claude .model-name { color: var(--claude); }
+  .gpt .model-name { color: var(--gpt); }
+
+  /* Typing indicator */
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    border-top-left-radius: 4px;
+    border: 1px solid;
+  }
+  .typing-indicator .dots {
+    display: flex;
+    gap: 3px;
+  }
+  .typing-indicator .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    animation: bounce 0.6s infinite;
+  }
+  .typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+  .typing-indicator .thinking-text {
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .gemini .typing-indicator { background: var(--gemini-bg); border-color: var(--gemini-border); }
+  .gemini .dot { background: var(--gemini); }
+  .gemini .thinking-text { color: var(--gemini); }
+  .perplexity .typing-indicator { background: var(--perplexity-bg); border-color: var(--perplexity-border); }
+  .perplexity .dot { background: var(--perplexity); }
+  .perplexity .thinking-text { color: var(--perplexity); }
+  .claude .typing-indicator { background: var(--claude-bg); border-color: var(--claude-border); }
+  .claude .dot { background: var(--claude); }
+  .claude .thinking-text { color: var(--claude); }
+  .gpt .typing-indicator { background: var(--gpt-bg); border-color: var(--gpt-border); }
+  .gpt .dot { background: var(--gpt); }
+  .gpt .thinking-text { color: var(--gpt); }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  /* Consensus bar */
+  .consensus {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 24px 14px;
+    background: rgba(9,9,11,0.92);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .consensus.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .consensus-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .consensus-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .consensus-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    transition: background 0.5s ease;
+  }
+  .consensus-dot.analyzing {
+    background: var(--dim);
+    animation: pulse 1.5s infinite;
+  }
+  .consensus-dot.amber { background: var(--amber); }
+  .consensus-dot.emerald { background: var(--emerald); }
+  .consensus-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+  .consensus-score {
+    font-size: 13px;
+    font-family: monospace;
+    font-weight: 700;
+    transition: color 0.5s ease;
+  }
+  .consensus-score.amber { color: var(--amber); }
+  .consensus-score.emerald { color: var(--emerald); }
+  .consensus-score.dim { color: var(--dim); }
+  .consensus-bar-track {
+    height: 5px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .consensus-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    width: 0%;
+    transition: width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.5s ease, box-shadow 0.5s ease;
+  }
+  .consensus-bar-fill.amber {
+    background: var(--amber);
+    box-shadow: 0 0 15px rgba(245,158,11,0.5);
+  }
+  .consensus-bar-fill.emerald {
+    background: var(--emerald);
+    box-shadow: 0 0 15px rgba(16,185,129,0.5);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Round divider */
+  .round-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .round-divider.visible { opacity: 1; }
+  .round-divider .line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .round-divider .label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    white-space: nowrap;
+  }
+
+  /* Cursor blink in typing */
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    background: currentColor;
+    margin-left: 2px;
+    vertical-align: middle;
+    animation: blink 0.8s infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Replay button */
+  .replay-btn {
+    position: fixed;
+    top: 58px;
+    right: 12px;
+    z-index: 100;
+    padding: 4px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--dim);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.3s ease, color 0.2s ease;
+  }
+  .replay-btn:hover { color: var(--text); }
+  .replay-btn.visible { opacity: 1; }
+
+  /* Summary Card */
+  .summary-card {
+    margin: 20px auto 40px;
+    max-width: 90%;
+    background: #111113;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    padding: 24px 28px;
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .summary-card.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .summary-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .summary-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .summary-card-status {
+    font-size: 12px;
+    font-weight: 600;
+    color: #34d399;
+    margin-top: 3px;
+  }
+  .summary-card-score {
+    font-size: 40px;
+    font-family: monospace;
+    font-weight: 300;
+    letter-spacing: -0.04em;
+    color: var(--text);
+  }
+  .summary-card-score span {
+    font-size: 26px;
+  }
+  .summary-card-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #a1a1aa;
+    margin-bottom: 16px;
+  }
+  .summary-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  .summary-section-label.agree { color: #22c55e; }
+  .summary-section-label.disagree { color: #ef4444; }
+  .summary-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    font-size: 12px;
+    color: #d4d4d8;
+    line-height: 1.4;
+    margin-bottom: 4px;
+  }
+  .summary-item .bullet { flex-shrink: 0; margin-top: 1px; font-size: 14px; }
+  .summary-item .bullet.green { color: #22c55e; }
+  .summary-item .bullet.red { color: #ef4444; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">Quorum</div>
+    <div class="header-meta">
+      <div>
+        <span class="header-label">Round </span>
+        <span class="header-value" id="round-counter">1/2</span>
+      </div>
+      <div class="header-sep"></div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:11px;font-weight:500;color:var(--muted);">Short</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--dim);opacity:0.5"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-pill">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.5 4.5H18l-3.5 2.5L16 14.5 12 11.5 8 14.5l1.5-4.5L6 7.5h4.5z"/></svg>
+      1,250
+    </div>
+    <div class="header-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </div>
+    <div class="header-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- Chat -->
+<div class="chat-area" id="chat">
+</div>
+
+<!-- Consensus -->
+<div class="consensus" id="consensus">
+  <div class="consensus-header">
+    <div class="consensus-left">
+      <div class="consensus-dot analyzing" id="consensus-dot"></div>
+      <span class="consensus-label" id="consensus-label">Consensus</span>
+    </div>
+    <span class="consensus-score dim" id="consensus-score">ANALYZING...</span>
+  </div>
+  <div class="consensus-bar-track">
+    <div class="consensus-bar-fill" id="consensus-bar"></div>
+  </div>
+</div>
+
+<!-- Replay -->
+<button class="replay-btn" id="replay-btn" onclick="location.reload()">&#8635; Replay</button>
+
+<script>
+// SVG icons for each model
+const icons = {
+  gemini: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="#3186FF"/><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#g0)"/><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#g1)"/><defs><linearGradient gradientUnits="userSpaceOnUse" id="g0" x1="7" x2="11" y1="15.5" y2="12"><stop stop-color="#08B962"/><stop offset="1" stop-color="#08B962" stop-opacity="0"/></linearGradient><linearGradient gradientUnits="userSpaceOnUse" id="g1" x1="8" x2="11.5" y1="5.5" y2="11"><stop stop-color="#F94543"/><stop offset="1" stop-color="#F94543" stop-opacity="0"/></linearGradient></defs></svg>`,
+  perplexity: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color:var(--perplexity)"><path d="M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z" fill-rule="evenodd"/></svg>`,
+  claude: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color:var(--claude)"><path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill-rule="evenodd"/></svg>`,
+  gpt: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="color:var(--gpt)"><path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0z" fill-rule="evenodd"/></svg>`
+};
+
+const chat = document.getElementById('chat');
+const consensusEl = document.getElementById('consensus');
+const consensusDot = document.getElementById('consensus-dot');
+const consensusLabel = document.getElementById('consensus-label');
+const consensusScore = document.getElementById('consensus-score');
+const consensusBar = document.getElementById('consensus-bar');
+const roundCounter = document.getElementById('round-counter');
+const replayBtn = document.getElementById('replay-btn');
+
+function getTime(offset) {
+  const d = new Date(2026, 2, 29, 14, 32, 0);
+  d.setSeconds(d.getSeconds() + offset);
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Script
+const script = [
+  // Round 1
+  { type: 'message', sender: 'user', name: 'You', content: 'Should we use microservices or a monolith for our MVP?', timeOffset: 0 },
+  { type: 'typing', sender: 'gemini' },
+  { type: 'message', sender: 'gemini', name: 'Gemini', content: 'Start with a monolith. At the MVP stage, microservices add deployment complexity without clear payoff. Ship fast, split later.', timeOffset: 8 },
+  { type: 'typing', sender: 'perplexity' },
+  { type: 'message', sender: 'perplexity', name: 'Perplexity', content: 'Monolith for speed, but design with clear module boundaries from day one. Makes the eventual split painless.', timeOffset: 16 },
+  { type: 'typing', sender: 'claude' },
+  { type: 'message', sender: 'claude', name: 'Claude', content: 'Agreed on monolith-first. The #1 startup risk is building too slow, not scaling too early.', timeOffset: 22 },
+  { type: 'typing', sender: 'gpt' },
+  { type: 'message', sender: 'gpt', name: 'GPT', content: 'Monolith. Reserve microservices for when you have concrete scaling bottlenecks, not hypothetical ones.', timeOffset: 28 },
+  { type: 'consensus', score: 78, color: 'amber' },
+
+  // Round divider
+  { type: 'divider', label: 'Round 2' },
+  { type: 'round', value: '2/2' },
+
+  // Round 2
+  { type: 'typing', sender: 'gemini' },
+  { type: 'message', sender: 'gemini', name: 'Gemini', content: 'One nuance: if your team already runs Kubernetes, the ops overhead of microservices drops significantly.', timeOffset: 38 },
+  { type: 'typing', sender: 'perplexity' },
+  { type: 'message', sender: 'perplexity', name: 'Perplexity', content: 'Fair point. But even with K8s experience, data consistency across services is harder at MVP speed.', timeOffset: 44 },
+  { type: 'typing', sender: 'claude' },
+  { type: 'message', sender: 'claude', name: 'Claude', content: 'The consensus is clear. Monolith-first with clean boundaries. Revisit architecture after product-market fit.', timeOffset: 50 },
+  { type: 'typing', sender: 'gpt' },
+  { type: 'message', sender: 'gpt', name: 'GPT', content: 'Exactly. Optimize for learning speed now, infrastructure later.', timeOffset: 55 },
+  { type: 'consensus', score: 92, color: 'emerald', final: true },
+  { type: 'verdict', score: 92, summary: 'All models strongly agree on a monolith-first approach for MVP development, with clean module boundaries to enable future decomposition.', agreements: ['Start with a monolith for MVP speed', 'Design with clean module boundaries from day one', 'Revisit architecture only after product-market fit'], disagreements: ['Minor debate on whether existing K8s experience changes the calculus'] },
+  { type: 'done' }
+];
+
+function createMessage(sender, name, content, timeOffset) {
+  const div = document.createElement('div');
+  const isUser = sender === 'user';
+  div.className = `message ${isUser ? 'user' : 'ai ' + sender}`;
+
+  const icon = !isUser ? `<span class="model-icon">${icons[sender]}</span>` : '';
+  const time = `<span class="msg-time">${getTime(timeOffset)}</span>`;
+
+  div.innerHTML = `
+    <div class="msg-wrapper">
+      ${!isUser ? `<div class="msg-meta">${icon}<span class="model-name">${name}</span>${time}</div>` : ''}
+      <div class="msg-bubble">${content}</div>
+      ${isUser ? `<div class="msg-meta" style="margin-top:4px;margin-bottom:0;">${time}</div>` : ''}
+    </div>
+  `;
+  return div;
+}
+
+function createTyping(sender) {
+  const div = document.createElement('div');
+  div.className = `message ai ${sender}`;
+  div.setAttribute('data-typing', sender);
+
+  const names = { gemini: 'Gemini', perplexity: 'Perplexity', claude: 'Claude', gpt: 'GPT' };
+
+  div.innerHTML = `
+    <div class="msg-wrapper">
+      <div class="msg-meta">
+        <span class="model-icon">${icons[sender]}</span>
+        <span class="model-name">${names[sender]}</span>
+      </div>
+      <div class="typing-indicator">
+        <div class="dots">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+        <span class="thinking-text">is thinking...</span>
+      </div>
+    </div>
+  `;
+  return div;
+}
+
+function createDivider(label) {
+  const div = document.createElement('div');
+  div.className = 'round-divider';
+  div.innerHTML = `<div class="line"></div><span class="label">${label}</span><div class="line"></div>`;
+  return div;
+}
+
+function scrollToBottom() {
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function createVerdictCard(data) {
+  const div = document.createElement('div');
+  div.className = 'summary-card';
+
+  const checkIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+  const xIcon = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+
+  const agreementsHtml = data.agreements.map(a =>
+    `<div class="summary-item"><span class="bullet green">•</span><span>${a}</span></div>`
+  ).join('');
+
+  const disagreementsHtml = data.disagreements.map(d =>
+    `<div class="summary-item"><span class="bullet red">•</span><span>${d}</span></div>`
+  ).join('');
+
+  div.innerHTML = `
+    <div class="summary-card-header">
+      <div>
+        <div class="summary-card-title">Discussion Summary</div>
+        <div class="summary-card-status">Consensus Reached</div>
+      </div>
+      <div class="summary-card-score">${data.score}<span>%</span></div>
+    </div>
+    <div class="summary-card-text">${data.summary}</div>
+    <div style="margin-bottom:12px">
+      <div class="summary-section-label agree">${checkIcon} Agreements</div>
+      ${agreementsHtml}
+    </div>
+    <div>
+      <div class="summary-section-label disagree">${xIcon} Disagreements</div>
+      ${disagreementsHtml}
+    </div>
+  `;
+  return div;
+}
+
+function setConsensus(score, colorClass, isFinal) {
+  consensusDot.className = 'consensus-dot ' + colorClass;
+  consensusLabel.textContent = isFinal ? 'FINAL VERDICT' : 'Consensus';
+  consensusScore.className = 'consensus-score ' + colorClass;
+  consensusScore.textContent = score + '%';
+  consensusBar.className = 'consensus-bar-fill ' + colorClass;
+  consensusBar.style.width = score + '%';
+}
+
+// Playback
+let stepIndex = 0;
+
+function playStep() {
+  if (stepIndex >= script.length) return;
+  const step = script[stepIndex];
+  stepIndex++;
+
+  switch (step.type) {
+    case 'message': {
+      // Remove typing indicator for this sender
+      const typing = chat.querySelector(`[data-typing="${step.sender}"]`);
+      if (typing) typing.remove();
+
+      const msg = createMessage(step.sender, step.name, step.content, step.timeOffset);
+      chat.appendChild(msg);
+      requestAnimationFrame(() => {
+        msg.classList.add('visible');
+        scrollToBottom();
+      });
+      setTimeout(playStep, step.sender === 'user' ? 800 : 400);
+      break;
+    }
+    case 'typing': {
+      const el = createTyping(step.sender);
+      chat.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.add('visible');
+        scrollToBottom();
+      });
+      setTimeout(playStep, 1200);
+      break;
+    }
+    case 'consensus': {
+      consensusEl.classList.add('visible');
+      // Animate score counting up
+      let current = parseInt(consensusBar.style.width) || 0;
+      setTimeout(() => {
+        setConsensus(step.score, step.color, step.final || false);
+      }, 300);
+      setTimeout(playStep, step.final ? 1500 : 1200);
+      break;
+    }
+    case 'divider': {
+      const div = createDivider(step.label);
+      chat.appendChild(div);
+      requestAnimationFrame(() => {
+        div.classList.add('visible');
+        scrollToBottom();
+      });
+      setTimeout(playStep, 300);
+      break;
+    }
+    case 'round': {
+      roundCounter.textContent = step.value;
+      setTimeout(playStep, 200);
+      break;
+    }
+    case 'verdict': {
+      const card = createVerdictCard(step);
+      chat.appendChild(card);
+      requestAnimationFrame(() => {
+        card.classList.add('visible');
+        scrollToBottom();
+      });
+      setTimeout(playStep, 2000);
+      break;
+    }
+    case 'done': {
+      replayBtn.classList.add('visible');
+      break;
+    }
+  }
+}
+
+// Start quickly
+setTimeout(() => {
+  consensusEl.classList.add('visible');
+  consensusScore.textContent = 'ANALYZING...';
+  playStep();
+}, 100);
+</script>
+
+</body>
+</html>
