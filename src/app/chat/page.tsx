@@ -1,7 +1,7 @@
 "use client"
 
 import { useReducer, useCallback, useRef, useEffect, useState } from "react"
-import type { Message, Provider, ConsensusResult, Locale, ResponseLength } from "@/types"
+import type { Message, Provider, ConsensusResult, Locale, ResponseLength, Theme } from "@/types"
 import { cleanResponse } from "@/lib/clean-response"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
@@ -98,7 +98,7 @@ export default function ChatPage() {
   const [locale, setLocale] = useState<Locale>("en")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(5)
-  const [theme, setTheme] = useState<"light" | "dark">("dark")
+  const [theme, setTheme] = useState<Theme>("dark")
   const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
@@ -110,13 +110,13 @@ export default function ChatPage() {
   const [showScrollDown, setShowScrollDown] = useState(false)
   const handleSendRef = useRef<(text: string, target: Provider | "all", models: Provider[]) => void>(() => {})
 
-  // Apply theme class to <html>
+  // Apply theme classes to <html>
   useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark")
-    } else {
-      document.documentElement.classList.remove("dark")
-    }
+    const cl = document.documentElement.classList
+    cl.remove("dark", "tokyonight", "lovelace")
+    if (theme === "dark") cl.add("dark")
+    else if (theme === "tokyonight") { cl.add("dark", "tokyonight") }
+    else if (theme === "lovelace") { cl.add("dark", "lovelace") }
   }, [theme])
 
   // Auto-scroll to top of summary card when it appears
@@ -134,8 +134,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     // Read theme from localStorage (set by homepage)
-    const savedTheme = localStorage.getItem("quorum_theme") as "light" | "dark" | null
-    if (savedTheme) {
+    const savedTheme = localStorage.getItem("quorum_theme") as Theme | null
+    if (savedTheme && ["light", "dark", "tokyonight", "lovelace"].includes(savedTheme)) {
       setTheme(savedTheme)
     }
 
@@ -176,7 +176,7 @@ export default function ChatPage() {
       initialPromptSent.current = true
       const { prompt: p, models } = pendingPrompt.current
       pendingPrompt.current = null
-      handleSendRef.current(p, "all", models)
+      setTimeout(() => handleSendRef.current(p, "all", models), 0)
     }
   })
 
@@ -203,7 +203,7 @@ export default function ChatPage() {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: allMessages, provider }),
+          body: JSON.stringify({ messages: allMessages, provider, locale, responseLength }),
           signal: controller.signal,
         })
 
@@ -252,7 +252,7 @@ export default function ChatPage() {
         return null
       }
     },
-    []
+    [locale, responseLength]
   )
 
   const runRound = useCallback(
@@ -273,7 +273,7 @@ export default function ChatPage() {
           const res = await fetch("/api/consensus", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: msgs }),
+            body: JSON.stringify({ messages: msgs, locale }),
           })
           if (res.ok) {
             const result: ConsensusResult = await res.json()
@@ -286,7 +286,7 @@ export default function ChatPage() {
 
       return { msgs, done: false }
     },
-    [callModel]
+    [callModel, locale]
   )
 
   // Internal send that accepts explicit models (used for auto-send on mount)
@@ -325,7 +325,7 @@ export default function ChatPage() {
               const res = await fetch("/api/consensus", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: msgs }),
+                body: JSON.stringify({ messages: msgs, locale }),
               })
               if (res.ok) {
                 const result: ConsensusResult = await res.json()
@@ -343,7 +343,7 @@ export default function ChatPage() {
 
       dispatch({ type: "SET_DEBATING", value: false })
     },
-    [state.messages, maxRounds, callModel, runRound]
+    [state.messages, maxRounds, callModel, runRound, locale]
   )
 
   handleSendRef.current = handleSendWithModels
@@ -367,7 +367,7 @@ export default function ChatPage() {
         const res = await fetch("/api/consensus", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: state.messages }),
+          body: JSON.stringify({ messages: state.messages, locale }),
         })
         if (res.ok) {
           const result: ConsensusResult = await res.json()
@@ -378,7 +378,7 @@ export default function ChatPage() {
         console.error("Final consensus failed:", err)
       }
     }
-  }, [state.messages])
+  }, [state.messages, locale])
 
   const handleReset = useCallback(() => {
     stopRef.current = true
@@ -386,16 +386,21 @@ export default function ChatPage() {
     dispatch({ type: "RESET" })
   }, [])
 
+  const changeTheme = (t: Theme) => {
+    setTheme(t)
+    localStorage.setItem("quorum_theme", t)
+  }
+
   const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light"
-    setTheme(next)
-    localStorage.setItem("quorum_theme", next)
+    const order: Theme[] = ["light", "dark", "tokyonight", "lovelace"]
+    const next = order[(order.indexOf(theme) + 1) % order.length]
+    changeTheme(next)
   }
 
   /* ─── Render ─── */
 
   return (
-    <div className="relative flex flex-col h-screen bg-white dark:bg-zinc-950 overflow-hidden font-[family-name:var(--font-geist-sans)] text-zinc-900 dark:text-zinc-100 transition-colors duration-200">
+    <div className="relative flex flex-col h-screen bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
       <ChatHeader
         currentRound={state.currentRound}
         maxRounds={maxRounds}
@@ -421,6 +426,8 @@ export default function ChatPage() {
         maxRounds={maxRounds}
         onChangeRounds={setMaxRounds}
         isDebating={state.isDebating}
+        theme={theme}
+        onChangeTheme={changeTheme}
       />
 
       {/* Scrollable message area */}
@@ -465,7 +472,7 @@ export default function ChatPage() {
       </AnimatePresence>
 
       {/* Bottom bar: consensus rail + input */}
-      <div className="w-full shrink-0 bg-gradient-to-t from-white via-white to-transparent dark:from-zinc-950 dark:via-zinc-950 pt-4 z-10">
+      <div className="w-full shrink-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-4 z-10">
         <AnimatePresence>
           {(state.isDebating || state.typingModel !== null || state.consensus !== null) && (
             <ConsensusMeter

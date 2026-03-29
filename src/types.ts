@@ -4,6 +4,8 @@ export type Locale = "en" | "ko"
 
 export type ResponseLength = "short" | "medium" | "long"
 
+export type Theme = "light" | "dark" | "tokyonight" | "lovelace"
+
 export type Message = {
   id: string
   sender: Provider | "user"

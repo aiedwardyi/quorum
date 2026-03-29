@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import type { Message, ConsensusResult } from "@/types"
+import type { Message, ConsensusResult, Locale } from "@/types"
 import {
   VertexAI,
   HarmCategory,
@@ -9,7 +9,12 @@ import {
 const projectId = process.env.VERTEX_PROJECT_ID!
 const location = process.env.VERTEX_LOCATION!
 
-const CONSENSUS_PROMPT = `You are a discussion analyst. Analyze the following group discussion between AI models and a human user.
+function getConsensusPrompt(locale: Locale): string {
+  const localeRule = locale === "ko"
+    ? "\n- Return all text fields (agreements, disagreements, summary) in Korean."
+    : ""
+
+  return `You are a discussion analyst. Analyze the following group discussion between AI models and a human user.
 
 Evaluate how much the participants agree with each other. Return ONLY valid JSON with this exact structure, no other text:
 
@@ -27,7 +32,8 @@ Rules:
 - If there are minor differences in framing but same conclusion, score 70-89
 - If there are substantive disagreements, score 40-69
 - If they fundamentally disagree, score 0-39
-- Return ONLY the JSON object, no markdown fences, no explanation`
+- Return ONLY the JSON object, no markdown fences, no explanation${localeRule}`
+}
 
 function formatThread(messages: Message[]): string {
   return messages
@@ -39,6 +45,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const messages: Message[] = body.messages
+    const locale: Locale = body.locale || "en"
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -78,7 +85,7 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContent({
       systemInstruction: {
         role: "system",
-        parts: [{ text: CONSENSUS_PROMPT }],
+        parts: [{ text: getConsensusPrompt(locale) }],
       },
       contents: [
         {

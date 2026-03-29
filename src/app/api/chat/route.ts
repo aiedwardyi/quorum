@@ -1,30 +1,48 @@
 import { streamGemini } from "@/lib/providers/gemini"
 import { streamPerplexity } from "@/lib/providers/perplexity"
-import type { Message, Provider } from "@/types"
+import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
-function getSystemPrompt(provider: Provider): string {
+const DISPLAY_NAMES: Record<Provider, string> = {
+  gemini: "Gemini",
+  perplexity: "Perplexity",
+  claude: "Claude",
+  gpt: "GPT",
+}
+
+function getResponseLengthInstruction(length: ResponseLength): string {
+  switch (length) {
+    case "short":
+      return "Be very concise — keep responses under 75 words."
+    case "long":
+      return "Give detailed responses — aim for around 300 words."
+    default:
+      return "Be concise — keep responses under 150 words."
+  }
+}
+
+function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength): string {
+  const lengthLine = getResponseLengthInstruction(responseLength)
+  const localeLine = locale === "ko" ? "\nAlways respond in Korean." : ""
+
   return `You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
 Your name is ${DISPLAY_NAMES[provider]}. Always speak as yourself in first person.
 NEVER speak as another model. NEVER prefix your response with any name like "[Gemini]:" or "[Claude]:".
 The human is the decision-maker. Respond to the full conversation naturally.
 If you disagree with another model, say so directly and explain why.
 If you changed your mind based on new points, say that too.
-Be concise — keep responses under 200 words. This is a discussion, not an essay.
+${lengthLine} This is a discussion, not an essay.
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
-Do NOT add a "References" or "Refs" section. Just give your opinion directly.`
-}
-
-const DISPLAY_NAMES: Record<Provider, string> = {
-  gemini: "Gemini",
-  perplexity: "Perplexity",
+Do NOT add a "References" or "Refs" section. Just give your opinion directly.${localeLine}`
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { messages, provider } = body as {
+    const { messages, provider, locale = "en", responseLength = "medium" } = body as {
       messages: Message[]
       provider: Provider
+      locale?: Locale
+      responseLength?: ResponseLength
     }
 
     if (!messages || !provider) {
@@ -37,7 +55,7 @@ export async function POST(request: Request) {
     const streamFn =
       provider === "gemini" ? streamGemini : streamPerplexity
 
-    const systemPrompt = getSystemPrompt(provider)
+    const systemPrompt = getSystemPrompt(provider, locale, responseLength)
     const encoder = new TextEncoder()
     let fullContent = ""
 
