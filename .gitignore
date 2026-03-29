@@ -55,3 +55,9 @@ service-account*.json
 # Credentials
 service-account*.json
 *.pem
+
+# Superpowers brainstorm sessions
+.superpowers/
+
+# Playwright MCP (Claude Code)
+.playwright-mcp/

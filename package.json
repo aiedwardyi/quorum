@@ -10,12 +10,14 @@
     "test:providers": "npx tsx src/lib/providers/test-providers.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@google-cloud/vertexai": "^1.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.577.0",
     "next": "16.2.0",
+    "openai": "^6.33.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -28,9 +30,13 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "canvas": "^3.2.2",
     "dotenv": "^17.3.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.0",
+    "ffmpeg-static": "^5.3.0",
+    "gif-encoder-2": "^1.0.5",
+    "playwright": "^1.58.2",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"
