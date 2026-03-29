@@ -60,7 +60,8 @@ export async function queryPerplexity(
 
 export async function* streamPerplexity(
   systemPrompt: string,
-  messages: Message[]
+  messages: Message[],
+  signal?: AbortSignal
 ): AsyncGenerator<string> {
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
@@ -70,6 +71,7 @@ export async function* streamPerplexity(
       messages: buildMessages(systemPrompt, messages),
       stream: true,
     }),
+    signal,
   })
 
   if (!response.ok) {

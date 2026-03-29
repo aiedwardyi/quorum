@@ -17,24 +17,28 @@ function buildThread(messages: Message[]): string {
 
 export async function* streamClaude(
   systemPrompt: string,
-  messages: Message[]
+  messages: Message[],
+  signal?: AbortSignal
 ): AsyncGenerator<string> {
   const client = getClient()
   const thread = buildThread(messages)
 
   try {
-    const stream = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-          content: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
-        },
-      ],
-      stream: true,
-    })
+    const stream = await client.messages.create(
+      {
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
+          },
+        ],
+        stream: true,
+      },
+      { signal }
+    )
 
     for await (const event of stream) {
       if (

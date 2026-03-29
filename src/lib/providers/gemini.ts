@@ -58,7 +58,8 @@ export async function queryGemini(
 // Streaming (used by chat route)
 export async function* streamGemini(
   systemPrompt: string,
-  messages: Message[]
+  messages: Message[],
+  signal?: AbortSignal
 ): AsyncGenerator<string> {
   const model = getModel()
   const contents = buildContents(messages)

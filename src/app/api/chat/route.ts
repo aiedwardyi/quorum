@@ -4,6 +4,8 @@ import { streamClaude } from "@/lib/providers/claude"
 import { streamGPT } from "@/lib/providers/gpt"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
+const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
+
 const DISPLAY_NAMES: Record<Provider, string> = {
   gemini: "Gemini",
   perplexity: "Perplexity",
@@ -24,9 +26,9 @@ function getResponseLengthInstruction(length: ResponseLength): string {
 
 function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength): string {
   const lengthLine = getResponseLengthInstruction(responseLength)
-  const localeLine = locale === "ko" ? "\nAlways respond in Korean." : ""
+  const isKorean = locale === "ko"
 
-  return `${localeLine ? "IMPORTANT: You MUST respond entirely in Korean (한국어). Every word of your response must be in Korean, regardless of what language the user writes in.\n\n" : ""}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
+  return `${isKorean ? "IMPORTANT: You MUST respond entirely in Korean (한국어). Every word of your response must be in Korean, regardless of what language the user writes in.\n\n" : ""}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
 Your name is ${DISPLAY_NAMES[provider]}. Always speak as yourself in first person.
 NEVER speak as another model. NEVER prefix your response with any name like "[Gemini]:" or "[Claude]:".
 The human is the decision-maker. Respond to the full conversation naturally.
@@ -46,7 +48,6 @@ function getStreamFn(provider: Provider) {
     case "gpt":
       return streamGPT
     case "perplexity":
-    default:
       return streamPerplexity
   }
 }
@@ -74,6 +75,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return new Response(
+        JSON.stringify({ error: `Invalid provider: ${provider}` }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
     const streamFn = getStreamFn(provider)
     const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
     const encoder = new TextEncoder()
@@ -92,7 +100,7 @@ export async function POST(request: Request) {
         })
 
         try {
-          for await (const chunk of streamFn(systemPrompt, messages)) {
+          for await (const chunk of streamFn(systemPrompt, messages, request.signal)) {
             if (request.signal?.aborted) break
             fullContent += chunk
             const event = `data: ${JSON.stringify({ chunk })}\n\n`
