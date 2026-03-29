@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip } from "lucide-react"
+import { Sun, Moon, Star, Heart, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip } from "lucide-react"
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
-import type { Provider, ResponseLength, Locale } from "@/types"
+import type { Provider, ResponseLength, Locale, Theme } from "@/types"
+import { cn } from "@/lib/utils"
 
 /* ─── Model SVG Icons ─── */
 
@@ -130,7 +131,7 @@ function modelDisplayName(id: Provider): string {
 
 export default function Home() {
   const router = useRouter()
-  const [theme, setTheme] = useState<"light" | "dark">("dark")
+  const [theme, setTheme] = useState<Theme>("dark")
   const [locale, setLocale] = useState<Locale>("en")
   const [prompt, setPrompt] = useState("")
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
@@ -158,26 +159,39 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
+  const applyThemeToDOM = (t: Theme) => {
+    const cl = document.documentElement.classList
+    cl.remove("dark", "tokyonight", "lovelace")
+    if (t === "dark") cl.add("dark")
+    else if (t === "tokyonight") { cl.add("dark", "tokyonight") }
+    else if (t === "lovelace") { cl.add("dark", "lovelace") }
+  }
+
   useEffect(() => {
-    const savedTheme = localStorage.getItem("quorum_theme")
-    if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+    const saved = localStorage.getItem("quorum_theme") as Theme | null
+    const valid: Theme[] = ["light", "dark", "tokyonight", "lovelace"]
+    if (saved && valid.includes(saved)) {
+      setTheme(saved)
+      applyThemeToDOM(saved)
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
       setTheme("dark")
-      document.documentElement.classList.add("dark")
+      applyThemeToDOM("dark")
     } else {
       setTheme("light")
-      document.documentElement.classList.remove("dark")
+      applyThemeToDOM("light")
     }
   }, [])
 
+  const changeTheme = (t: Theme) => {
+    setTheme(t)
+    localStorage.setItem("quorum_theme", t)
+    applyThemeToDOM(t)
+  }
+
   const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light"
-    setTheme(newTheme)
-    localStorage.setItem("quorum_theme", newTheme)
-    if (newTheme === "dark") {
-      document.documentElement.classList.add("dark")
-    } else {
-      document.documentElement.classList.remove("dark")
-    }
+    const order: Theme[] = ["light", "dark", "tokyonight", "lovelace"]
+    const next = order[(order.indexOf(theme) + 1) % order.length]
+    changeTheme(next)
   }
 
   const toggleModel = (model: Provider) => {
@@ -239,7 +253,7 @@ export default function Home() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#fafaf9] dark:bg-[#0a0a0a] text-zinc-900 dark:text-zinc-100 font-[family-name:var(--font-geist-sans)] selection:bg-zinc-200 dark:selection:bg-zinc-800 transition-colors duration-300 flex flex-col">
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground font-[family-name:var(--font-geist-sans)] selection:bg-zinc-200 dark:selection:bg-zinc-800 transition-colors duration-300 flex flex-col">
       {/* Background animation */}
       <div className="absolute inset-0 pointer-events-none">
         <motion.div
@@ -261,34 +275,67 @@ export default function Home() {
           Quorum
         </div>
         <div className="flex items-center gap-3 sm:gap-5">
-          <button
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
             onClick={() => setLocale(locale === "en" ? "ko" : "en")}
-            className="cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            className={cn("cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors", theme === "lovelace" && "hover:ring-2 hover:ring-[#c574dd]/60 rounded-md px-1")}
           >
             {locale === "en" ? "EN" : "KO"}
-          </button>
-          <button
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
             onClick={toggleTheme}
-            className="cursor-pointer text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            className={cn("cursor-pointer text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60 rounded-full p-0.5", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40 rounded-full p-0.5")}
             aria-label="Toggle theme"
           >
-            {theme === "light" ? <Moon size={18} strokeWidth={2.5} /> : <Sun size={18} strokeWidth={2.5} />}
-          </button>
+            <AnimatePresence mode="wait">
+              {theme === "light" && (
+                <motion.div key="sun" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}
+                  whileHover={{ rotate: [0, 360], transition: { duration: 3, repeat: Infinity, ease: "linear" } }}>
+                  <Sun size={18} strokeWidth={2.5} />
+                </motion.div>
+              )}
+              {theme === "dark" && (
+                <motion.div key="moon" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}
+                  whileHover={{ rotate: [0, -15, 15, -15, 0], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } }}>
+                  <Moon size={18} strokeWidth={2.5} />
+                </motion.div>
+              )}
+              {theme === "tokyonight" && (
+                <motion.div key="star" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.2 }}
+                  whileHover={{ scale: [1, 1.3, 1], transition: { duration: 1, repeat: Infinity, ease: "easeInOut" } }}>
+                  <Star size={18} strokeWidth={2.5} />
+                </motion.div>
+              )}
+              {theme === "lovelace" && (
+                <motion.div key="heart" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.2 }}
+                  whileHover={{ scale: [1, 1.2, 1, 1.15, 1], transition: { duration: 0.8, repeat: Infinity, ease: "easeInOut" } }}>
+                  <Heart size={18} strokeWidth={2.5} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.button>
 
           <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-800 mx-1" />
 
           {isLoggedIn ? (
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className={cn("flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40")}
+              >
                 <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
                 <span className="text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100">1,250</span>
-              </div>
+              </motion.div>
 
               <div className="relative" data-header-dropdown>
                 <motion.button
                   whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.05 }}
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
+                  className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40")}
                 >
                   <User className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.button>
@@ -299,17 +346,17 @@ export default function Home() {
                       initial={{ opacity: 0, y: 5, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                      className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg overflow-hidden z-[60]"
+                      className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
                     >
                       <div className="p-1">
                         <button
                           onClick={() => { setShowDropdown(false); setShowSettings(true) }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
                         >
                           <Settings2 className="w-4 h-4" />
                           {t[locale].settings}
                         </button>
-                        <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-1" />
+                        <div className="h-px bg-border my-1" />
                         <button
                           onClick={() => { setShowDropdown(false); setIsLoggedIn(false) }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
@@ -356,7 +403,7 @@ export default function Home() {
           >
             <div className={`absolute inset-0 bg-[conic-gradient(from_0deg,red,purple,blue,red)] animate-rotate-border ${isFocused ? "opacity-100" : "opacity-50"}`} />
 
-            <div className="relative bg-[#fafaf9] dark:bg-[#0a0a0a] rounded-[22px] p-4 sm:p-6">
+            <div className="relative bg-background rounded-[22px] p-4 sm:p-6">
               <textarea
                 ref={textareaRef}
                 value={prompt}
