@@ -36,8 +36,8 @@
 
 ## Open Issues (Priority Order)
 
-### 1. Language System (i18n for AI responses)
-Pass locale to API routes. Add to system prompt: "Always respond in {Korean|English}." Apply to both `/api/chat` and `/api/consensus` so summary card content matches locale. UI chrome translations already work - this is for AI-generated content only.
+### ~~1. Language System (i18n for AI responses)~~ ✅
+Wired locale to both `/api/chat` and `/api/consensus` system prompts. AI responses now respect EN/KR setting.
 
 ### 2. Between-Round Feedback
 After last model in a round finishes and before next round starts, show a brief status bubble (e.g. "Analyzing responses and preparing next round...") so user doesn't think the debate stalled.
@@ -45,11 +45,11 @@ After last model in a round finishes and before next round starts, show a brief 
 ### 3. Discussion Concluded Color
 The "Discussion Concluded" / "Consensus Reached" text under Discussion Summary changes color based on score. Make it static green or blue regardless of score.
 
-### 4. Round Counter Overflow
-If user selects 5 rounds, counter shows "5/3" instead of "5/5". The `maxRounds` state updates but the header display uses the wrong denominator.
+### ~~4. Round Counter Overflow (BUG-011)~~ ✅
+Fixed via `setTimeout(() => ..., 0)` in pending prompt useEffect. React state update now completes before handleSendWithModels fires.
 
-### 5. Response Length Wiring
-`responseLength` (short/medium/long) is stored in state but never sent to the API. Wire it into the system prompt with word targets: short ~75 words, medium ~150 words, long ~300 words.
+### ~~5. Response Length Wiring~~ ✅
+Wired `responseLength` to `/api/chat` with dynamic word targets: short ~75w, medium ~150w, long ~300w.
 
 ### ~~6. Stop Button - Stuck Thinking Bubble~~ ✅
 Fixed: AbortError catch now dispatches "✖️ Response cancelled." to resolve the placeholder bubble.
