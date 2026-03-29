@@ -45,7 +45,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const messages: Message[] = body.messages
-    const locale: Locale = body.locale || "en"
+    const rawLocale = body.locale
+    const locale: Locale = rawLocale === "en" || rawLocale === "ko" ? rawLocale : "en"
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
