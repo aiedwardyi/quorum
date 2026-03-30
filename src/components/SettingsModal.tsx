@@ -1,18 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ComponentType } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Eye, EyeOff, Bot, RotateCw, Palette } from "lucide-react"
+import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, RotateCw, Palette, Sun, Moon, Flame, Cat, Snowflake, Check } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 
 const ALL_MODELS: Provider[] = ["gemini", "claude", "gpt", "perplexity"]
 
-const THEME_SWATCHES: { id: Theme; bg: string; fg: string; accent: string; ring: string; label: Record<Locale, string> }[] = [
-  { id: "light", bg: "#fafaf9", fg: "#18181b", accent: "#e4e4e7", ring: "#18181b", label: { en: "Light", ko: "라이트" } },
-  { id: "dark", bg: "#09090b", fg: "#fafafa", accent: "#27272a", ring: "#71717a", label: { en: "Dark", ko: "다크" } },
-  { id: "tokyonight", bg: "#1a1b26", fg: "#c0caf5", accent: "#7aa2f7", ring: "#7aa2f7", label: { en: "Tokyo", ko: "도쿄" } },
-  { id: "lovelace", bg: "#1d1f28", fg: "#fdfdfd", accent: "#c574dd", ring: "#c574dd", label: { en: "Love", ko: "러브" } },
+const THEME_SWATCHES: { id: Theme; bg: string; fg: string; accent: string; ring: string; label: Record<Locale, string>; Icon: ComponentType<{ className?: string; size?: number }>; iconColor: string }[] = [
+  { id: "light", bg: "#fafaf9", fg: "#18181b", accent: "#e4e4e7", ring: "#18181b", label: { en: "Light", ko: "라이트" }, Icon: Sun, iconColor: "#f59e0b" },
+  { id: "dark", bg: "#09090b", fg: "#fafafa", accent: "#27272a", ring: "#71717a", label: { en: "Dark", ko: "다크" }, Icon: Moon, iconColor: "#a1a1aa" },
+  { id: "tokyonight", bg: "#1a1b26", fg: "#c0caf5", accent: "#7aa2f7", ring: "#7aa2f7", label: { en: "Tokyo", ko: "도쿄" }, Icon: Star, iconColor: "#7aa2f7" },
+  { id: "lovelace", bg: "#1d1f28", fg: "#fdfdfd", accent: "#c574dd", ring: "#c574dd", label: { en: "Love", ko: "러브" }, Icon: Heart, iconColor: "#c574dd" },
+  { id: "gruvbox", bg: "#1d2021", fg: "#ebdbb2", accent: "#fe8019", ring: "#fe8019", label: { en: "Gruvbox", ko: "그루브" }, Icon: Flame, iconColor: "#fe8019" },
+  { id: "catppuccin", bg: "#1e1e2e", fg: "#cdd6f4", accent: "#cba6f7", ring: "#cba6f7", label: { en: "Mocha", ko: "모카" }, Icon: Cat, iconColor: "#cba6f7" },
+  { id: "nord", bg: "#2e3440", fg: "#eceff4", accent: "#88c0d0", ring: "#88c0d0", label: { en: "Nord", ko: "노르드" }, Icon: Snowflake, iconColor: "#88c0d0" },
 ]
 
 const modelStyles: Record<Provider, { activeBorder: string; glow: string; iconBg: string; iconColor: string; dot: string }> = {
@@ -164,27 +167,48 @@ export default function SettingsModal({
                         <Palette className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">{t.theme}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
                         {THEME_SWATCHES.map((swatch) => {
                           const isActive = theme === swatch.id
+                          const SwatchIcon = swatch.Icon
                           return (
                             <motion.button
                               key={swatch.id}
                               whileTap={{ scale: 0.95 }}
+                              whileHover={{ y: -2 }}
                               onClick={() => onChangeTheme(swatch.id)}
-                              className="relative flex flex-col items-center gap-1.5 p-1.5 rounded-xl transition-all duration-200"
-                              style={isActive ? {
-                                boxShadow: `0 0 0 2px var(--card), 0 0 0 4px ${swatch.ring}`,
-                              } : undefined}
+                              className={cn(
+                                "relative flex flex-col items-center gap-1 p-1.5 rounded-xl transition-all duration-200 group/swatch",
+                                isActive && "ring-2 ring-offset-1 ring-offset-card"
+                              )}
+                              style={isActive ? { ["--tw-ring-color" as string]: swatch.ring } : undefined}
                             >
                               <div
-                                className="w-14 h-9 rounded-lg border border-zinc-300 dark:border-zinc-600 flex flex-col items-start justify-center px-2 gap-0.5 shadow-sm"
+                                className="w-full aspect-[16/10] rounded-lg border border-zinc-300/50 dark:border-zinc-600/50 flex items-center justify-center relative overflow-hidden shadow-sm"
                                 style={{ backgroundColor: swatch.bg }}
                               >
-                                <div className="w-6 h-[3px] rounded-full" style={{ backgroundColor: swatch.fg }} />
-                                <div className="w-4 h-[3px] rounded-full" style={{ backgroundColor: swatch.accent, opacity: 0.7 }} />
+                                {/* Mini preview lines */}
+                                <div className="absolute top-1.5 left-1.5 flex flex-col gap-[2px]">
+                                  <div className="w-5 h-[2px] rounded-full" style={{ backgroundColor: swatch.fg, opacity: 0.6 }} />
+                                  <div className="w-3 h-[2px] rounded-full" style={{ backgroundColor: swatch.accent, opacity: 0.5 }} />
+                                </div>
+                                {/* Center icon */}
+                                <div className="transition-transform duration-200 group-hover/swatch:scale-110" style={{ color: swatch.iconColor }}>
+                                  <SwatchIcon size={13} />
+                                </div>
+                                {/* Active check */}
+                                {isActive && (
+                                  <motion.div
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                                    style={{ backgroundColor: swatch.ring }}
+                                  >
+                                    <Check size={8} strokeWidth={3} style={{ color: swatch.bg }} />
+                                  </motion.div>
+                                )}
                               </div>
-                              <span className={cn("text-[10px] font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>
+                              <span className={cn("text-[9px] font-medium leading-tight truncate w-full text-center", isActive ? "text-foreground" : "text-muted-foreground")}>
                                 {swatch.label[locale]}
                               </span>
                             </motion.button>

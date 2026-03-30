@@ -47,6 +47,9 @@ Expand the roster, remember conversations, and fix core UX.
 - [ ] Session persistence (SQLite / Prisma)
 - [ ] Chat history page
 - [ ] Continue discussion from completed verdict (follow-up in same thread)
+- [ ] **BUG-013**: Round selection display — picking 3 rounds still shows "5/3" in header
+- [ ] **BUG-014**: AI models fake-read pasted URLs/GitHub links — need actual URL fetching or honest refusal
+- [ ] **BUG-015**: Document upload UI attaches files but content not sent to AI models — fix API payload
 - [ ] Document/media upload (PDF analysis use case)
 - [ ] Share verdict via link (public read-only snapshot page)
 - [ ] Export conversation as markdown/PDF

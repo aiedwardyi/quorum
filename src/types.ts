@@ -4,7 +4,8 @@ export type Locale = "en" | "ko"
 
 export type ResponseLength = "short" | "medium" | "long"
 
-export type Theme = "light" | "dark" | "tokyonight" | "lovelace"
+export const THEMES = ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"] as const
+export type Theme = (typeof THEMES)[number]
 
 export type Message = {
   id: string

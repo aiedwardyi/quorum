@@ -174,6 +174,15 @@ Add sepia theme as a third option alongside light/dark. Build foundation for use
 ### 19. Round Divider Labels Between Rounds
 Show a visual "ROUND 1", "ROUND 2", etc. divider/label between rounds in the chat thread. Gives the debate clear visual structure so users can scan which round they're reading. Spotted in a Claude Code promotional demo build — clean horizontal rule with centered round number text.
 
+### 20. Round Selection Display Bug (BUG-013)
+Round selector UI lets user pick 3 rounds, but the header still shows "5/3" instead of "3/3". The selected round count isn't propagating correctly to the round counter display. Cosmetic but confusing — users think their setting didn't save.
+
+### 21. AI Models Fake-Read URLs / GitHub Links (BUG-014)
+When a user pastes a GitHub repo link (or any URL) into the chat, the AI models pretend they read it — they respond as if they visited the page and give fabricated advice based on the URL. None of the models actually fetch or read the linked content. This is misleading and produces hallucinated guidance. Need to either: (a) actually fetch and inject URL content into the prompt context, or (b) have models honestly say they cannot access links.
+
+### 22. Document Upload Not Sent to AI Models (BUG-015)
+The file upload UI lets users attach documents, and the attachment appears in the chat UI, but the file content is never included in the API payload sent to the AI models. Models only see the user's text message, not the document. This makes the upload feature non-functional — users think their file was shared but the AIs are responding blind.
+
 ### 13. Landing Page / Marketing Section
 Consider adding a section below the homepage prompt area (or a separate landing page) with:
 - Animated GIF or video showing a real multi-AI debate
