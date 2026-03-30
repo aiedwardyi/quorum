@@ -1,6 +1,7 @@
 "use client"
 
 import { useReducer, useCallback, useRef, useEffect, useState } from "react"
+import { THEMES } from "@/types"
 import type { Message, Provider, ConsensusResult, Locale, ResponseLength, Theme } from "@/types"
 import { cleanResponse } from "@/lib/clean-response"
 import ChatThread from "@/components/ChatThread"
@@ -113,7 +114,7 @@ export default function ChatPage() {
   // Apply theme classes to <html>
   useEffect(() => {
     const cl = document.documentElement.classList
-    cl.remove("dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord")
+    cl.remove(...THEMES.filter((t) => t !== "light"))
     if (theme !== "light") {
       cl.add("dark")
       if (theme !== "dark") cl.add(theme)
@@ -136,7 +137,7 @@ export default function ChatPage() {
   useEffect(() => {
     // Read theme from localStorage (set by homepage)
     const savedTheme = localStorage.getItem("quorum_theme") as Theme | null
-    if (savedTheme && ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"].includes(savedTheme)) {
+    if (savedTheme && (THEMES as readonly string[]).includes(savedTheme)) {
       setTheme(savedTheme)
     }
 
@@ -393,7 +394,7 @@ export default function ChatPage() {
   }
 
   const toggleTheme = () => {
-    const order: Theme[] = ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"]
+    const order = THEMES
     const next = order[(order.indexOf(theme) + 1) % order.length]
     changeTheme(next)
   }

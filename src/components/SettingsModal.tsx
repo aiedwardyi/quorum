@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ComponentType } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, RotateCw, Palette, Sun, Moon, Flame, Cat, Snowflake, Check } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 
 const ALL_MODELS: Provider[] = ["gemini", "claude", "gpt", "perplexity"]
 
-const THEME_SWATCHES: { id: Theme; bg: string; fg: string; accent: string; ring: string; label: Record<Locale, string>; Icon: React.ComponentType<{ className?: string; size?: number }>; iconColor: string }[] = [
+const THEME_SWATCHES: { id: Theme; bg: string; fg: string; accent: string; ring: string; label: Record<Locale, string>; Icon: ComponentType<{ className?: string; size?: number }>; iconColor: string }[] = [
   { id: "light", bg: "#fafaf9", fg: "#18181b", accent: "#e4e4e7", ring: "#18181b", label: { en: "Light", ko: "라이트" }, Icon: Sun, iconColor: "#f59e0b" },
   { id: "dark", bg: "#09090b", fg: "#fafafa", accent: "#27272a", ring: "#71717a", label: { en: "Dark", ko: "다크" }, Icon: Moon, iconColor: "#a1a1aa" },
   { id: "tokyonight", bg: "#1a1b26", fg: "#c0caf5", accent: "#7aa2f7", ring: "#7aa2f7", label: { en: "Tokyo", ko: "도쿄" }, Icon: Star, iconColor: "#7aa2f7" },

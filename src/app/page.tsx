@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip } from "lucide-react"
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
+import { THEMES } from "@/types"
 import type { Provider, ResponseLength, Locale, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 
@@ -161,7 +162,7 @@ export default function Home() {
 
   const applyThemeToDOM = (t: Theme) => {
     const cl = document.documentElement.classList
-    cl.remove("dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord")
+    cl.remove(...THEMES.filter((t) => t !== "light"))
     if (t !== "light") {
       cl.add("dark")
       if (t !== "dark") cl.add(t)
@@ -170,7 +171,7 @@ export default function Home() {
 
   useEffect(() => {
     const saved = localStorage.getItem("quorum_theme") as Theme | null
-    const valid: Theme[] = ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"]
+    const valid = THEMES
     if (saved && valid.includes(saved)) {
       setTheme(saved)
       applyThemeToDOM(saved)
@@ -190,7 +191,7 @@ export default function Home() {
   }
 
   const toggleTheme = () => {
-    const order: Theme[] = ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"]
+    const order = THEMES
     const next = order[(order.indexOf(theme) + 1) % order.length]
     changeTheme(next)
   }
