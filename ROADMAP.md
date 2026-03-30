@@ -68,7 +68,8 @@ Make it beautiful, configurable, and personal.
 - [ ] Token/credit tracking system (foundation for payment)
 - [ ] Credits button on chat header — functional (currently cosmetic)
 - [x] Default to dark mode
-- [x] Theme system — 4 themes (light/dark/Tokyo Night/Lovelace) with swatch picker in Settings
+- [x] Theme system — 7 themes (Light/Dark/Tokyo Night/Lovelace/Gruvbox/Catppuccin/Nord) with icon grid picker in Settings
+- [x] Theme-aware semantic color tokens (success/warning/danger) — ConsensusMeter + SummaryCard respond to active theme
 - [ ] Additional custom themes (accent colors, more palettes)
 - [ ] Settings page — exists with Account + Preferences tabs
 - [ ] Voice input (Watson STT)

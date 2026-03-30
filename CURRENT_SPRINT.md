@@ -168,8 +168,8 @@ The homepage header shows `한` when in Korean mode. Consider whether this shoul
 ### 17. Default Theme
 Switch default theme to dark mode. Power users and decision-makers expect a pro-tool aesthetic. Light mode remains available.
 
-### 18. Sepia + Custom Color Modes
-Add sepia theme as a third option alongside light/dark. Build foundation for user-customizable color themes (accent colors, background tones). Eddie wants extensive customization — this is a personal power tool.
+### ~~18. Sepia + Custom Color Modes~~ ✅
+Shipped 3 new themes (Gruvbox, Catppuccin Mocha, Nord) bringing total to 7. Settings picker redesigned as responsive icon grid. Semantic color tokens (success/warning/danger) added so ConsensusMeter and SummaryCard respond to active theme. Shared THEMES constant prevents drift. Merged via PR #38.
 
 ### 19. Round Divider Labels Between Rounds
 Show a visual "ROUND 1", "ROUND 2", etc. divider/label between rounds in the chat thread. Gives the debate clear visual structure so users can scan which round they're reading. Spotted in a Claude Code promotional demo build — clean horizontal rule with centered round number text.
