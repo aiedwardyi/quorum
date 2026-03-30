@@ -288,50 +288,50 @@ export default function Home() {
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             onClick={toggleTheme}
-            className={cn("cursor-pointer text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors rounded-full p-0.5", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50")}
+            className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50")}
             aria-label="Toggle theme"
           >
             <AnimatePresence mode="wait">
               {theme === "light" && (
                 <motion.div key="sun" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}
                   whileHover={{ rotate: [0, 360], transition: { duration: 3, repeat: Infinity, ease: "linear" } }}>
-                  <Sun size={18} strokeWidth={2.5} />
+                  <Sun className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.div>
               )}
               {theme === "dark" && (
                 <motion.div key="moon" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}
                   whileHover={{ rotate: [0, -15, 15, -15, 0], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Moon size={18} strokeWidth={2.5} />
+                  <Moon className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.div>
               )}
               {theme === "tokyonight" && (
                 <motion.div key="star" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.2 }}
                   whileHover={{ scale: [1, 1.3, 1], transition: { duration: 1, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Star size={18} strokeWidth={2.5} />
+                  <Star className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.div>
               )}
               {theme === "lovelace" && (
                 <motion.div key="heart" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.2 }}
                   whileHover={{ scale: [1, 1.2, 1, 1.15, 1], transition: { duration: 0.8, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Heart size={18} strokeWidth={2.5} />
+                  <Heart className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.div>
               )}
               {theme === "gruvbox" && (
                 <motion.div key="flame" initial={{ scale: 0, y: 5 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0, y: 5 }} transition={{ duration: 0.2 }}
                   whileHover={{ y: [0, -2, 0, -1, 0], scale: [1, 1.15, 1, 1.1, 1], transition: { duration: 0.6, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Flame size={18} strokeWidth={2.5} />
+                  <Flame className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.div>
               )}
               {theme === "catppuccin" && (
                 <motion.div key="cat" initial={{ scale: 0, rotate: 15 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -15 }} transition={{ duration: 0.2 }}
                   whileHover={{ rotate: [0, -10, 10, -5, 0], y: [0, -1, 0], transition: { duration: 0.7, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Cat size={18} strokeWidth={2.5} />
+                  <Cat className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.div>
               )}
               {theme === "nord" && (
                 <motion.div key="snowflake" initial={{ scale: 0, rotate: 60 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -60 }} transition={{ duration: 0.2 }}
                   whileHover={{ rotate: [0, 180, 360], scale: [1, 1.15, 1], transition: { duration: 2, repeat: Infinity, ease: "linear" } }}>
-                  <Snowflake size={18} strokeWidth={2.5} />
+                  <Snowflake className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.div>
               )}
             </AnimatePresence>
