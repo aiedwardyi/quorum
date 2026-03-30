@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Star, Heart, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip } from "lucide-react"
+import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip } from "lucide-react"
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
 import type { Provider, ResponseLength, Locale, Theme } from "@/types"
@@ -161,15 +161,16 @@ export default function Home() {
 
   const applyThemeToDOM = (t: Theme) => {
     const cl = document.documentElement.classList
-    cl.remove("dark", "tokyonight", "lovelace")
-    if (t === "dark") cl.add("dark")
-    else if (t === "tokyonight") { cl.add("dark", "tokyonight") }
-    else if (t === "lovelace") { cl.add("dark", "lovelace") }
+    cl.remove("dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord")
+    if (t !== "light") {
+      cl.add("dark")
+      if (t !== "dark") cl.add(t)
+    }
   }
 
   useEffect(() => {
     const saved = localStorage.getItem("quorum_theme") as Theme | null
-    const valid: Theme[] = ["light", "dark", "tokyonight", "lovelace"]
+    const valid: Theme[] = ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"]
     if (saved && valid.includes(saved)) {
       setTheme(saved)
       applyThemeToDOM(saved)
@@ -189,7 +190,7 @@ export default function Home() {
   }
 
   const toggleTheme = () => {
-    const order: Theme[] = ["light", "dark", "tokyonight", "lovelace"]
+    const order: Theme[] = ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"]
     const next = order[(order.indexOf(theme) + 1) % order.length]
     changeTheme(next)
   }
@@ -279,7 +280,7 @@ export default function Home() {
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             onClick={() => setLocale(locale === "en" ? "ko" : "en")}
-            className={cn("cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors", theme === "lovelace" && "hover:ring-2 hover:ring-[#c574dd]/60 rounded-md px-1")}
+            className={cn("cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors rounded-md px-1", theme === "lovelace" && "hover:ring-2 hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-2 hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-2 hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-2 hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-2 hover:ring-[#88c0d0]/50")}
           >
             {locale === "en" ? "EN" : "KO"}
           </motion.button>
@@ -287,7 +288,7 @@ export default function Home() {
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             onClick={toggleTheme}
-            className={cn("cursor-pointer text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60 rounded-full p-0.5", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40 rounded-full p-0.5")}
+            className={cn("cursor-pointer text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors rounded-full p-0.5", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50")}
             aria-label="Toggle theme"
           >
             <AnimatePresence mode="wait">
@@ -315,6 +316,24 @@ export default function Home() {
                   <Heart size={18} strokeWidth={2.5} />
                 </motion.div>
               )}
+              {theme === "gruvbox" && (
+                <motion.div key="flame" initial={{ scale: 0, y: 5 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0, y: 5 }} transition={{ duration: 0.2 }}
+                  whileHover={{ y: [0, -2, 0, -1, 0], scale: [1, 1.15, 1, 1.1, 1], transition: { duration: 0.6, repeat: Infinity, ease: "easeInOut" } }}>
+                  <Flame size={18} strokeWidth={2.5} />
+                </motion.div>
+              )}
+              {theme === "catppuccin" && (
+                <motion.div key="cat" initial={{ scale: 0, rotate: 15 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -15 }} transition={{ duration: 0.2 }}
+                  whileHover={{ rotate: [0, -10, 10, -5, 0], y: [0, -1, 0], transition: { duration: 0.7, repeat: Infinity, ease: "easeInOut" } }}>
+                  <Cat size={18} strokeWidth={2.5} />
+                </motion.div>
+              )}
+              {theme === "nord" && (
+                <motion.div key="snowflake" initial={{ scale: 0, rotate: 60 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -60 }} transition={{ duration: 0.2 }}
+                  whileHover={{ rotate: [0, 180, 360], scale: [1, 1.15, 1], transition: { duration: 2, repeat: Infinity, ease: "linear" } }}>
+                  <Snowflake size={18} strokeWidth={2.5} />
+                </motion.div>
+              )}
             </AnimatePresence>
           </motion.button>
 
@@ -324,7 +343,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <motion.div
                 whileHover={{ scale: 1.05 }}
-                className={cn("flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40")}
+                className={cn("flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50")}
               >
                 <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
                 <span className="text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100">1,250</span>
@@ -335,7 +354,7 @@ export default function Home() {
                   whileTap={{ scale: 0.95 }}
                   whileHover={{ scale: 1.05 }}
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40")}
+                  className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50")}
                 >
                   <User className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.button>

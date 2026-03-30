@@ -113,10 +113,11 @@ export default function ChatPage() {
   // Apply theme classes to <html>
   useEffect(() => {
     const cl = document.documentElement.classList
-    cl.remove("dark", "tokyonight", "lovelace")
-    if (theme === "dark") cl.add("dark")
-    else if (theme === "tokyonight") { cl.add("dark", "tokyonight") }
-    else if (theme === "lovelace") { cl.add("dark", "lovelace") }
+    cl.remove("dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord")
+    if (theme !== "light") {
+      cl.add("dark")
+      if (theme !== "dark") cl.add(theme)
+    }
   }, [theme])
 
   // Auto-scroll to top of summary card when it appears
@@ -135,7 +136,7 @@ export default function ChatPage() {
   useEffect(() => {
     // Read theme from localStorage (set by homepage)
     const savedTheme = localStorage.getItem("quorum_theme") as Theme | null
-    if (savedTheme && ["light", "dark", "tokyonight", "lovelace"].includes(savedTheme)) {
+    if (savedTheme && ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"].includes(savedTheme)) {
       setTheme(savedTheme)
     }
 
@@ -392,7 +393,7 @@ export default function ChatPage() {
   }
 
   const toggleTheme = () => {
-    const order: Theme[] = ["light", "dark", "tokyonight", "lovelace"]
+    const order: Theme[] = ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"]
     const next = order[(order.indexOf(theme) + 1) % order.length]
     changeTheme(next)
   }

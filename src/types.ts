@@ -4,7 +4,7 @@ export type Locale = "en" | "ko"
 
 export type ResponseLength = "short" | "medium" | "long"
 
-export type Theme = "light" | "dark" | "tokyonight" | "lovelace"
+export type Theme = "light" | "dark" | "tokyonight" | "lovelace" | "gruvbox" | "catppuccin" | "nord"
 
 export type Message = {
   id: string
