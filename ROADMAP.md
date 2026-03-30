@@ -46,7 +46,9 @@ Expand the roster, remember conversations, and fix core UX.
 - [ ] API error graceful handling (rate limits, quota)
 - [ ] Session persistence (SQLite / Prisma)
 - [ ] Chat history page
+- [ ] Continue discussion from completed verdict (follow-up in same thread)
 - [ ] Document/media upload (PDF analysis use case)
+- [ ] Share verdict via link (public read-only snapshot page)
 - [ ] Export conversation as markdown/PDF
 
 ---
@@ -80,7 +82,7 @@ For power users and paying customers.
 - [ ] Debate templates (patent review, architecture decision, risk analysis)
 - [ ] Custom model support (any OpenAI-compatible endpoint)
 - [ ] Cost tracking dashboard
-- [ ] Shareable sessions via link
+- [ ] Share full sessions via link
 
 ---
 

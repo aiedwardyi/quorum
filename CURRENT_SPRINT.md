@@ -4,6 +4,84 @@
 
 ---
 
+## Proposed Next Sprint - Share Verdict
+
+> **Recommendation:** Worth building, but keep it narrow. Ship a simple shareable verdict page first. Do not start with full transcript sharing.
+
+### Why This Matters
+
+- Users making important decisions need a clean artifact they can send to a friend, cofounder, teammate, or reviewer.
+- "Copy summary" is useful for fast paste, but it is weaker than a durable link when the user wants to prove what the models concluded.
+- For high-stakes use cases like patent review, architecture choices, or trust-sensitive questions, the missing artifact is not social sharing. It is an auditable verdict page.
+- After the rounds end, users also need a path to continue the same thread instead of being forced into only `New Discussion` or `Copy`.
+- If sessions are not saved, share value drops because the user cannot return, reopen context, or continue the work later.
+
+### Product Decision
+
+- Default share target: **Share Verdict**
+- Deferred follow-up: **Share Full Debate**
+- Keep the first UX minimal: one share action from the summary area, with a simple choice between copy text and create link.
+- Treat **continue this discussion** and **session history** as part of the same product gap. The real issue is not only sharing; it is preserving and reusing a finished debate.
+
+### Sprint Scope
+
+- [ ] Add a `Share` action near the final summary/verdict UI
+- [ ] Add an `Ask Follow-up` or `Continue Discussion` action after rounds complete
+- [ ] Let the user send a new message into the existing completed thread and start another debate pass with prior context preserved
+- [ ] Persist completed sessions so users can reopen them later
+- [ ] Add a lightweight history entry point so a user can revisit prior debates
+- [ ] Create a share snapshot payload containing:
+  - Original user question
+  - Final summary
+  - Consensus score
+  - Agreements
+  - Disagreements
+  - Participating models
+  - Timestamp
+- [ ] Create a public read-only route for shared verdicts
+- [ ] Generate a stable link users can copy and send
+- [ ] Add a lightweight privacy choice:
+  - `Anyone with link`
+  - `Private / don't create link`
+- [ ] Make it explicit that full transcript sharing is not included in v1 of this feature
+
+### Non-Goals
+
+- [ ] Full round-by-round transcript sharing
+- [ ] PDF export
+- [ ] Password protection
+- [ ] Auth-gated sharing system
+- [ ] Editable shared pages
+- [ ] Social feed, comments, likes, or collaboration
+- [ ] Multi-user collaborative commenting on shared threads
+
+### Acceptance Criteria
+
+- User can finish a debate and create a shareable verdict link in under 10 seconds
+- User can ask a follow-up question from the completed thread without losing prior context
+- User can reopen a prior session from history and see the saved thread plus final verdict
+- Shared page is readable on mobile and desktop
+- Shared page clearly shows question, verdict, consensus score, key agreements/disagreements, and which models participated
+- Shared page is read-only and cannot mutate the original session
+- If user does not opt into link sharing, nothing is published
+
+### Build Order
+
+1. Define session persistence model for completed debates
+2. Add reopen/history foundation for saved sessions
+3. Add follow-up flow that continues from prior thread context
+4. Define shared verdict snapshot schema and public route
+5. Add share action, copy-link flow, and basic empty/error states
+6. Polish wording and privacy messaging
+
+### Notes
+
+- This fits the product's "less is more" philosophy if the first version is verdict-only.
+- Full conversation sharing should be a separate follow-up after validating that users actually need audit depth.
+- Continuing a finished discussion and reopening history are likely more important than full transcript sharing.
+
+---
+
 ## Completed (2026-03-28)
 
 - [x] Port all 8 v2 components to Next.js (motion/react -> framer-motion, import paths)
