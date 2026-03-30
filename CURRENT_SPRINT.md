@@ -183,6 +183,13 @@ When a user pastes a GitHub repo link (or any URL) into the chat, the AI models 
 ### 22. Document Upload Not Sent to AI Models (BUG-015)
 The file upload UI lets users attach documents, and the attachment appears in the chat UI, but the file content is never included in the API payload sent to the AI models. Models only see the user's text message, not the document. This makes the upload feature non-functional — users think their file was shared but the AIs are responding blind.
 
+### 23. Homepage Input Font Size Too Large for Long Text
+### 24. Unicode Block Characters Render as Broken Boxes in Chat
+When AI responses contain Unicode block characters (U+2588 full block, quarter blocks, etc.), they render as white or black rectangular boxes that break the visual flow. Related to lack of markdown/code block rendering in chat bubbles - these characters would look fine inside a styled code block.
+
+### 23. Homepage Input Font Size Too Large for Long Text
+When pasting long text into the homepage prompt textarea, the font stays at the large placeholder size, creating an oversized wall of text. Should either reduce base font size or dynamically scale down as content grows.
+
 ### 13. Landing Page / Marketing Section
 Consider adding a section below the homepage prompt area (or a separate landing page) with:
 - Animated GIF or video showing a real multi-AI debate
