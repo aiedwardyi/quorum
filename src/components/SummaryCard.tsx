@@ -72,11 +72,11 @@ export default function SummaryCard({
 
       <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-zinc-100 dark:border-white/[0.06]">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-3 rounded-full border border-emerald-200 bg-emerald-50 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-3 rounded-full border border-success-border bg-success-bg text-[10px] font-bold uppercase tracking-[0.14em] text-success">
             {t.verdict}
           </div>
           <h2 className="text-xl sm:text-[1.7rem] font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">{t.summary}</h2>
-          <p className="text-sm mt-1.5 font-semibold text-green-600 dark:text-green-400">{getStatusText(result.score)}</p>
+          <p className="text-sm mt-1.5 font-semibold text-success">{getStatusText(result.score)}</p>
         </div>
         <div className="text-right">
           <div className="text-5xl sm:text-6xl font-mono font-normal tracking-[-0.05em] text-zinc-900 dark:text-zinc-100 dark:drop-shadow-[0_0_22px_rgba(255,255,255,0.1)]">
@@ -97,14 +97,14 @@ export default function SummaryCard({
 
         {result.agreements.length > 0 && (
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-green-600 dark:text-green-500 flex items-center gap-1.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-success flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />
               {t.agreements}
             </h3>
             <div className="space-y-1.5">
               {result.agreements.map((item, i) => (
                 <div key={i} className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03] text-sm text-zinc-700 dark:text-zinc-100 leading-snug">
-                  <span className="text-emerald-500 dark:text-emerald-400 mt-0.5 text-lg leading-none shrink-0">•</span>
+                  <span className="text-success mt-0.5 text-lg leading-none shrink-0">•</span>
                   <span>{item}</span>
                 </div>
               ))}
@@ -114,14 +114,14 @@ export default function SummaryCard({
 
         {result.disagreements.length > 0 && (
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-500 flex items-center gap-1.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-danger flex items-center gap-1.5">
               <XCircle className="w-4 h-4" />
               {t.disagreements}
             </h3>
             <div className="space-y-1.5">
               {result.disagreements.map((item, i) => (
                 <div key={i} className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03] text-sm text-zinc-700 dark:text-zinc-100 leading-snug">
-                  <span className="text-red-500 dark:text-red-400 mt-0.5 text-lg leading-none shrink-0">•</span>
+                  <span className="text-danger mt-0.5 text-lg leading-none shrink-0">•</span>
                   <span>{item}</span>
                 </div>
               ))}
