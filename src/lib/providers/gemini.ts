@@ -4,11 +4,10 @@ import {
   HarmBlockThreshold,
 } from "@google-cloud/vertexai"
 import type { Message } from "@/types"
-
-const projectId = process.env.VERTEX_PROJECT_ID!
-const location = process.env.VERTEX_LOCATION!
+import { getVertexConfig } from "@/lib/vertex-config"
 
 function getModel() {
+  const { projectId, location } = getVertexConfig()
   const vertexAI = new VertexAI({ project: projectId, location })
   return vertexAI.getGenerativeModel({
     model: "gemini-2.5-flash",

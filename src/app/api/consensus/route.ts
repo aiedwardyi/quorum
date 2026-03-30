@@ -5,9 +5,7 @@ import {
   HarmCategory,
   HarmBlockThreshold,
 } from "@google-cloud/vertexai"
-
-const projectId = process.env.VERTEX_PROJECT_ID!
-const location = process.env.VERTEX_LOCATION!
+import { getVertexConfig } from "@/lib/vertex-config"
 
 function getConsensusPrompt(locale: Locale): string {
   const localeRule = locale === "ko"
@@ -71,6 +69,7 @@ export async function POST(req: NextRequest) {
     const thread = formatThread(messages)
 
     // Call Gemini directly with one user message (avoids role alternation issues)
+    const { projectId, location } = getVertexConfig()
     const vertexAI = new VertexAI({ project: projectId, location })
     const model = vertexAI.getGenerativeModel({
       model: "gemini-2.5-flash",
