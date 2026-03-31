@@ -58,7 +58,8 @@ export async function queryGemini(
 export async function* streamGemini(
   systemPrompt: string,
   messages: Message[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maxTokens = 1024
 ): AsyncGenerator<string> {
   const model = getModel()
   const contents = buildContents(messages)
@@ -66,6 +67,7 @@ export async function* streamGemini(
   const result = await model.generateContentStream({
     systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
     contents,
+    generationConfig: { maxOutputTokens: maxTokens },
   })
 
   for await (const chunk of result.stream) {

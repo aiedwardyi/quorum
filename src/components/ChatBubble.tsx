@@ -85,6 +85,29 @@ export default function ChatBubble({
   isTyping?: boolean
   locale?: Locale
 }) {
+  if (message.sender === "system") {
+    const isAnalyzing = message.content.includes("Analyzing") || message.content.includes("분석")
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="my-6 flex w-full items-center gap-3"
+      >
+        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+        <span
+          className={cn(
+            "shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400",
+            isAnalyzing && "animate-pulse"
+          )}
+        >
+          {message.content}
+        </span>
+        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+      </motion.div>
+    )
+  }
+
   const isUser = message.sender === "user"
   const isEmpty = !isUser && !message.content
 

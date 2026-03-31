@@ -61,13 +61,15 @@ export async function queryPerplexity(
 export async function* streamPerplexity(
   systemPrompt: string,
   messages: Message[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maxTokens = 1024
 ): AsyncGenerator<string> {
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
       model: "sonar-pro",
+      max_tokens: maxTokens,
       messages: buildMessages(systemPrompt, messages),
       stream: true,
     }),

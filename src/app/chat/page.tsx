@@ -58,7 +58,9 @@ function reducer(state: State, action: Action): State {
     case "UPDATE_LAST_AI_CONTENT": {
       const msgs = [...state.messages]
       const last = msgs[msgs.length - 1]
-      if (last && last.sender !== "user") msgs[msgs.length - 1] = { ...last, content: action.content }
+      if (last && last.sender !== "user" && last.sender !== "system") {
+        msgs[msgs.length - 1] = { ...last, content: action.content }
+      }
       return { ...state, messages: msgs }
     }
     case "SET_TYPING":
@@ -90,6 +92,42 @@ const DISPLAY_NAMES: Record<Provider, string> = {
   perplexity: "Perplexity",
   claude: "Claude",
   gpt: "GPT",
+}
+
+const SYSTEM_DISPLAY_NAMES: Record<Locale, string> = {
+  en: "System",
+  ko: "시스템",
+}
+
+const SYSTEM_MESSAGES = {
+  round: (locale: Locale, round: number) => (locale === "ko" ? `라운드 ${round}` : `Round ${round}`),
+  analyzing: (locale: Locale) => (locale === "ko" ? "토론 분석 중..." : "Analyzing discussion..."),
+}
+
+function createMessageId(prefix: string): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`
+  }
+
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function createSystemMessage(content: string, locale: Locale): Message {
+  return {
+    id: createMessageId("system"),
+    sender: "system",
+    displayName: SYSTEM_DISPLAY_NAMES[locale],
+    content,
+    timestamp: new Date(),
+  }
+}
+
+function getApiMessages(messages: Message[]): Message[] {
+  return messages.filter((message) => message.sender !== "system")
+}
+
+function getAIMessageCount(messages: Message[]): number {
+  return messages.filter((message) => message.sender !== "user" && message.sender !== "system").length
 }
 
 /* ─── Page ─── */
@@ -188,7 +226,7 @@ export default function ChatPage() {
     async (provider: Provider, allMessages: Message[]): Promise<Message | null> => {
       dispatch({ type: "SET_TYPING", model: provider })
 
-      const placeholderId = `${provider}-${Date.now()}`
+      const placeholderId = createMessageId(provider)
       const placeholder: Message = {
         id: placeholderId,
         sender: provider,
@@ -205,7 +243,7 @@ export default function ChatPage() {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: allMessages, provider, locale, responseLength }),
+          body: JSON.stringify({ messages: getApiMessages(allMessages), provider, locale, responseLength }),
           signal: controller.signal,
         })
 
@@ -269,13 +307,13 @@ export default function ChatPage() {
 
       if (stopRef.current) return { msgs, done: true }
 
-      const aiCount = msgs.filter((m) => m.sender !== "user").length
+      const aiCount = getAIMessageCount(msgs)
       if (aiCount >= 2 && activeModels.length >= 2) {
         try {
           const res = await fetch("/api/consensus", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: msgs, locale }),
+            body: JSON.stringify({ messages: getApiMessages(msgs), locale }),
           })
           if (res.ok) {
             const result: ConsensusResult = await res.json()
@@ -295,7 +333,7 @@ export default function ChatPage() {
   const handleSendWithModels = useCallback(
     async (text: string, target: Provider | "all", models: Provider[]) => {
       const userMsg: Message = {
-        id: `user-${Date.now()}`,
+        id: createMessageId("user"),
         sender: "user",
         displayName: "You",
         content: text,
@@ -314,6 +352,11 @@ export default function ChatPage() {
         for (let r = 0; r < rounds; r++) {
           if (stopRef.current) break
           dispatch({ type: "SET_ROUND", round: r + 1 })
+          if (models.length >= 2) {
+            const roundDivider = createSystemMessage(SYSTEM_MESSAGES.round(locale, r + 1), locale)
+            dispatch({ type: "ADD_MESSAGE", message: roundDivider })
+            msgs = [...msgs, roundDivider]
+          }
           const result = await runRound(msgs, models)
           msgs = result.msgs
           if (result.done) { stoppedEarly = true; break }
@@ -321,13 +364,17 @@ export default function ChatPage() {
 
         // If all rounds finished without being stopped early, fetch final consensus and show summary
         if (!stoppedEarly && !stopRef.current && models.length >= 2) {
-          const aiCount = msgs.filter((m) => m.sender !== "user").length
+          const aiCount = getAIMessageCount(msgs)
           if (aiCount >= 2) {
             try {
+              const analyzingMessage = createSystemMessage(SYSTEM_MESSAGES.analyzing(locale), locale)
+              dispatch({ type: "ADD_MESSAGE", message: analyzingMessage })
+              msgs = [...msgs, analyzingMessage]
+
               const res = await fetch("/api/consensus", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: msgs, locale }),
+                body: JSON.stringify({ messages: getApiMessages(msgs), locale }),
               })
               if (res.ok) {
                 const result: ConsensusResult = await res.json()
@@ -363,13 +410,13 @@ export default function ChatPage() {
     dispatch({ type: "SET_DEBATING", value: false })
     dispatch({ type: "SET_TYPING", model: null })
 
-    const aiCount = state.messages.filter((m) => m.sender !== "user").length
+    const aiCount = getAIMessageCount(state.messages)
     if (aiCount >= 2) {
       try {
         const res = await fetch("/api/consensus", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: state.messages, locale }),
+          body: JSON.stringify({ messages: getApiMessages(state.messages), locale }),
         })
         if (res.ok) {
           const result: ConsensusResult = await res.json()

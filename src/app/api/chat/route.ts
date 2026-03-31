@@ -16,7 +16,7 @@ const DISPLAY_NAMES: Record<Provider, string> = {
 function getResponseLengthInstruction(length: ResponseLength): string {
   switch (length) {
     case "short":
-      return "Be very concise — keep responses under 75 words."
+      return "STRICT LIMIT: Your response MUST be under 75 words."
     case "long":
       return "Give detailed responses — aim for around 300 words."
     default:
@@ -24,19 +24,33 @@ function getResponseLengthInstruction(length: ResponseLength): string {
   }
 }
 
+function getMaxTokens(length: ResponseLength): number {
+  switch (length) {
+    case "short":
+      return 200
+    case "long":
+      return 1024
+    default:
+      return 512
+  }
+}
+
 function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength): string {
   const lengthLine = getResponseLengthInstruction(responseLength)
   const isKorean = locale === "ko"
+  const shortLimitBlock = responseLength === "short" ? `${lengthLine}\n\n` : ""
 
-  return `${isKorean ? "IMPORTANT: You MUST respond entirely in Korean (한국어). Every word of your response must be in Korean, regardless of what language the user writes in.\n\n" : ""}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
+  return `${shortLimitBlock}${isKorean ? "IMPORTANT: You MUST respond entirely in Korean (한국어). Every word of your response must be in Korean, regardless of what language the user writes in.\n\n" : ""}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
 Your name is ${DISPLAY_NAMES[provider]}. Always speak as yourself in first person.
 NEVER speak as another model. NEVER prefix your response with any name like "[Gemini]:" or "[Claude]:".
 The human is the decision-maker. Respond to the full conversation naturally.
 If you disagree with another model, say so directly and explain why.
 If you changed your mind based on new points, say that too.
-${lengthLine} This is a discussion, not an essay.
+${lengthLine}
+This is a discussion, not an essay.
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
-Do NOT add a "References" or "Refs" section. Just give your opinion directly.`
+Do NOT add a "References" or "Refs" section. Just give your opinion directly.
+${responseLength === "short" ? `\n${lengthLine}` : ""}`
 }
 
 function getStreamFn(provider: Provider) {
@@ -82,8 +96,10 @@ export async function POST(request: Request) {
       )
     }
 
+    const inputMessages = messages.filter((message) => message.sender !== "system")
     const streamFn = getStreamFn(provider)
     const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
+    const maxTokens = getMaxTokens(validatedResponseLength)
     const encoder = new TextEncoder()
     let fullContent = ""
 
@@ -100,7 +116,7 @@ export async function POST(request: Request) {
         })
 
         try {
-          for await (const chunk of streamFn(systemPrompt, messages, request.signal)) {
+          for await (const chunk of streamFn(systemPrompt, inputMessages, request.signal, maxTokens)) {
             if (request.signal?.aborted) break
             fullContent += chunk
             const event = `data: ${JSON.stringify({ chunk })}\n\n`
