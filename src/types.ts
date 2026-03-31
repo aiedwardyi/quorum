@@ -9,7 +9,7 @@ export type Theme = (typeof THEMES)[number]
 
 export type Message = {
   id: string
-  sender: Provider | "user"
+  sender: Provider | "user" | "system"
   displayName: string
   content: string
   timestamp: Date

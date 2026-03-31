@@ -18,7 +18,8 @@ function buildThread(messages: Message[]): string {
 export async function* streamGPT(
   systemPrompt: string,
   messages: Message[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maxTokens = 1024
 ): AsyncGenerator<string> {
   const client = getClient()
   const thread = buildThread(messages)
@@ -27,7 +28,7 @@ export async function* streamGPT(
     const stream = await client.chat.completions.create(
       {
         model: "gpt-4o",
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         messages: [
           { role: "system", content: systemPrompt },
           {

@@ -1,6 +1,6 @@
 # 🏛️ Quorum — Implementation Plan
 
-> Group chat where multiple AI models discuss alongside you.
+> Group chat where multiple AI models debate, then Quorum returns a decisive recommendation.
 
 ---
 
@@ -72,10 +72,13 @@ type Message = {
 }
 
 type ConsensusResult = {
-  score: number
-  agreements: string[]
-  disagreements: string[]
-  summary: string
+  winner: string
+  voteSplit: string
+  confidence: number
+  reasons: string[]
+  minorityView: string
+  oppositeCase: string
+  modelAgreement?: number
 }
 
 type ChatState = {
@@ -104,22 +107,30 @@ not an essay.
 
 ---
 
-## 📊 Consensus Detection
+## 📊 Final Verdict Generation
 
-Keep it simple — one API call after each full round:
+Keep it simple — one moderator/final-verdict API call after each full round:
 
 1. Send full conversation thread to Gemini
-2. Prompt: *"Analyze this group discussion. Return JSON only."*
+2. Prompt: *"Decide which answer wins, explain why, and return JSON only."*
 3. Expected response:
 ```json
 {
-  "score": 72,
-  "agreements": ["Both recommend provisional filing"],
-  "disagreements": ["Timeline urgency"],
-  "summary": "Models agree on approach but differ on timing"
+  "winner": "Start with a monolith",
+  "voteSplit": "4/4",
+  "confidence": 87,
+  "reasons": [
+    "Faster to ship",
+    "Lower operational complexity",
+    "No immediate scaling bottleneck"
+  ],
+  "minorityView": "Split earlier if independent teams must deploy separately from day one.",
+  "oppositeCase": "Microservices are better when strict isolation or separate scaling is already a hard requirement.",
+  "modelAgreement": 91
 }
 ```
-4. If `score >= 80` → show the consensus card
+4. Show the decisive verdict card after the debate completes
+5. If needed, keep `modelAgreement` as a secondary metric only
 
 No embeddings. No cosine similarity. No multi-layer scoring. Just one clean API call.
 

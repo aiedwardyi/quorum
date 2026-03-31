@@ -56,8 +56,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const discussionMessages = messages.filter((message) => message.sender !== "system")
+
     // Need at least 2 AI messages to analyze consensus
-    const aiMessages = messages.filter((m) => m.sender !== "user")
+    const aiMessages = discussionMessages.filter((m) => m.sender !== "user")
     if (aiMessages.length < 2) {
       return NextResponse.json(
         { error: "Need at least 2 AI messages to check consensus" },
@@ -66,7 +68,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Format the whole conversation as a single text block
-    const thread = formatThread(messages)
+    const thread = formatThread(discussionMessages)
 
     // Call Gemini directly with one user message (avoids role alternation issues)
     const { projectId, location } = getVertexConfig()

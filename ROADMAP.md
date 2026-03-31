@@ -1,8 +1,18 @@
 # 🏛️ Quorum — Roadmap
 
-> Multi-AI group chat for consensus
+> Multi-AI decision assistant powered by model debate
 
 ---
+
+## Product Direction
+
+Quorum is moving away from a neutral "consensus recap" and toward a decision-oriented workflow:
+
+- models debate in the background
+- the final card gives a recommended answer first
+- users can see vote split, reasons, and minority view
+- users can continue the same thread after verdict
+- logged-in users can reopen saved threads later
 
 ## ✅ v1: Working Group Chat *(Complete)*
 
@@ -21,11 +31,18 @@ The core experience — a group chat where you + Gemini + Perplexity discuss a t
 
 ---
 
-## 📋 v2: More Models + Persistence + Core UX
+## 📋 v2: Decisive Verdict + Continue Thread + Persistence Foundation
 
-Expand the roster, remember conversations, and fix core UX.
+Make the ending state decisive and make debates reusable.
 
-- [ ] Add Claude (Anthropic SDK) + GPT (OpenAI SDK) — currently both route to Perplexity as placeholder
+- [x] Add Claude (Anthropic SDK) + GPT (OpenAI SDK) provider integrations
+- [ ] Replace neutral summary schema with decision-oriented verdict schema:
+  - `winner`
+  - `voteSplit`
+  - `confidence`
+  - `reasons`
+  - `minorityView`
+  - `oppositeCase`
 - [x] Model selection UI — users choose which AIs participate (up to 4)
 - [x] Response length control (short / medium / long) — UI + API wired with word targets
 - [x] Configurable round count (3 / 5 / 7) — wired end-to-end, homepage -> settings -> debate loop
@@ -44,25 +61,27 @@ Expand the roster, remember conversations, and fix core UX.
 - [ ] Round divider labels in chat thread ("ROUND 1", "ROUND 2" visual separators)
 - [x] Stop button stuck state fix (BUG-012)
 - [ ] API error graceful handling (rate limits, quota)
-- [ ] Session persistence (SQLite / Prisma)
-- [ ] Chat history page
 - [ ] Continue discussion from completed verdict (follow-up in same thread)
+- [ ] Session persistence foundation
+- [ ] Chat history page
 - [ ] **BUG-013**: Round selection display — picking 3 rounds still shows "5/3" in header
 - [ ] **BUG-014**: AI models fake-read pasted URLs/GitHub links — need actual URL fetching or honest refusal
 - [ ] **BUG-015**: Document upload UI attaches files but content not sent to AI models — fix API payload
 - [ ] Document/media upload (PDF analysis use case)
-- [ ] Share verdict via link (public read-only snapshot page)
+- [ ] Share verdict via link (public read-only snapshot page, no full transcript)
 - [ ] Export conversation as markdown/PDF
 
 ---
 
-## 🎨 v3: Polish + Configuration + Accounts
+## 🎨 v3: Accounts + Saved Work + Decision UX Polish
 
-Make it beautiful, configurable, and personal.
+Make saved work, identity, and recommendation UX feel complete.
 
 - [ ] User login modal with Google OAuth
 - [ ] User accounts (persist settings, keys, history)
-- [ ] Korean / English i18n — UI chrome done, AI content pending (v2)
+- [ ] Saved thread sidebar / history browser
+- [ ] Follow-up question shortcuts from verdict card
+- [ ] Korean / English i18n polish for decision-oriented verdict copy
 - [ ] API key management — server-side encrypted storage (users don't re-enter every session)
 - [ ] BYOK — users input their own API keys (UI exists, backend pending)
 - [ ] Token/credit tracking system (foundation for payment)
@@ -76,12 +95,14 @@ Make it beautiful, configurable, and personal.
 
 ---
 
-## ⚡ v4: Monetization + Power Features
+## ⚡ v4: Differentiation + Monetization
 
-For power users and paying customers.
+Differentiate beyond generic multi-model chat.
 
 - [ ] Buy Credits flow — package selection, Stripe payment, balance update
 - [ ] Subscription model — flat fee -> token pool for all models (targets non-technical users)
+- [ ] Korean-first decision workflows (shopping, career, startup, study, local comparisons)
+- [ ] Grounded decision mode with web-backed debate for real-world choices
 - [ ] Devil's advocate mode — force one model to argue against consensus
 - [ ] Debate templates (patent review, architecture decision, risk analysis)
 - [ ] Custom model support (any OpenAI-compatible endpoint)

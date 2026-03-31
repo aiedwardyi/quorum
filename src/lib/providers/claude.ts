@@ -18,7 +18,8 @@ function buildThread(messages: Message[]): string {
 export async function* streamClaude(
   systemPrompt: string,
   messages: Message[],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maxTokens = 1024
 ): AsyncGenerator<string> {
   const client = getClient()
   const thread = buildThread(messages)
@@ -27,7 +28,7 @@ export async function* streamClaude(
     const stream = await client.messages.create(
       {
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages: [
           {
