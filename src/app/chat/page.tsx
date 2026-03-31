@@ -171,6 +171,7 @@ export default function ChatPage() {
   /* ─── Read config from sessionStorage on mount ─── */
   const initialPromptSent = useRef(false)
   const pendingPrompt = useRef<{ prompt: string; models: Provider[] } | null>(null)
+  const [configHydrated, setConfigHydrated] = useState(false)
 
   useEffect(() => {
     // Read theme from localStorage (set by homepage)
@@ -180,7 +181,10 @@ export default function ChatPage() {
     }
 
     const raw = sessionStorage.getItem("quorum_config")
-    if (!raw) return
+    if (!raw) {
+      setConfigHydrated(true)
+      return
+    }
 
     try {
       const config = JSON.parse(raw) as {
@@ -206,19 +210,22 @@ export default function ChatPage() {
       }
     } catch {
       // malformed config — ignore
+    } finally {
+      setConfigHydrated(true)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Fire pending prompt after state has settled
   useEffect(() => {
+    if (!configHydrated) return
     if (pendingPrompt.current && !initialPromptSent.current) {
       initialPromptSent.current = true
       const { prompt: p, models } = pendingPrompt.current
       pendingPrompt.current = null
       setTimeout(() => handleSendRef.current(p, "all", models), 0)
     }
-  })
+  }, [configHydrated])
 
   /* ─── Streaming logic (v1 preserved) ─── */
 
@@ -254,6 +261,7 @@ export default function ChatPage() {
         const decoder = new TextDecoder()
         let buffer = ""
         let fullContent = ""
+        let finalContent: string | null = null
 
         while (true) {
           if (stopRef.current) { await reader.cancel(); break }
@@ -269,6 +277,9 @@ export default function ChatPage() {
             if (!trimmed.startsWith("data:")) continue
             const data = JSON.parse(trimmed.slice(5).trim())
             if (data.error) throw new Error(data.error)
+            if (data.done) {
+              finalContent = typeof data.content === "string" ? data.content : fullContent
+            }
             if (data.chunk) {
               fullContent += data.chunk
               dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: fullContent })
@@ -276,7 +287,7 @@ export default function ChatPage() {
           }
         }
 
-        const cleaned = cleanResponse(fullContent)
+        const cleaned = cleanResponse(finalContent ?? fullContent)
         dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: cleaned })
         dispatch({ type: "SET_TYPING", model: null })
         return { ...placeholder, content: cleaned }
@@ -352,14 +363,14 @@ export default function ChatPage() {
         for (let r = 0; r < rounds; r++) {
           if (stopRef.current) break
           dispatch({ type: "SET_ROUND", round: r + 1 })
-          if (models.length >= 2) {
-            const roundDivider = createSystemMessage(SYSTEM_MESSAGES.round(locale, r + 1), locale)
-            dispatch({ type: "ADD_MESSAGE", message: roundDivider })
-            msgs = [...msgs, roundDivider]
-          }
           const result = await runRound(msgs, models)
           msgs = result.msgs
           if (result.done) { stoppedEarly = true; break }
+          if (models.length >= 2 && r < rounds - 1) {
+            const roundDivider = createSystemMessage(SYSTEM_MESSAGES.round(locale, r + 2), locale)
+            dispatch({ type: "ADD_MESSAGE", message: roundDivider })
+            msgs = [...msgs, roundDivider]
+          }
         }
 
         // If all rounds finished without being stopped early, fetch final consensus and show summary

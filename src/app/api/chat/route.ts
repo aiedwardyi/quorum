@@ -35,6 +35,66 @@ function getMaxTokens(length: ResponseLength): number {
   }
 }
 
+function clampToWordLimit(text: string, wordLimit: number): { text: string; truncated: boolean } {
+  const wordRegex = /\S+/g
+  let wordCount = 0
+  let lastAllowedIndex = text.length
+  let match: RegExpExecArray | null
+
+  while ((match = wordRegex.exec(text)) !== null) {
+    wordCount += 1
+    if (wordCount === wordLimit) {
+      lastAllowedIndex = wordRegex.lastIndex
+    } else if (wordCount > wordLimit) {
+      return {
+        text: text.slice(0, lastAllowedIndex).trimEnd(),
+        truncated: true,
+      }
+    }
+  }
+
+  return { text, truncated: false }
+}
+
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length
+}
+
+function stripUnmatchedPair(text: string, token: string): string {
+  const count = text.split(token).length - 1
+  if (count % 2 === 0) return text
+
+  const lastIndex = text.lastIndexOf(token)
+  if (lastIndex === -1) return text
+
+  return `${text.slice(0, lastIndex)}${text.slice(lastIndex + token.length)}`
+}
+
+function polishTruncatedShortResponse(text: string, wordLimit: number): string {
+  let result = text.trimEnd()
+  const sentenceMatches = [...result.matchAll(/[.!?。！？](?=\s|$)/g)]
+
+  if (sentenceMatches.length > 0) {
+    const lastSentence = sentenceMatches[sentenceMatches.length - 1]
+    const sentenceSafe = result.slice(0, (lastSentence.index ?? 0) + lastSentence[0].length).trimEnd()
+    if (countWords(sentenceSafe) >= Math.min(40, wordLimit)) {
+      result = sentenceSafe
+    }
+  }
+
+  result = stripUnmatchedPair(result, "**")
+  result = stripUnmatchedPair(result, "__")
+  result = stripUnmatchedPair(result, "`")
+  result = result.replace(/[,:;\-–]\s*$/u, "").trimEnd()
+  result = result.replace(/\s+(and|or|but|while|because|if|so|that|which|with|to|for|of|in|on|at|by|from)$/iu, "").trimEnd()
+
+  if (!/[.!?。！？]$/u.test(result)) {
+    result = `${result}...`
+  }
+
+  return clampToWordLimit(result, wordLimit).text
+}
+
 function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength): string {
   const lengthLine = getResponseLengthInstruction(responseLength)
   const isKorean = locale === "ko"
@@ -100,8 +160,10 @@ export async function POST(request: Request) {
     const streamFn = getStreamFn(provider)
     const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
     const maxTokens = getMaxTokens(validatedResponseLength)
+    const wordLimit = validatedResponseLength === "short" ? 75 : null
     const encoder = new TextEncoder()
     let fullContent = ""
+    let truncatedShortResponse = false
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -118,12 +180,33 @@ export async function POST(request: Request) {
         try {
           for await (const chunk of streamFn(systemPrompt, inputMessages, request.signal, maxTokens)) {
             if (request.signal?.aborted) break
-            fullContent += chunk
-            const event = `data: ${JSON.stringify({ chunk })}\n\n`
+            const nextContent = fullContent + chunk
+            const limited = wordLimit ? clampToWordLimit(nextContent, wordLimit) : { text: nextContent, truncated: false }
+            const nextChunk = limited.text.slice(fullContent.length)
+
+            fullContent = limited.text
+            if (!nextChunk) {
+              if (limited.truncated) {
+                truncatedShortResponse = true
+                break
+              }
+              continue
+            }
+
+            const event = `data: ${JSON.stringify({ chunk: nextChunk })}\n\n`
             controller.enqueue(encoder.encode(event))
+
+            if (limited.truncated) {
+              truncatedShortResponse = true
+              break
+            }
           }
 
           if (!request.signal?.aborted) {
+            if (wordLimit && truncatedShortResponse) {
+              fullContent = polishTruncatedShortResponse(fullContent, wordLimit)
+            }
+
             const done = `data: ${JSON.stringify({
               done: true,
               sender: provider,

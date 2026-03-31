@@ -1,6 +1,6 @@
 # Quorum
 
-**Multi-AI group chat for consensus**
+**Multi-AI decision assistant powered by model debate**
 
 Replaces the manual workflow of copy-pasting between AI tabs. Instead of switching between Gemini, Perplexity, ChatGPT, and Claude to get multiple perspectives - just ask once and let them talk it out.
 
@@ -26,13 +26,29 @@ Perplexity:    "Monolith for speed, but design with clean module boundaries from
 Claude:        "Agreed on monolith-first. The bigger startup risk is building too slowly."
 GPT:           "Use a monolith until real scaling bottlenecks appear."
 
-Quorum:        "Final verdict: Start with a monolith for MVP speed.
-               Keep clear module boundaries so you can split later if needed."
+Quorum:        "Recommended answer: Start with a monolith for the MVP.
+               It is faster to ship, easier to debug, and lower risk early on."
 
-               Consensus: 92%
+               Vote split: 4/4 models chose monolith
+               Minority view: If independent teams must ship separately on day one,
+               move toward services earlier.
 ```
 
-Each model sees what the others said, debates across rounds, and then Quorum returns a final verdict with a consensus score.
+Each model sees what the others said, debates across rounds, and then Quorum is moving toward returning a decisive recommendation, not just a neutral recap.
+
+---
+
+## Product Direction
+
+Quorum started as a multi-AI group chat for consensus. The next product direction is narrower and more useful:
+
+- Debate stays in the background.
+- The final card should give a recommended answer first.
+- The user should see vote split, key reasons, and the strongest minority objection.
+- Users should be able to continue the same thread after the verdict instead of resetting.
+- Logged-in users should have saved threads and history, similar to ChatGPT or Claude.
+
+The goal is to feel less like "here's what everyone said" and more like "here's what you should do, and why."
 
 ---
 

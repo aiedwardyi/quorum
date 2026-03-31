@@ -4,81 +4,81 @@
 
 ---
 
-## Proposed Next Sprint - Share Verdict
+## Proposed Next Sprint - Decisive Verdict + Continue Thread
 
-> **Recommendation:** Worth building, but keep it narrow. Ship a simple shareable verdict page first. Do not start with full transcript sharing.
+> **Recommendation:** Stop optimizing for a neutral consensus recap. Make Quorum feel like a decision assistant.
 
 ### Why This Matters
 
-- Users making important decisions need a clean artifact they can send to a friend, cofounder, teammate, or reviewer.
-- "Copy summary" is useful for fast paste, but it is weaker than a durable link when the user wants to prove what the models concluded.
-- For high-stakes use cases like patent review, architecture choices, or trust-sensitive questions, the missing artifact is not social sharing. It is an auditable verdict page.
-- After the rounds end, users also need a path to continue the same thread instead of being forced into only `New Discussion` or `Copy`.
-- If sessions are not saved, share value drops because the user cannot return, reopen context, or continue the work later.
+- The current ending state is informative but not decisive. Users still have to interpret the debate themselves.
+- `Alignment` is not a useful hero metric for most users because it measures model agreement, not support for one concrete answer.
+- The real workflow gap is after the verdict: users need to continue in context, save the thread, and come back later.
+- Sharing matters, but it is secondary to producing a clear recommendation and preserving the thread.
 
 ### Product Decision
 
-- Default share target: **Share Verdict**
-- Deferred follow-up: **Share Full Debate**
-- Keep the first UX minimal: one share action from the summary area, with a simple choice between copy text and create link.
-- Treat **continue this discussion** and **session history** as part of the same product gap. The real issue is not only sharing; it is preserving and reusing a finished debate.
+- Primary output: **Recommended Answer**
+- Secondary evidence:
+  - `Vote Split`
+  - `Top Reasons`
+  - `Minority View`
+  - `When the opposite choice is better`
+- Keep `Model Agreement` only if it is demoted and relabeled clearly
+- Treat **continue discussion** and **saved history** as core product features, not extras
+- Treat **share verdict** as the first share feature, not full transcript sharing
 
 ### Sprint Scope
 
-- [ ] Add a `Share` action near the final summary/verdict UI
-- [ ] Add an `Ask Follow-up` or `Continue Discussion` action after rounds complete
-- [ ] Let the user send a new message into the existing completed thread and start another debate pass with prior context preserved
-- [ ] Persist completed sessions so users can reopen them later
-- [ ] Add a lightweight history entry point so a user can revisit prior debates
-- [ ] Create a share snapshot payload containing:
-  - Original user question
-  - Final summary
-  - Consensus score
-  - Agreements
-  - Disagreements
-  - Participating models
-  - Timestamp
-- [ ] Create a public read-only route for shared verdicts
-- [ ] Generate a stable link users can copy and send
-- [ ] Add a lightweight privacy choice:
-  - `Anyone with link`
-  - `Private / don't create link`
-- [ ] Make it explicit that full transcript sharing is not included in v1 of this feature
+- [ ] Change the final verdict schema from neutral summary to decision-oriented output:
+  - `winner`
+  - `voteSplit`
+  - `confidence`
+  - `reasons`
+  - `minorityView`
+  - `oppositeCase`
+  - optional `modelAgreement`
+- [ ] Update the consensus/moderator prompt so the final result gives a recommendation, not just balanced recap
+- [ ] Redesign SummaryCard around `Recommended Answer` instead of `Discussion Summary`
+- [ ] Replace `Alignment` as the hero metric with `Vote Split`
+- [ ] Add `Continue Discussion` after verdict without resetting the thread
+- [ ] Let a follow-up message reuse the completed debate context and start another debate pass
+- [ ] Persist threads so finished debates can be reopened later
+- [ ] Add a lightweight history entry point for saved debates
+- [ ] Keep `Share Verdict` narrow:
+  - share the final recommendation card
+  - do not share the full transcript in v1
 
 ### Non-Goals
 
-- [ ] Full round-by-round transcript sharing
+- [ ] Full transcript sharing
+- [ ] Collaboration/comments on verdict pages
+- [ ] Team workspaces
 - [ ] PDF export
-- [ ] Password protection
-- [ ] Auth-gated sharing system
-- [ ] Editable shared pages
-- [ ] Social feed, comments, likes, or collaboration
-- [ ] Multi-user collaborative commenting on shared threads
+- [ ] Multi-user editing of a thread
+- [ ] Social feed behavior
 
 ### Acceptance Criteria
 
-- User can finish a debate and create a shareable verdict link in under 10 seconds
-- User can ask a follow-up question from the completed thread without losing prior context
-- User can reopen a prior session from history and see the saved thread plus final verdict
-- Shared page is readable on mobile and desktop
-- Shared page clearly shows question, verdict, consensus score, key agreements/disagreements, and which models participated
-- Shared page is read-only and cannot mutate the original session
-- If user does not opt into link sharing, nothing is published
+- Final card gives one clear recommendation unless the result is a real tie
+- User can see how many models supported the winning answer
+- User can understand the strongest dissent in one glance
+- User can continue the same conversation after the verdict without clicking `New Discussion`
+- User can reopen a prior thread later and keep working from that context
+- Shared verdict, if implemented in this sprint, is verdict-only and read-only
 
 ### Build Order
 
-1. Define session persistence model for completed debates
-2. Add reopen/history foundation for saved sessions
-3. Add follow-up flow that continues from prior thread context
-4. Define shared verdict snapshot schema and public route
-5. Add share action, copy-link flow, and basic empty/error states
-6. Polish wording and privacy messaging
+1. Redesign final verdict schema and prompt
+2. Update SummaryCard / ConsensusMeter wording and hierarchy
+3. Add continue-thread flow after verdict
+4. Add thread persistence and basic history
+5. Add narrow share-verdict support if time remains
 
 ### Notes
 
-- This fits the product's "less is more" philosophy if the first version is verdict-only.
-- Full conversation sharing should be a separate follow-up after validating that users actually need audit depth.
-- Continuing a finished discussion and reopening history are likely more important than full transcript sharing.
+- The product should feel like "here's what you should do" rather than "here's what everyone said."
+- Continue-thread and saved history are more important than broad sharing.
+- Korean-first differentiation only works if the product is sharper than generic multi-model comparison.
 
 ---
 
@@ -115,25 +115,31 @@
 
 ## Open Issues (Priority Order)
 
-### ~~1. Language System (i18n for AI responses)~~ ✅
+### 1. Final Verdict Is Too Neutral
+The summary card still behaves like a balanced recap instead of a recommendation engine. It needs a winner, vote split, top reasons, minority view, and clearer wording.
+
+### 2. Continue Discussion + Save Threads
+After a verdict appears, users should be able to continue in the same context. This requires persistent sessions, reopenable threads, and a basic history surface.
+
+### ~~3. Language System (i18n for AI responses)~~ ✅
 Wired locale to both `/api/chat` and `/api/consensus` system prompts. AI responses now respect EN/KR setting.
 
-### 2. Between-Round Feedback
+### 4. Between-Round Feedback
 After last model in a round finishes and before next round starts, show a brief status bubble (e.g. "Analyzing responses and preparing next round...") so user doesn't think the debate stalled.
 
-### ~~3. Discussion Concluded Color~~ ✅
+### ~~5. Discussion Concluded Color~~ ✅
 Resolved during summary card polish. Status text under Discussion Summary is now a static green treatment, independent of score.
 
-### ~~4. Round Counter Overflow (BUG-011)~~ ✅
+### ~~6. Round Counter Overflow (BUG-011)~~ ✅
 Fixed via `setTimeout(() => ..., 0)` in pending prompt useEffect. React state update now completes before handleSendWithModels fires.
 
-### ~~5. Response Length Wiring~~ ✅
+### ~~7. Response Length Wiring~~ ✅
 Wired `responseLength` to `/api/chat` with dynamic word targets: short ~75w, medium ~150w, long ~300w.
 
-### ~~6. Stop Button - Stuck Thinking Bubble~~ ✅
+### ~~8. Stop Button - Stuck Thinking Bubble~~ ✅
 Fixed: AbortError catch now dispatches "✖️ Response cancelled." to resolve the placeholder bubble.
 
-### 7. API Key Limit Error Handling
+### 9. API Key Limit Error Handling
 When API keys hit rate limits or quota, show a graceful error message in chat (not a crash). Something like "Gemini encountered an error. Check your API quota." with a suggested follow-up action.
 
 ### 8. Credits Button Functionality
