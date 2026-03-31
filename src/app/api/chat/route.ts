@@ -167,18 +167,39 @@ export async function POST(request: Request) {
 
     const stream = new ReadableStream({
       async start(controller) {
-        const aborted = request.signal?.aborted
-        if (aborted) {
+        let streamClosed = false
+        const closeController = () => {
+          if (streamClosed) return
+          streamClosed = true
           controller.close()
+        }
+        const enqueueEvent = (payload: unknown) => {
+          if (streamClosed) return
+          const event = `data: ${JSON.stringify(payload)}\n\n`
+          controller.enqueue(encoder.encode(event))
+        }
+        const providerAbortController = new AbortController()
+        const abortProvider = () => {
+          if (!providerAbortController.signal.aborted) {
+            providerAbortController.abort()
+          }
+        }
+        const providerSignal =
+          typeof AbortSignal.any === "function"
+            ? AbortSignal.any([request.signal, providerAbortController.signal])
+            : providerAbortController.signal
+        const forwardAbort = () => abortProvider()
+
+        if (request.signal.aborted) {
+          closeController()
           return
         }
-
-        request.signal?.addEventListener("abort", () => {
-          controller.close()
-        })
+        if (providerSignal === providerAbortController.signal) {
+          request.signal.addEventListener("abort", forwardAbort, { once: true })
+        }
 
         try {
-          for await (const chunk of streamFn(systemPrompt, inputMessages, request.signal, maxTokens)) {
+          for await (const chunk of streamFn(systemPrompt, inputMessages, providerSignal, maxTokens)) {
             if (request.signal?.aborted) break
             const nextContent = fullContent + chunk
             const limited = wordLimit ? clampToWordLimit(nextContent, wordLimit) : { text: nextContent, truncated: false }
@@ -188,16 +209,17 @@ export async function POST(request: Request) {
             if (!nextChunk) {
               if (limited.truncated) {
                 truncatedShortResponse = true
+                abortProvider()
                 break
               }
               continue
             }
 
-            const event = `data: ${JSON.stringify({ chunk: nextChunk })}\n\n`
-            controller.enqueue(encoder.encode(event))
+            enqueueEvent({ chunk: nextChunk })
 
             if (limited.truncated) {
               truncatedShortResponse = true
+              abortProvider()
               break
             }
           }
@@ -207,18 +229,17 @@ export async function POST(request: Request) {
               fullContent = polishTruncatedShortResponse(fullContent, wordLimit)
             }
 
-            const done = `data: ${JSON.stringify({
+            enqueueEvent({
               done: true,
               sender: provider,
               displayName: DISPLAY_NAMES[provider],
               content: fullContent,
-            })}\n\n`
-            controller.enqueue(encoder.encode(done))
+            })
           }
-          controller.close()
+          closeController()
         } catch (error) {
-          if (request.signal?.aborted) {
-            controller.close()
+          if (request.signal?.aborted || (providerAbortController.signal.aborted && truncatedShortResponse)) {
+            closeController()
             return
           }
           const msg = error instanceof Error ? error.message : "Unknown error"
@@ -226,17 +247,16 @@ export async function POST(request: Request) {
           const friendlyError = `${DISPLAY_NAMES[provider]} encountered an error: ${sanitized}`
 
           // Send error as a chat bubble so the debate can continue with other models
-          const errorChunk = `data: ${JSON.stringify({ chunk: friendlyError })}\n\n`
-          controller.enqueue(encoder.encode(errorChunk))
-
-          const done = `data: ${JSON.stringify({
+          enqueueEvent({ chunk: friendlyError })
+          enqueueEvent({
             done: true,
             sender: provider,
             displayName: DISPLAY_NAMES[provider],
             content: friendlyError,
-          })}\n\n`
-          controller.enqueue(encoder.encode(done))
-          controller.close()
+          })
+          closeController()
+        } finally {
+          request.signal.removeEventListener("abort", forwardAbort)
         }
       },
     })

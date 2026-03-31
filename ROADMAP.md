@@ -35,7 +35,7 @@ The core experience — a group chat where you + Gemini + Perplexity discuss a t
 
 Make the ending state decisive and make debates reusable.
 
-- [ ] Add Claude (Anthropic SDK) + GPT (OpenAI SDK) — currently both route to Perplexity as placeholder
+- [x] Add Claude (Anthropic SDK) + GPT (OpenAI SDK) provider integrations
 - [ ] Replace neutral summary schema with decision-oriented verdict schema:
   - `winner`
   - `voteSplit`
