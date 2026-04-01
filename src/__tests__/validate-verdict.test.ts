@@ -87,9 +87,17 @@ describe("validateVerdictResult", () => {
     expect(() => validateVerdictResult(rest)).toThrow("minorityView")
   })
 
+  it("throws when minorityView is empty", () => {
+    expect(() => validateVerdictResult({ ...validVerdict, minorityView: "  " })).toThrow("minorityView")
+  })
+
   it("throws when oppositeCase is missing", () => {
     const { oppositeCase: _oc, ...rest } = validVerdict
     expect(() => validateVerdictResult(rest)).toThrow("oppositeCase")
+  })
+
+  it("throws when oppositeCase is empty", () => {
+    expect(() => validateVerdictResult({ ...validVerdict, oppositeCase: "" })).toThrow("oppositeCase")
   })
 
   it("throws when modelAgreement is out of range", () => {

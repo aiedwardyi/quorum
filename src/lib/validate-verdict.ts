@@ -29,12 +29,12 @@ export function validateVerdictResult(raw: unknown): VerdictResult {
     }
   }
 
-  if (typeof obj.minorityView !== "string") {
-    throw new Error("minorityView must be a string")
+  if (typeof obj.minorityView !== "string" || !obj.minorityView.trim()) {
+    throw new Error("minorityView must be a non-empty string")
   }
 
-  if (typeof obj.oppositeCase !== "string") {
-    throw new Error("oppositeCase must be a string")
+  if (typeof obj.oppositeCase !== "string" || !obj.oppositeCase.trim()) {
+    throw new Error("oppositeCase must be a non-empty string")
   }
 
   if (obj.modelAgreement !== undefined) {

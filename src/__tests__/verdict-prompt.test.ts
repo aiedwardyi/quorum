@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { getVerdictPrompt } from "@/app/api/consensus/route"
+import { getVerdictPrompt } from "@/lib/verdict-prompt"
 
 describe("getVerdictPrompt", () => {
   it("returns a non-empty string for English", () => {
