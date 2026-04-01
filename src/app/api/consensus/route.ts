@@ -9,7 +9,18 @@ import { getVertexConfig } from "@/lib/vertex-config"
 import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt } from "@/lib/verdict-prompt"
 
-const HEDGING_PHRASES = ["it depends", "both have merits", "there is no clear winner", "hard to say"]
+const HEDGING_PHRASES = [
+  "it depends",
+  "both have merits",
+  "there is no clear winner",
+  "hard to say",
+  "provide more details",
+  "provide more information",
+  "consider your needs",
+  "depends on your needs",
+  "자세한 정보를 제공",
+  "필요를 고려",
+]
 
 function formatThread(messages: Message[]): string {
   return messages

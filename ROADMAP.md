@@ -62,7 +62,7 @@ Make the ending state decisive and make debates reusable.
 - [ ] Round divider labels in chat thread ("ROUND 1", "ROUND 2" visual separators)
 - [x] Stop button stuck state fix (BUG-012)
 - [ ] API error graceful handling (rate limits, quota)
-- [ ] Continue discussion from completed verdict (follow-up in same thread)
+- [x] Continue discussion from completed verdict (follow-up in same thread)
 - [ ] Session persistence foundation
 - [ ] Chat history page
 - [ ] **BUG-013**: Round selection display — picking 3 rounds still shows "5/3" in header

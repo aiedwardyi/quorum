@@ -19,7 +19,8 @@ Return ONLY valid JSON with this exact structure, no other text:
 }
 
 Rules:
-- recommendedAnswer MUST be one short, punchy sentence. Maximum 15 words. Think headline, not paragraph. Start with an action verb. Examples: "Use a monolith for your MVP.", "Avoid investing in this stock right now.", "Switch to TypeScript for long-term maintainability." Never say "it depends", "both have merits", or "there is no clear winner".
+- recommendedAnswer MUST be one short, punchy sentence. Maximum 15 words. Think headline, not paragraph. Start with an action verb. Examples: "Use a monolith for your MVP.", "Avoid investing in this stock right now.", "Switch to TypeScript for long-term maintainability."
+- NEVER hedge. Never say "it depends", "both have merits", "there is no clear winner", "consider your needs", or "provide more details". NEVER ask the user for more information. You MUST pick a concrete answer even if the debate was inconclusive. If the models hedged, pick the option that had the strongest reasoning and commit to it.
 - If the debate is close, still pick the stronger position. Reflect the closeness in the confidence score, not by hedging the answer.
 - voteSplit MUST be a short fraction like "3/4 models agree" or "4/4 unanimous" or "2/4 models agree (split decision)". Keep it under 8 words. Do NOT list model names here.
 - confidence scoring: 90-100 = strong consensus, 70-89 = clear lean, 50-69 = slight edge, below 50 = genuine toss-up (still pick one side).
