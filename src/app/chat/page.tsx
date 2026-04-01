@@ -409,7 +409,7 @@ export default function ChatPage() {
 
       dispatch({ type: "SET_DEBATING", value: false })
     },
-    [state.messages, maxRounds, callModel, runRound, locale]
+    [state.messages, state.showSummary, maxRounds, callModel, runRound, locale]
   )
 
   handleSendRef.current = handleSendWithModels
