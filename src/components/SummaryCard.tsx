@@ -14,14 +14,12 @@ const translations = {
     reasons: "Key Reasons",
     minorityView: "Minority View",
     oppositeCase: "Consider the opposite when",
-    agreement: "Model Agreement",
     newDiscussion: "New Discussion",
     copy: "Copy",
     copied: "Copied",
     strongRec: "Strong Recommendation",
     recommended: "Recommended",
     narrowEdge: "Narrow Edge",
-    noSignificantDissent: "No significant dissent",
   },
   ko: {
     verdict: "최종 판결",
@@ -31,15 +29,19 @@ const translations = {
     reasons: "주요 이유",
     minorityView: "소수 의견",
     oppositeCase: "반대가 나을 때",
-    agreement: "모델 일치도",
     newDiscussion: "새 토론",
     copy: "복사",
     copied: "복사됨",
     strongRec: "강력 추천",
     recommended: "추천",
     narrowEdge: "근소한 차이",
-    noSignificantDissent: "유의미한 반대 없음",
   },
+}
+
+function getConfidenceColor(confidence: number) {
+  if (confidence >= 80) return { text: "text-success", bg: "bg-success", border: "border-success/30" }
+  if (confidence >= 60) return { text: "text-warning", bg: "bg-warning", border: "border-warning/30" }
+  return { text: "text-danger", bg: "bg-danger", border: "border-danger/30" }
 }
 
 export default function SummaryCard({
@@ -53,6 +55,7 @@ export default function SummaryCard({
 }) {
   const t = translations[locale]
   const [copied, setCopied] = useState(false)
+  const colors = getConfidenceColor(result.confidence)
 
   const getStatusText = (confidence: number) => {
     if (confidence >= 80) return t.strongRec
@@ -73,7 +76,6 @@ export default function SummaryCard({
       "",
       `${t.minorityView}: ${result.minorityView}`,
       `${t.oppositeCase}: ${result.oppositeCase}`,
-      ...(result.modelAgreement != null ? [`${t.agreement}: ${result.modelAgreement}%`] : []),
     ].join("\n")
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
@@ -89,49 +91,46 @@ export default function SummaryCard({
     >
       <div className="pointer-events-none absolute inset-0 hidden dark:block bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.12),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.08),transparent_26%)]" />
 
-      {/* Header */}
-      <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-zinc-100 dark:border-white/[0.06]">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-3 rounded-full border border-success-border bg-success-bg text-[10px] font-bold uppercase tracking-[0.14em] text-success">
+      {/* Header - verdict badge + confidence pills */}
+      <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-5 border-b border-zinc-100 dark:border-white/[0.06]">
+        <div className="flex items-center gap-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-success-border bg-success-bg text-[10px] font-bold uppercase tracking-[0.14em] text-success">
             {t.verdict}
           </div>
-          <h2 className="text-xl sm:text-[1.7rem] font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">{t.recommendation}</h2>
-          <p className="text-sm mt-1.5 font-semibold text-success">{getStatusText(result.confidence)}</p>
+          <span className={`text-xs font-semibold ${colors.text}`}>{getStatusText(result.confidence)}</span>
         </div>
-        <div className="text-right">
-          <div className="text-3xl sm:text-4xl font-mono font-normal tracking-[-0.05em] text-zinc-900 dark:text-zinc-100 dark:drop-shadow-[0_0_22px_rgba(255,255,255,0.1)]">
-            {result.confidence}
-            <span className="text-xl sm:text-2xl">%</span>
+        <div className="flex items-center gap-3">
+          {/* Vote split badge */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-zinc-200/80 dark:border-white/[0.08] bg-zinc-50 dark:bg-white/[0.04] text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+            {result.voteSplit}
           </div>
-          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{t.confidence}</div>
+          {/* Confidence badge */}
+          <div className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border ${colors.border} bg-zinc-50 dark:bg-white/[0.04]`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${colors.bg}`} />
+            <span className={`text-xs font-bold font-mono ${colors.text}`}>{result.confidence}%</span>
+          </div>
         </div>
       </div>
 
-      <div className="relative space-y-8">
-        {/* Recommendation hero */}
-        <div className="rounded-2xl border border-zinc-200/80 dark:border-white/[0.05] bg-zinc-50/90 dark:bg-white/[0.03] px-4 py-3.5">
-          <p className="text-lg sm:text-xl leading-relaxed font-semibold text-zinc-900 dark:text-zinc-100">
+      <div className="relative space-y-6">
+        {/* THE ANSWER - hero text */}
+        <div className={`rounded-2xl border-l-4 ${colors.border} bg-zinc-50/90 dark:bg-white/[0.04] px-5 py-4`}>
+          <p className="text-xl sm:text-2xl leading-snug font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
             {result.recommendedAnswer}
           </p>
         </div>
 
-        {/* Vote Split */}
-        <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03]">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500 mt-0.5 shrink-0">{t.voteSplit}</span>
-          <span className="text-sm text-zinc-700 dark:text-zinc-200 leading-snug">{result.voteSplit}</span>
-        </div>
-
         {/* Key Reasons */}
         {result.reasons.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-success flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4" />
+              <CheckCircle2 className="w-3.5 h-3.5" />
               {t.reasons}
             </h3>
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {result.reasons.map((item, i) => (
-                <div key={i} className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03] text-sm text-zinc-700 dark:text-zinc-100 leading-snug">
-                  <span className="text-success mt-0.5 text-lg leading-none shrink-0">•</span>
+                <div key={i} className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm text-zinc-700 dark:text-zinc-200 leading-snug">
+                  <span className="text-success mt-0.5 text-sm leading-none shrink-0">•</span>
                   <span>{item}</span>
                 </div>
               ))}
@@ -141,13 +140,13 @@ export default function SummaryCard({
 
         {/* Minority View */}
         {result.minorityView && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-warning flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4" />
+              <AlertTriangle className="w-3.5 h-3.5" />
               {t.minorityView}
             </h3>
-            <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03] text-sm text-zinc-700 dark:text-zinc-100 leading-snug">
-              <span className="text-warning mt-0.5 text-lg leading-none shrink-0">•</span>
+            <div className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm text-zinc-600 dark:text-zinc-300 leading-snug">
+              <span className="text-warning mt-0.5 text-sm leading-none shrink-0">•</span>
               <span>{result.minorityView}</span>
             </div>
           </div>
@@ -155,24 +154,17 @@ export default function SummaryCard({
 
         {/* Opposite Case */}
         {result.oppositeCase && (
-          <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03]">
-            <Info className="w-4 h-4 text-zinc-400 dark:text-zinc-500 mt-0.5 shrink-0" />
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-snug">
-              <span className="font-medium text-zinc-600 dark:text-zinc-300">{t.oppositeCase}:</span>{" "}
+          <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/60 dark:border-white/[0.04] bg-zinc-50/50 dark:bg-white/[0.02]">
+            <Info className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+              <span className="font-semibold">{t.oppositeCase}:</span>{" "}
               {result.oppositeCase}
             </p>
           </div>
         )}
 
-        {/* Model Agreement footnote */}
-        {result.modelAgreement != null && (
-          <p className="text-[11px] text-zinc-400 dark:text-zinc-600 text-center">
-            {t.agreement}: {result.modelAgreement}%
-          </p>
-        )}
-
         {/* Action buttons */}
-        <div className="pt-8 border-t border-zinc-100 dark:border-white/[0.04] flex justify-center gap-3">
+        <div className="pt-6 border-t border-zinc-100 dark:border-white/[0.04] flex justify-center gap-3">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
