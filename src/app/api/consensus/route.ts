@@ -1,39 +1,44 @@
 import { NextRequest, NextResponse } from "next/server"
-import type { Message, ConsensusResult, Locale } from "@/types"
+import type { Message, Locale } from "@/types"
 import {
   VertexAI,
   HarmCategory,
   HarmBlockThreshold,
 } from "@google-cloud/vertexai"
 import { getVertexConfig } from "@/lib/vertex-config"
+import { validateVerdictResult } from "@/lib/validate-verdict"
 
-function getConsensusPrompt(locale: Locale): string {
+const HEDGING_PHRASES = ["it depends", "both have merits", "there is no clear winner", "hard to say"]
+
+export function getVerdictPrompt(locale: Locale): string {
   const localeRule = locale === "ko"
-    ? "\n- Return all text fields (agreements, disagreements, summary) in Korean."
+    ? "\n- Return ALL text fields (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase) in Korean."
     : ""
 
-  return `You are a discussion analyst. Analyze the following group discussion between AI models and a human user.
+  return `You are a decision advisor. A user asked a question and multiple AI models debated it. Your job is to deliver a clear, decisive recommendation based on the debate.
 
-Evaluate how much the participants agree with each other. Return ONLY valid JSON with this exact structure, no other text:
+Return ONLY valid JSON with this exact structure, no other text:
 
 {
-  "score": <number 0-100, where 100 = full agreement>,
-  "agreements": ["point 1", "point 2"],
-  "disagreements": ["point 1", "point 2"],
-  "summary": "one sentence summary"
+  "recommendedAnswer": "Clear, actionable recommendation in 1-2 sentences. Start with a verb: Do X, Choose X, Use X.",
+  "voteSplit": "Which models supported which position, e.g. 'Gemini, Claude, GPT chose X / Perplexity chose Y' or '4/4 unanimous for X'",
+  "confidence": <number 0-100>,
+  "reasons": ["reason 1", "reason 2", "reason 3"],
+  "minorityView": "The strongest argument against the recommendation, in one sentence",
+  "oppositeCase": "When the opposite choice would actually be better, in one sentence",
+  "modelAgreement": <number 0-100>
 }
 
 Rules:
-- score must be an integer from 0 to 100
-- agreements and disagreements must each have at least one item
-- summary must be a single crisp sentence, under 24 words, focused on the final takeaway
-- agreements should be short, scannable takeaway bullets rather than full explanations
-- disagreements should capture only the main nuance or unresolved caveat, not minor repetition
-- If everyone agrees on everything, score should be 90-100
-- If there are minor differences in framing but same conclusion, score 70-89
-- If there are substantive disagreements, score 40-69
-- If they fundamentally disagree, score 0-39
-- Return ONLY the JSON object, no markdown fences, no explanation${localeRule}`
+- recommendedAnswer MUST be decisive. Start with an action verb. Never say "it depends", "both have merits", or "there is no clear winner".
+- If the debate is close, still pick the stronger position. Reflect the closeness in the confidence score, not by hedging the answer.
+- voteSplit MUST reference the actual model names from the conversation (e.g. Gemini, Perplexity, Claude, GPT). State which models supported which position.
+- confidence scoring: 90-100 = strong consensus, 70-89 = clear lean, 50-69 = slight edge, below 50 = genuine toss-up (still pick one side).
+- reasons: provide 2-4 short, scannable bullet points supporting the recommendation.
+- minorityView: the single strongest counterargument. If all models agreed, write "No significant dissent."
+- oppositeCase: one sentence describing when the user should ignore this recommendation and do the opposite.
+- modelAgreement: 0-100 score for how aligned the models were with each other (separate from confidence in the recommendation).
+- Return ONLY the JSON object. No markdown fences, no explanation, no preamble.${localeRule}`
 }
 
 function formatThread(messages: Message[]): string {
@@ -43,6 +48,8 @@ function formatThread(messages: Message[]): string {
 }
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now()
+
   try {
     const body = await req.json()
     const messages: Message[] = body.messages
@@ -58,19 +65,16 @@ export async function POST(req: NextRequest) {
 
     const discussionMessages = messages.filter((message) => message.sender !== "system")
 
-    // Need at least 2 AI messages to analyze consensus
     const aiMessages = discussionMessages.filter((m) => m.sender !== "user")
     if (aiMessages.length < 2) {
       return NextResponse.json(
-        { error: "Need at least 2 AI messages to check consensus" },
+        { error: "Need at least 2 AI messages to generate verdict" },
         { status: 400 }
       )
     }
 
-    // Format the whole conversation as a single text block
     const thread = formatThread(discussionMessages)
 
-    // Call Gemini directly with one user message (avoids role alternation issues)
     const { projectId, location } = getVertexConfig()
     const vertexAI = new VertexAI({ project: projectId, location })
     const model = vertexAI.getGenerativeModel({
@@ -87,10 +91,12 @@ export async function POST(req: NextRequest) {
       ],
     })
 
+    console.log(`[verdict] Generating verdict for ${aiMessages.length} AI messages, locale=${locale}`)
+
     const result = await model.generateContent({
       systemInstruction: {
         role: "system",
-        parts: [{ text: getConsensusPrompt(locale) }],
+        parts: [{ text: getVerdictPrompt(locale) }],
       },
       contents: [
         {
@@ -111,31 +117,28 @@ export async function POST(req: NextRequest) {
       throw new Error("Gemini returned an empty response")
     }
 
-    // Strip markdown fences if Gemini wraps the JSON
     const cleaned = raw
       .replace(/```json\s*/gi, "")
       .replace(/```\s*/g, "")
       .trim()
 
-    const parsed: ConsensusResult = JSON.parse(cleaned)
+    const parsed = JSON.parse(cleaned)
+    const verdict = validateVerdictResult(parsed)
 
-    // Validate the shape
-    if (
-      typeof parsed.score !== "number" ||
-      parsed.score < 0 ||
-      parsed.score > 100 ||
-      !Array.isArray(parsed.agreements) ||
-      !Array.isArray(parsed.disagreements) ||
-      typeof parsed.summary !== "string"
-    ) {
-      throw new Error("Invalid consensus response shape")
+    const elapsed = Date.now() - startTime
+    console.log(`[verdict] Generated in ${elapsed}ms, confidence=${verdict.confidence}`)
+
+    if (HEDGING_PHRASES.some((phrase) => verdict.recommendedAnswer.toLowerCase().includes(phrase))) {
+      console.warn(`[verdict] Hedging detected in recommendedAnswer: "${verdict.recommendedAnswer}"`)
     }
 
-    return NextResponse.json(parsed)
+    return NextResponse.json(verdict)
   } catch (error) {
-    console.error("Consensus error:", error)
+    const elapsed = Date.now() - startTime
+    const message = error instanceof Error ? error.message : "Unknown error"
+    console.error(`[verdict] Failed after ${elapsed}ms:`, message)
     return NextResponse.json(
-      { error: "Failed to analyze consensus" },
+      { error: "Failed to generate verdict", detail: message },
       { status: 500 }
     )
   }

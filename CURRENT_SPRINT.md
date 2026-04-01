@@ -29,17 +29,17 @@
 
 ### Sprint Scope
 
-- [ ] Change the final verdict schema from neutral summary to decision-oriented output:
-  - `winner`
+- [x] Change the final verdict schema from neutral summary to decision-oriented output:
+  - `recommendedAnswer`
   - `voteSplit`
   - `confidence`
   - `reasons`
   - `minorityView`
   - `oppositeCase`
   - optional `modelAgreement`
-- [ ] Update the consensus/moderator prompt so the final result gives a recommendation, not just balanced recap
-- [ ] Redesign SummaryCard around `Recommended Answer` instead of `Discussion Summary`
-- [ ] Replace `Alignment` as the hero metric with `Vote Split`
+- [x] Update the consensus/moderator prompt so the final result gives a recommendation, not just balanced recap
+- [x] Redesign SummaryCard around `Recommended Answer` instead of `Discussion Summary`
+- [x] Replace `Alignment` as the hero metric with `Vote Split`
 - [ ] Add `Continue Discussion` after verdict without resetting the thread
 - [ ] Let a follow-up message reuse the completed debate context and start another debate pass
 - [ ] Persist threads so finished debates can be reopened later
@@ -115,8 +115,8 @@
 
 ## Open Issues (Priority Order)
 
-### 1. Final Verdict Is Too Neutral
-The summary card still behaves like a balanced recap instead of a recommendation engine. It needs a winner, vote split, top reasons, minority view, and clearer wording.
+### ~~1. Final Verdict Is Too Neutral~~ ✅
+Resolved: Replaced neutral consensus recap with decisive verdict system. New schema: recommendedAnswer, voteSplit, confidence, reasons, minorityView, oppositeCase. SummaryCard redesigned with recommendation as hero. ConsensusMeter relabeled from "Consensus" to "Confidence". Validation extracted to testable helper with 28 unit tests.
 
 ### 2. Continue Discussion + Save Threads
 After a verdict appears, users should be able to continue in the same context. This requires persistent sessions, reopenable threads, and a basic history surface.

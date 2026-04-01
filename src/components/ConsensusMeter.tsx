@@ -1,22 +1,22 @@
 "use client"
 
 import { useEffect } from "react"
-import { ConsensusResult, Locale } from "@/types"
+import { VerdictResult, Locale } from "@/types"
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 const translations = {
   en: {
-    consensus: "Consensus",
-    tooltip: "Measures how much the different AI models agree with each other.",
+    confidence: "Confidence",
+    tooltip: "How confident the recommendation is based on model debate.",
     analyzing: "ANALYZING...",
-    verdict: "FINAL VERDICT",
+    verdict: "VERDICT READY",
   },
   ko: {
-    consensus: "합의",
-    tooltip: "서로 다른 AI 모델들이 얼마나 일치하는지 측정합니다.",
+    confidence: "확신도",
+    tooltip: "모델 토론 결과에 따른 추천 확신도입니다.",
     analyzing: "분석 중...",
-    verdict: "최종 합의",
+    verdict: "판결 완료",
   },
 }
 
@@ -26,7 +26,7 @@ export default function ConsensusMeter({
   locale,
 }: {
   score: number | null
-  result: ConsensusResult | null
+  result: VerdictResult | null
   locale: Locale
 }) {
   const t = translations[locale]
@@ -83,7 +83,7 @@ export default function ConsensusMeter({
               )}
             </div>
             <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em] transition-colors", isFinal ? "text-success" : "text-zinc-500 dark:text-zinc-400")}>
-              {result ? t.verdict : t.consensus}
+              {result ? t.verdict : t.confidence}
             </span>
             <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] font-medium rounded opacity-0 group-hover/label:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-sm">
               {t.tooltip}

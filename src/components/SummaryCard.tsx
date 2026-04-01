@@ -1,32 +1,44 @@
 "use client"
 
 import { useState } from "react"
-import { ConsensusResult, Locale } from "@/types"
+import { VerdictResult, Locale } from "@/types"
 import { motion } from "framer-motion"
-import { CheckCircle2, XCircle, RefreshCw, Copy, Check } from "lucide-react"
+import { CheckCircle2, AlertTriangle, Info, RefreshCw, Copy, Check } from "lucide-react"
 
 const translations = {
   en: {
-    summary: "Discussion Summary",
-    agreements: "Agreements",
-    disagreements: "Disagreements",
+    verdict: "Final Verdict",
+    recommendation: "Recommendation",
+    voteSplit: "Vote Split",
+    confidence: "Confidence",
+    reasons: "Key Reasons",
+    minorityView: "Minority View",
+    oppositeCase: "Consider the opposite when",
+    agreement: "Model Agreement",
     newDiscussion: "New Discussion",
     copy: "Copy",
     copied: "Copied",
-    verdict: "Final Verdict",
-    alignment: "Alignment",
-    consensus: "Consensus",
+    strongRec: "Strong Recommendation",
+    recommended: "Recommended",
+    narrowEdge: "Narrow Edge",
+    noSignificantDissent: "No significant dissent",
   },
   ko: {
-    summary: "토론 요약",
-    agreements: "합의 사항",
-    disagreements: "의견 차이",
+    verdict: "최종 판결",
+    recommendation: "추천",
+    voteSplit: "투표 결과",
+    confidence: "확신도",
+    reasons: "주요 이유",
+    minorityView: "소수 의견",
+    oppositeCase: "반대가 나을 때",
+    agreement: "모델 일치도",
     newDiscussion: "새 토론",
     copy: "복사",
     copied: "복사됨",
-    verdict: "최종 합의",
-    alignment: "정렬도",
-    consensus: "합의",
+    strongRec: "강력 추천",
+    recommended: "추천",
+    narrowEdge: "근소한 차이",
+    noSignificantDissent: "유의미한 반대 없음",
   },
 }
 
@@ -35,26 +47,33 @@ export default function SummaryCard({
   onNewDiscussion,
   locale,
 }: {
-  result: ConsensusResult
+  result: VerdictResult
   onNewDiscussion: () => void
   locale: Locale
 }) {
   const t = translations[locale]
   const [copied, setCopied] = useState(false)
 
-  const getStatusText = (s: number) => {
-    if (s >= 80) return locale === "ko" ? "합의 도달" : "Consensus Reached"
-    return locale === "ko" ? "토론 완료" : "Discussion Concluded"
+  const getStatusText = (confidence: number) => {
+    if (confidence >= 80) return t.strongRec
+    if (confidence >= 60) return t.recommended
+    return t.narrowEdge
   }
 
   const handleCopy = () => {
     const text = [
-      `${t.summary} - ${result.score}%`,
+      t.recommendation,
+      result.recommendedAnswer,
       "",
-      result.summary,
+      `${t.voteSplit}: ${result.voteSplit}`,
+      `${t.confidence}: ${result.confidence}%`,
       "",
-      ...(result.agreements.length > 0 ? [`${t.agreements}:`, ...result.agreements.map((a) => `  - ${a}`)] : []),
-      ...(result.disagreements.length > 0 ? ["", `${t.disagreements}:`, ...result.disagreements.map((d) => `  - ${d}`)] : []),
+      `${t.reasons}:`,
+      ...result.reasons.map((r) => `  - ${r}`),
+      "",
+      `${t.minorityView}: ${result.minorityView}`,
+      `${t.oppositeCase}: ${result.oppositeCase}`,
+      ...(result.modelAgreement != null ? [`${t.agreement}: ${result.modelAgreement}%`] : []),
     ].join("\n")
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
@@ -70,39 +89,47 @@ export default function SummaryCard({
     >
       <div className="pointer-events-none absolute inset-0 hidden dark:block bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.12),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.08),transparent_26%)]" />
 
+      {/* Header */}
       <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 pb-6 border-b border-zinc-100 dark:border-white/[0.06]">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-3 rounded-full border border-success-border bg-success-bg text-[10px] font-bold uppercase tracking-[0.14em] text-success">
             {t.verdict}
           </div>
-          <h2 className="text-xl sm:text-[1.7rem] font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">{t.summary}</h2>
-          <p className="text-sm mt-1.5 font-semibold text-success">{getStatusText(result.score)}</p>
+          <h2 className="text-xl sm:text-[1.7rem] font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">{t.recommendation}</h2>
+          <p className="text-sm mt-1.5 font-semibold text-success">{getStatusText(result.confidence)}</p>
         </div>
         <div className="text-right">
-          <div className="text-5xl sm:text-6xl font-mono font-normal tracking-[-0.05em] text-zinc-900 dark:text-zinc-100 dark:drop-shadow-[0_0_22px_rgba(255,255,255,0.1)]">
-            {result.score}
-            <span className="text-3xl sm:text-4xl">%</span>
+          <div className="text-3xl sm:text-4xl font-mono font-normal tracking-[-0.05em] text-zinc-900 dark:text-zinc-100 dark:drop-shadow-[0_0_22px_rgba(255,255,255,0.1)]">
+            {result.confidence}
+            <span className="text-xl sm:text-2xl">%</span>
           </div>
-          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{t.alignment}</div>
+          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500">{t.confidence}</div>
         </div>
       </div>
 
       <div className="relative space-y-8">
+        {/* Recommendation hero */}
         <div className="rounded-2xl border border-zinc-200/80 dark:border-white/[0.05] bg-zinc-50/90 dark:bg-white/[0.03] px-4 py-3.5">
-          <p className="text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-200">
-            <span className="font-semibold text-zinc-900 dark:text-zinc-100">{t.consensus}:</span>{" "}
-            {result.summary}
+          <p className="text-lg sm:text-xl leading-relaxed font-semibold text-zinc-900 dark:text-zinc-100">
+            {result.recommendedAnswer}
           </p>
         </div>
 
-        {result.agreements.length > 0 && (
+        {/* Vote Split */}
+        <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03]">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400 dark:text-zinc-500 mt-0.5 shrink-0">{t.voteSplit}</span>
+          <span className="text-sm text-zinc-700 dark:text-zinc-200 leading-snug">{result.voteSplit}</span>
+        </div>
+
+        {/* Key Reasons */}
+        {result.reasons.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-success flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />
-              {t.agreements}
+              {t.reasons}
             </h3>
             <div className="space-y-1.5">
-              {result.agreements.map((item, i) => (
+              {result.reasons.map((item, i) => (
                 <div key={i} className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03] text-sm text-zinc-700 dark:text-zinc-100 leading-snug">
                   <span className="text-success mt-0.5 text-lg leading-none shrink-0">•</span>
                   <span>{item}</span>
@@ -112,23 +139,39 @@ export default function SummaryCard({
           </div>
         )}
 
-        {result.disagreements.length > 0 && (
+        {/* Minority View */}
+        {result.minorityView && (
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-danger flex items-center gap-1.5">
-              <XCircle className="w-4 h-4" />
-              {t.disagreements}
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-warning flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4" />
+              {t.minorityView}
             </h3>
-            <div className="space-y-1.5">
-              {result.disagreements.map((item, i) => (
-                <div key={i} className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03] text-sm text-zinc-700 dark:text-zinc-100 leading-snug">
-                  <span className="text-danger mt-0.5 text-lg leading-none shrink-0">•</span>
-                  <span>{item}</span>
-                </div>
-              ))}
+            <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03] text-sm text-zinc-700 dark:text-zinc-100 leading-snug">
+              <span className="text-warning mt-0.5 text-lg leading-none shrink-0">•</span>
+              <span>{result.minorityView}</span>
             </div>
           </div>
         )}
 
+        {/* Opposite Case */}
+        {result.oppositeCase && (
+          <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-white/[0.04] bg-zinc-50 dark:bg-white/[0.03]">
+            <Info className="w-4 h-4 text-zinc-400 dark:text-zinc-500 mt-0.5 shrink-0" />
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-snug">
+              <span className="font-medium text-zinc-600 dark:text-zinc-300">{t.oppositeCase}:</span>{" "}
+              {result.oppositeCase}
+            </p>
+          </div>
+        )}
+
+        {/* Model Agreement footnote */}
+        {result.modelAgreement != null && (
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-600 text-center">
+            {t.agreement}: {result.modelAgreement}%
+          </p>
+        )}
+
+        {/* Action buttons */}
         <div className="pt-8 border-t border-zinc-100 dark:border-white/[0.04] flex justify-center gap-3">
           <motion.button
             whileHover={{ scale: 1.02 }}
