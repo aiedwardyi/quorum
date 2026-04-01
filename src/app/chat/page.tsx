@@ -2,7 +2,7 @@
 
 import { useReducer, useCallback, useRef, useEffect, useState } from "react"
 import { THEMES } from "@/types"
-import type { Message, Provider, ConsensusResult, Locale, ResponseLength, Theme } from "@/types"
+import type { Message, Provider, VerdictResult, Locale, ResponseLength, Theme } from "@/types"
 import { cleanResponse } from "@/lib/clean-response"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
@@ -18,7 +18,7 @@ import { ChevronDown } from "lucide-react"
 type State = {
   messages: Message[]
   activeModels: Provider[]
-  consensus: ConsensusResult | null
+  verdict: VerdictResult | null
   isDebating: boolean
   currentRound: number
   typingModel: Provider | null
@@ -30,7 +30,7 @@ type Action =
   | { type: "UPDATE_LAST_AI_CONTENT"; content: string }
   | { type: "SET_TYPING"; model: Provider | null }
   | { type: "SET_DEBATING"; value: boolean }
-  | { type: "SET_CONSENSUS"; result: ConsensusResult }
+  | { type: "SET_VERDICT"; result: VerdictResult }
   | { type: "SET_ROUND"; round: number }
   | { type: "SHOW_SUMMARY" }
   | { type: "TOGGLE_MODEL"; model: Provider }
@@ -41,7 +41,7 @@ function makeInitialState(models: Provider[]): State {
   return {
     messages: [],
     activeModels: models,
-    consensus: null,
+    verdict: null,
     isDebating: false,
     currentRound: 0,
     typingModel: null,
@@ -67,8 +67,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, typingModel: action.model }
     case "SET_DEBATING":
       return { ...state, isDebating: action.value }
-    case "SET_CONSENSUS":
-      return { ...state, consensus: action.result }
+    case "SET_VERDICT":
+      return { ...state, verdict: action.result }
     case "SET_ROUND":
       return { ...state, currentRound: action.round }
     case "SHOW_SUMMARY":
@@ -327,11 +327,11 @@ export default function ChatPage() {
             body: JSON.stringify({ messages: getApiMessages(msgs), locale }),
           })
           if (res.ok) {
-            const result: ConsensusResult = await res.json()
-            dispatch({ type: "SET_CONSENSUS", result })
+            const result: VerdictResult = await res.json()
+            dispatch({ type: "SET_VERDICT", result })
           }
         } catch (err) {
-          console.error("Consensus check failed:", err)
+          console.error("Verdict check failed:", err)
         }
       }
 
@@ -388,12 +388,12 @@ export default function ChatPage() {
                 body: JSON.stringify({ messages: getApiMessages(msgs), locale }),
               })
               if (res.ok) {
-                const result: ConsensusResult = await res.json()
-                dispatch({ type: "SET_CONSENSUS", result })
+                const result: VerdictResult = await res.json()
+                dispatch({ type: "SET_VERDICT", result })
                 dispatch({ type: "SHOW_SUMMARY" })
               }
             } catch (err) {
-              console.error("Final consensus failed:", err)
+              console.error("Final verdict failed:", err)
             }
           }
         }
@@ -430,12 +430,12 @@ export default function ChatPage() {
           body: JSON.stringify({ messages: getApiMessages(state.messages), locale }),
         })
         if (res.ok) {
-          const result: ConsensusResult = await res.json()
-          dispatch({ type: "SET_CONSENSUS", result })
+          const result: VerdictResult = await res.json()
+          dispatch({ type: "SET_VERDICT", result })
           dispatch({ type: "SHOW_SUMMARY" })
         }
       } catch (err) {
-        console.error("Final consensus failed:", err)
+        console.error("Final verdict failed:", err)
       }
     }
   }, [state.messages, locale])
@@ -509,9 +509,9 @@ export default function ChatPage() {
           onSendMessage={(text) => handleSend(text, "all")}
         />
 
-        {state.showSummary && state.consensus && (
+        {state.showSummary && state.verdict && (
           <div ref={summaryRef} className="px-4 pb-8">
-            <SummaryCard result={state.consensus} onNewDiscussion={handleReset} locale={locale} />
+            <SummaryCard result={state.verdict} onNewDiscussion={handleReset} locale={locale} />
           </div>
         )}
 
@@ -534,12 +534,11 @@ export default function ChatPage() {
       {/* Bottom bar: consensus rail + input */}
       <div className="w-full shrink-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-4 z-10">
         <AnimatePresence>
-          {(state.isDebating || state.typingModel !== null || state.consensus !== null) && (
+          {(state.isDebating || state.typingModel !== null || state.verdict !== null) && (
             <ConsensusMeter
-              score={state.consensus?.score ?? null}
-              result={state.showSummary ? state.consensus : null}
+              score={state.verdict?.confidence ?? null}
+              result={state.showSummary ? state.verdict : null}
               locale={locale}
-
             />
           )}
         </AnimatePresence>

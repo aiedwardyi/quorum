@@ -36,13 +36,14 @@ The core experience — a group chat where you + Gemini + Perplexity discuss a t
 Make the ending state decisive and make debates reusable.
 
 - [x] Add Claude (Anthropic SDK) + GPT (OpenAI SDK) provider integrations
-- [ ] Replace neutral summary schema with decision-oriented verdict schema:
-  - `winner`
+- [x] Replace neutral summary schema with decision-oriented verdict schema:
+  - `recommendedAnswer`
   - `voteSplit`
   - `confidence`
   - `reasons`
   - `minorityView`
   - `oppositeCase`
+  - optional `modelAgreement`
 - [x] Model selection UI — users choose which AIs participate (up to 4)
 - [x] Response length control (short / medium / long) — UI + API wired with word targets
 - [x] Configurable round count (3 / 5 / 7) — wired end-to-end, homepage -> settings -> debate loop

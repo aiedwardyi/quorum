@@ -15,17 +15,20 @@ export type Message = {
   timestamp: Date
 }
 
-export type ConsensusResult = {
-  score: number
-  agreements: string[]
-  disagreements: string[]
-  summary: string
+export type VerdictResult = {
+  recommendedAnswer: string
+  voteSplit: string
+  confidence: number
+  reasons: string[]
+  minorityView: string
+  oppositeCase: string
+  modelAgreement?: number
 }
 
 export type ChatState = {
   messages: Message[]
   activeModels: Provider[]
-  consensus: ConsensusResult | null
+  verdict: VerdictResult | null
   isDebating: boolean
   currentRound: number
   estimatedCost: number
