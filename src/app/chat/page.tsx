@@ -33,6 +33,7 @@ type Action =
   | { type: "SET_VERDICT"; result: VerdictResult }
   | { type: "SET_ROUND"; round: number }
   | { type: "SHOW_SUMMARY" }
+  | { type: "CONTINUE_THREAD" }
   | { type: "TOGGLE_MODEL"; model: Provider }
   | { type: "SET_MODELS"; models: Provider[] }
   | { type: "RESET" }
@@ -73,6 +74,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, currentRound: action.round }
     case "SHOW_SUMMARY":
       return { ...state, showSummary: true, isDebating: false, typingModel: null }
+    case "CONTINUE_THREAD":
+      return { ...state, showSummary: false, verdict: null, currentRound: 0 }
     case "TOGGLE_MODEL": {
       const has = state.activeModels.includes(action.model)
       if (has && state.activeModels.length <= 1) return state
@@ -350,6 +353,9 @@ export default function ChatPage() {
         content: text,
         timestamp: new Date(),
       }
+      if (state.showSummary) {
+        dispatch({ type: "CONTINUE_THREAD" })
+      }
       dispatch({ type: "ADD_MESSAGE", message: userMsg })
       dispatch({ type: "SET_DEBATING", value: true })
       stopRef.current = false
@@ -543,14 +549,12 @@ export default function ChatPage() {
           )}
         </AnimatePresence>
 
-        {!state.showSummary && (
-          <MessageInput
-            onSend={handleSend}
-            onStop={handleStop}
-            disabled={state.isDebating}
-            locale={locale}
-          />
-        )}
+        <MessageInput
+          onSend={handleSend}
+          onStop={handleStop}
+          disabled={state.isDebating}
+          locale={locale}
+        />
       </div>
     </div>
   )

@@ -40,8 +40,8 @@
 - [x] Update the consensus/moderator prompt so the final result gives a recommendation, not just balanced recap
 - [x] Redesign SummaryCard around `Recommended Answer` instead of `Discussion Summary`
 - [x] Replace `Alignment` as the hero metric with `Vote Split`
-- [ ] Add `Continue Discussion` after verdict without resetting the thread
-- [ ] Let a follow-up message reuse the completed debate context and start another debate pass
+- [x] Add `Continue Discussion` after verdict without resetting the thread
+- [x] Let a follow-up message reuse the completed debate context and start another debate pass
 - [ ] Persist threads so finished debates can be reopened later
 - [ ] Add a lightweight history entry point for saved debates
 - [ ] Keep `Share Verdict` narrow:
@@ -119,7 +119,8 @@
 Resolved: Replaced neutral consensus recap with decisive verdict system. New schema: recommendedAnswer, voteSplit, confidence, reasons, minorityView, oppositeCase. SummaryCard redesigned with recommendation as hero. ConsensusMeter relabeled from "Consensus" to "Confidence". Validation extracted to testable helper with 28 unit tests.
 
 ### 2. Continue Discussion + Save Threads
-After a verdict appears, users should be able to continue in the same context. This requires persistent sessions, reopenable threads, and a basic history surface.
+~~Continue discussion:~~ ✅ Input always visible after verdict. User types follow-up, new debate runs with full prior context preserved. Old verdict stays in thread.
+Save threads: Still needs persistent sessions, reopenable threads, and a basic history surface.
 
 ### ~~3. Language System (i18n for AI responses)~~ ✅
 Wired locale to both `/api/chat` and `/api/consensus` system prompts. AI responses now respect EN/KR setting.
