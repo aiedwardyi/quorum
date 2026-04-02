@@ -54,6 +54,32 @@ export async function queryGemini(
   return text
 }
 
+const STREAM_CHUNK_TIMEOUT_MS = 15_000
+
+async function* withTimeout<T>(
+  iterable: AsyncIterable<T>,
+  timeoutMs: number,
+  signal?: AbortSignal
+): AsyncGenerator<T> {
+  const iterator = iterable[Symbol.asyncIterator]()
+  while (true) {
+    if (signal?.aborted) return
+    let timerId: ReturnType<typeof setTimeout> | undefined
+    const result = await Promise.race([
+      iterator.next(),
+      new Promise<never>((_, reject) => {
+        timerId = setTimeout(
+          () => reject(new Error(`Stream timed out after ${timeoutMs}ms`)),
+          timeoutMs
+        )
+      }),
+    ])
+    clearTimeout(timerId)
+    if (result.done) return
+    yield result.value
+  }
+}
+
 // Streaming (used by chat route)
 export async function* streamGemini(
   systemPrompt: string,
@@ -70,7 +96,7 @@ export async function* streamGemini(
     generationConfig: { maxOutputTokens: maxTokens },
   })
 
-  for await (const chunk of result.stream) {
+  for await (const chunk of withTimeout(result.stream, STREAM_CHUNK_TIMEOUT_MS, signal)) {
     const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text
     if (text) {
       yield text

@@ -3,6 +3,7 @@
 import { Message, Provider, Locale } from "@/types"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
+import SummaryCard from "@/components/SummaryCard"
 
 const thinkingText = { en: "is thinking...", ko: "생각 중..." }
 
@@ -105,6 +106,15 @@ export default function ChatBubble({
         </span>
         <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
       </motion.div>
+    )
+  }
+
+  if (message.sender === "verdict" && message.verdictData) {
+    // SummaryCard has its own entrance animation - no wrapper animation needed
+    return (
+      <div className="w-full">
+        <SummaryCard result={message.verdictData} locale={locale} inline />
+      </div>
     )
   }
 
