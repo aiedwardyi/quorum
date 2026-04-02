@@ -20,7 +20,6 @@ export default function ChatPage() {
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(5)
   const [theme, setTheme] = useState<Theme>("dark")
-  const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
@@ -154,9 +153,6 @@ export default function ChatPage() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        isLoggedIn={isLoggedIn}
-        onLogin={() => setIsLoggedIn(true)}
-        onLogout={() => setIsLoggedIn(false)}
         isDebating={state.isDebating}
       />
 
