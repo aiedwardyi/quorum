@@ -23,6 +23,10 @@ export async function POST(
 
   const { messages, expectedVersion } = await req.json()
 
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return NextResponse.json({ error: "messages must be a non-empty array" }, { status: 400 })
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.threadMessage.createMany({

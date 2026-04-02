@@ -24,6 +24,16 @@ export async function POST(
   const body = await req.json()
   const { recommendation, voteSplit, confidence, reasons, minorityView, oppositeCase, afterMessageIndex, expectedVersion } = body
 
+  if (!recommendation || typeof recommendation !== "string") {
+    return NextResponse.json({ error: "recommendation is required" }, { status: 400 })
+  }
+  if (typeof confidence !== "number") {
+    return NextResponse.json({ error: "confidence must be a number" }, { status: 400 })
+  }
+  if (!Array.isArray(reasons)) {
+    return NextResponse.json({ error: "reasons must be an array" }, { status: 400 })
+  }
+
   try {
     const verdict = await prisma.$transaction(async (tx) => {
       const created = await tx.verdict.create({

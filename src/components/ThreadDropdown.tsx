@@ -108,8 +108,8 @@ export default function ThreadDropdown({
     e.stopPropagation()
     if (!confirm(labels.deleteConfirm)) return
     try {
-      await fetch(`/api/threads/${threadId}`, { method: "DELETE" })
-      setThreads((prev) => prev.filter((t) => t.id !== threadId))
+      const res = await fetch(`/api/threads/${threadId}`, { method: "DELETE" })
+      if (res.ok) setThreads((prev) => prev.filter((t) => t.id !== threadId))
     } catch {
       // Silently fail
     }
@@ -175,7 +175,7 @@ export default function ThreadDropdown({
                     role="button"
                     tabIndex={0}
                     onClick={() => handleSelect(thread.id)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleSelect(thread.id) }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(thread.id) } }}
                     className={cn(
                       "w-full text-left px-3 py-2.5 hover:bg-[var(--accent)] transition-colors group cursor-pointer",
                       thread.id === currentThreadId && "bg-[var(--accent)]"
