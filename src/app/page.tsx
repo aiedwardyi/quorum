@@ -656,7 +656,7 @@ export default function Home() {
                           {t[locale].tooltips[`rounds${r.val}` as keyof Tooltips]}
                           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
                         </div>
-                        {r.val} {t[locale].rounds}
+                        {r.val}
                       </motion.button>
                     ))}
                   </div>
