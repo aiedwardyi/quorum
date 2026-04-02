@@ -1,8 +1,9 @@
 "use client"
 
-import { useCallback, useRef, useEffect, useState } from "react"
+import { Suspense, useCallback, useRef, useEffect, useState } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { THEMES } from "@/types"
-import type { Provider, Locale, ResponseLength, Theme } from "@/types"
+import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
 import { useDebateEngine } from "@/hooks/useDebateEngine"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
@@ -11,20 +12,35 @@ import ChatHeader from "@/components/Header"
 import SettingsModal from "@/components/SettingsModal"
 import { AnimatePresence, motion } from "framer-motion"
 import { ChevronDown } from "lucide-react"
+import { useThreadPersistence } from "@/hooks/useThreadPersistence"
+import { incrementDebateCount } from "@/components/LoginGate"
 
 const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity"]
 
 export default function ChatPage() {
+  return (
+    <Suspense>
+      <ChatPageContent />
+    </Suspense>
+  )
+}
+
+function ChatPageContent() {
   // Config loaded from sessionStorage (set by homepage)
   const [locale, setLocale] = useState<Locale>("en")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(5)
   const [theme, setTheme] = useState<Theme>("dark")
-  const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
     useDebateEngine({ locale, responseLength, maxRounds })
+
+  const persistence = useThreadPersistence()
+  const router = useRouter()
+
+  const searchParams = useSearchParams()
+  const threadParam = searchParams.get("thread")
 
   const mainRef = useRef<HTMLElement>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
@@ -113,6 +129,24 @@ export default function ChatPage() {
     } finally {
       setConfigHydrated(true)
     }
+
+    const pending = sessionStorage.getItem("quorum_pending")
+    if (pending) {
+      sessionStorage.removeItem("quorum_pending")
+      try {
+        const config = JSON.parse(pending)
+        if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
+        if (config.responseLength) setResponseLength(config.responseLength)
+        if (config.rounds) setMaxRounds(config.rounds)
+        if (config.locale) setLocale(config.locale)
+        if (config.prompt) {
+          pendingPrompt.current = {
+            prompt: config.prompt,
+            models: config.models ?? DEFAULT_MODELS,
+          }
+        }
+      } catch { /* ignore */ }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -141,6 +175,151 @@ export default function ChatPage() {
     })
   }, [])
 
+  // Auto-save messages when new ones are added
+  const creatingThreadRef = useRef(false)
+  const prevMessageCount = useRef(0)
+  useEffect(() => {
+    if (!persistence.isLoggedIn) return
+    if (state.messages.length <= prevMessageCount.current) {
+      prevMessageCount.current = state.messages.length
+      return
+    }
+    prevMessageCount.current = state.messages.length
+
+    // If no thread exists yet and we have a user message, create one
+    if (!persistence.threadId.current && !creatingThreadRef.current && state.messages.length > 0) {
+      const firstUserMsg = state.messages.find(m => m.sender === "user")
+      if (firstUserMsg) {
+        creatingThreadRef.current = true
+        persistence.createThread({
+          title: firstUserMsg.content.slice(0, 80),
+          models: state.activeModels,
+          rounds: maxRounds,
+          responseLength,
+          locale,
+        }).then((id) => {
+          creatingThreadRef.current = false
+          if (id) {
+            dispatch({ type: "SET_THREAD_ID", id })
+            persistence.saveMessages(state.messages)
+          }
+        })
+        return
+      }
+    }
+
+    // Otherwise save incrementally
+    persistence.saveMessages(state.messages)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.messages.length])
+
+  // Auto-save verdict when summary is shown
+  useEffect(() => {
+    if (state.showSummary && state.verdict && persistence.threadId.current) {
+      const afterIndex = state.messages.length - 1
+      persistence.saveVerdict(state.verdict, afterIndex)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.showSummary])
+
+  const currentTitle = state.messages.find(m => m.sender === "user")?.content.slice(0, 80) ?? null
+
+  const handleNewDebate = useCallback(() => {
+    creatingThreadRef.current = false
+    persistence.reset()
+    handleReset()
+    router.push("/chat")
+  }, [persistence, handleReset, router])
+
+  // When user continues a completed thread, mark it active again
+  const prevShowSummary = useRef(state.showSummary)
+  useEffect(() => {
+    if (prevShowSummary.current && !state.showSummary) {
+      persistence.continueThread()
+    }
+    prevShowSummary.current = state.showSummary
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.showSummary])
+
+  // Load thread from URL parameter
+  const threadLoaded = useRef<string | null>(null)
+  useEffect(() => {
+    if (!threadParam || threadLoaded.current === threadParam || !persistence.isLoggedIn) return
+    threadLoaded.current = threadParam
+
+    persistence.loadThread(threadParam).then((thread) => {
+      if (!thread) return
+
+      // Rebuild client messages from DB records
+      const messages: Message[] = thread.messages.map((m: any) => ({
+        id: `db-${m.id}`,
+        sender: m.sender as Message["sender"],
+        displayName: m.displayName,
+        content: m.content,
+        timestamp: new Date(m.createdAt),
+      }))
+
+      // Inject verdict data into verdict messages
+      for (const verdict of thread.verdicts) {
+        const verdictMsg = messages.find(
+          (m, i) => m.sender === "verdict" && i >= verdict.afterMessageIndex
+        )
+        if (verdictMsg) {
+          verdictMsg.verdictData = {
+            recommendedAnswer: verdict.recommendation,
+            voteSplit: verdict.voteSplit,
+            confidence: verdict.confidence,
+            reasons: verdict.reasons,
+            minorityView: verdict.minorityView,
+            oppositeCase: verdict.oppositeCase,
+          }
+        }
+      }
+
+      // Find the last verdict for the state
+      const lastVerdict = thread.verdicts[thread.verdicts.length - 1]
+      const verdictResult: VerdictResult | null = lastVerdict
+        ? {
+            recommendedAnswer: lastVerdict.recommendation,
+            voteSplit: lastVerdict.voteSplit,
+            confidence: lastVerdict.confidence,
+            reasons: lastVerdict.reasons,
+            minorityView: lastVerdict.minorityView,
+            oppositeCase: lastVerdict.oppositeCase,
+          }
+        : null
+
+      // Set config from thread
+      if (thread.models?.length) dispatch({ type: "SET_MODELS", models: thread.models })
+      if (thread.responseLength) setResponseLength(thread.responseLength)
+      if (thread.rounds) setMaxRounds(thread.rounds)
+      if (thread.locale) setLocale(thread.locale)
+
+      // Hydrate debate engine
+      dispatch({
+        type: "HYDRATE_THREAD",
+        messages,
+        verdict: verdictResult,
+        showSummary: thread.status === "complete",
+      })
+      dispatch({ type: "SET_THREAD_ID", id: thread.id })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadParam, persistence.isLoggedIn])
+
+  // Increment free-debate counter after verdict (for login gate)
+  const hasIncrementedRef = useRef(false)
+  useEffect(() => {
+    if (state.showSummary && !persistence.isLoggedIn && !hasIncrementedRef.current) {
+      hasIncrementedRef.current = true
+      incrementDebateCount()
+    }
+    if (!state.showSummary) {
+      hasIncrementedRef.current = false
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.showSummary, persistence.isLoggedIn])
+
   /* ---- Render ---- */
 
   return (
@@ -154,10 +333,10 @@ export default function ChatPage() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        isLoggedIn={isLoggedIn}
-        onLogin={() => setIsLoggedIn(true)}
-        onLogout={() => setIsLoggedIn(false)}
         isDebating={state.isDebating}
+        threadTitle={currentTitle}
+        threadId={state.threadId}
+        onNewDebate={handleNewDebate}
       />
 
       <SettingsModal

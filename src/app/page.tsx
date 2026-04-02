@@ -8,6 +8,9 @@ import { motion, AnimatePresence } from "framer-motion"
 import { THEMES } from "@/types"
 import type { Provider, ResponseLength, Locale, Theme } from "@/types"
 import { cn } from "@/lib/utils"
+import { useSession, signIn, signOut } from "next-auth/react"
+import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
+import LoginGateModal from "@/components/LoginGate"
 
 /* ─── Model SVG Icons ─── */
 
@@ -142,8 +145,12 @@ export default function Home() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Auth & login gate
+  const { data: session } = useSession()
+  const isLoggedIn = !!session?.user
+  const [showGate, setShowGate] = useState(false)
+
   // Header & Settings state
-  const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [showDropdown, setShowDropdown] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [files, setFiles] = useState<File[]>([])
@@ -238,6 +245,17 @@ export default function Home() {
 
   const handleSubmit = () => {
     if (!prompt.trim()) return
+    if (shouldShowLoginGate(!!session?.user)) {
+      savePendingDebate({
+        prompt: prompt.trim(),
+        models: selectedModels,
+        responseLength,
+        rounds,
+        locale,
+      })
+      setShowGate(true)
+      return
+    }
     const config = {
       prompt: prompt.trim(),
       models: selectedModels,
@@ -398,7 +416,7 @@ export default function Home() {
                         </button>
                         <div className="h-px bg-border my-1" />
                         <button
-                          onClick={() => { setShowDropdown(false); setIsLoggedIn(false) }}
+                          onClick={() => { setShowDropdown(false); signOut() }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                         >
                           <LogOut className="w-4 h-4" />
@@ -413,7 +431,7 @@ export default function Home() {
           ) : (
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setIsLoggedIn(true)}
+              onClick={() => signIn("google")}
               className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
             >
               <LogIn className="w-3.5 h-3.5" />
@@ -664,6 +682,7 @@ export default function Home() {
         onChangeRounds={setRounds}
         showPreferences={false}
       />
+      {showGate && <LoginGateModal onClose={() => setShowGate(false)} locale={locale} />}
     </div>
   )
 }

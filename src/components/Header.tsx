@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession, signIn, signOut } from "next-auth/react"
 import { Locale, ResponseLength, Theme } from "@/types"
+import ThreadDropdown from "@/components/ThreadDropdown"
 import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, User, Settings2, Sparkles, LogIn, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -40,10 +42,10 @@ export default function ChatHeader({
   theme,
   onToggleTheme,
   onOpenSettings,
-  isLoggedIn,
-  onLogin,
-  onLogout,
   isDebating = false,
+  threadTitle,
+  threadId,
+  onNewDebate,
 }: {
   currentRound: number
   maxRounds: number
@@ -53,11 +55,13 @@ export default function ChatHeader({
   theme: Theme
   onToggleTheme: () => void
   onOpenSettings: () => void
-  isLoggedIn: boolean
-  onLogin: () => void
-  onLogout: () => void
   isDebating?: boolean
+  threadTitle?: string | null
+  threadId?: string | null
+  onNewDebate?: () => void
 }) {
+  const { data: session } = useSession()
+  const isLoggedIn = !!session?.user
   const t = translations[locale]
   const [showLengthDropdown, setShowLengthDropdown] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -86,7 +90,16 @@ export default function ChatHeader({
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 sm:px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       {/* Title + Round + Length */}
       <div className="flex items-center gap-2 sm:gap-4">
-        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Quorum</h1>
+        {isLoggedIn && onNewDebate ? (
+          <ThreadDropdown
+            currentThreadId={threadId ?? null}
+            currentTitle={threadTitle ?? null}
+            locale={locale}
+            onNewDebate={onNewDebate}
+          />
+        ) : (
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Quorum</h1>
+        )}
 
         <div className="flex items-center gap-1.5 sm:gap-4">
           <div className="relative group shrink-0">
@@ -236,7 +249,7 @@ export default function ChatHeader({
           ) : (
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={onLogin}
+              onClick={() => signIn("google")}
               className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
             >
               <LogIn className="w-3.5 h-3.5" />
@@ -262,7 +275,7 @@ export default function ChatHeader({
                     </button>
                     <div className="h-px bg-border my-1" />
                     <button
-                      onClick={() => { setShowUserMenu(false); onLogout() }}
+                      onClick={() => { setShowUserMenu(false); signOut() }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     >
                       <LogOut className="w-4 h-4" />
