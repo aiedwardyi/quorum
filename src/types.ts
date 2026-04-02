@@ -34,3 +34,15 @@ export type ChatState = {
   currentRound: number
   estimatedCost: number
 }
+
+export type ThreadSummary = {
+  id: string
+  title: string
+  models: string[]
+  status: "active" | "complete"
+  updatedAt: string
+  verdicts: {
+    recommendation: string
+    confidence: number
+  }[]
+}
