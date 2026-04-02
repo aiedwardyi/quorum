@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useRef, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { THEMES } from "@/types"
-import type { Provider, Locale, ResponseLength, Theme } from "@/types"
+import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
 import { useDebateEngine } from "@/hooks/useDebateEngine"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
@@ -28,6 +29,9 @@ export default function ChatPage() {
     useDebateEngine({ locale, responseLength, maxRounds })
 
   const persistence = useThreadPersistence()
+
+  const searchParams = useSearchParams()
+  const threadParam = searchParams.get("thread")
 
   const mainRef = useRef<HTMLElement>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
@@ -215,6 +219,72 @@ export default function ChatPage() {
     prevShowSummary.current = state.showSummary
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.showSummary])
+
+  // Load thread from URL parameter
+  const threadLoaded = useRef(false)
+  useEffect(() => {
+    if (!threadParam || threadLoaded.current || !persistence.isLoggedIn) return
+    threadLoaded.current = true
+
+    persistence.loadThread(threadParam).then((thread) => {
+      if (!thread) return
+
+      // Rebuild client messages from DB records
+      const messages: Message[] = thread.messages.map((m: any) => ({
+        id: `db-${m.id}`,
+        sender: m.sender as Message["sender"],
+        displayName: m.displayName,
+        content: m.content,
+        timestamp: new Date(m.createdAt),
+      }))
+
+      // Inject verdict data into verdict messages
+      for (const verdict of thread.verdicts) {
+        const verdictMsg = messages.find(
+          (m, i) => m.sender === "verdict" && i >= verdict.afterMessageIndex
+        )
+        if (verdictMsg) {
+          verdictMsg.verdictData = {
+            recommendedAnswer: verdict.recommendation,
+            voteSplit: verdict.voteSplit,
+            confidence: verdict.confidence,
+            reasons: verdict.reasons,
+            minorityView: verdict.minorityView,
+            oppositeCase: verdict.oppositeCase,
+          }
+        }
+      }
+
+      // Find the last verdict for the state
+      const lastVerdict = thread.verdicts[thread.verdicts.length - 1]
+      const verdictResult: VerdictResult | null = lastVerdict
+        ? {
+            recommendedAnswer: lastVerdict.recommendation,
+            voteSplit: lastVerdict.voteSplit,
+            confidence: lastVerdict.confidence,
+            reasons: lastVerdict.reasons,
+            minorityView: lastVerdict.minorityView,
+            oppositeCase: lastVerdict.oppositeCase,
+          }
+        : null
+
+      // Set config from thread
+      if (thread.models?.length) dispatch({ type: "SET_MODELS", models: thread.models })
+      if (thread.responseLength) setResponseLength(thread.responseLength)
+      if (thread.rounds) setMaxRounds(thread.rounds)
+      if (thread.locale) setLocale(thread.locale)
+
+      // Hydrate debate engine
+      dispatch({
+        type: "HYDRATE_THREAD",
+        messages,
+        verdict: verdictResult,
+        showSummary: thread.status === "complete",
+      })
+      dispatch({ type: "SET_THREAD_ID", id: thread.id })
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadParam, persistence.isLoggedIn])
 
   // Increment free-debate counter after verdict (for login gate)
   const hasIncrementedRef = useRef(false)
