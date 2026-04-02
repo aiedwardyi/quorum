@@ -46,7 +46,7 @@ Make the ending state decisive and make debates reusable.
   - optional `modelAgreement`
 - [x] Model selection UI — users choose which AIs participate (up to 4)
 - [x] Response length control (short / medium / long) — UI + API wired with word targets
-- [x] Configurable round count (3 / 5 / 7) — wired end-to-end, homepage -> settings -> debate loop
+- [x] Configurable round count (1 / 2 / 3 / 5) — wired end-to-end, homepage -> settings -> debate loop
 - [x] Deduplicate consensus display — ONE location, not sidebar + summary card
 - [x] Fix Gemini third-person / name-prefix bug (BUG-009 — buildContents formatting)
 - [x] Home page redesign — v2 with model selector, dark mode, i18n, rainbow border
