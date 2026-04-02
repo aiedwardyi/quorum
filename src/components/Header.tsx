@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { Locale, ResponseLength, Theme } from "@/types"
+import ThreadDropdown from "@/components/ThreadDropdown"
 import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, User, Settings2, Sparkles, LogIn, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -42,6 +43,9 @@ export default function ChatHeader({
   onToggleTheme,
   onOpenSettings,
   isDebating = false,
+  threadTitle,
+  threadId,
+  onNewDebate,
 }: {
   currentRound: number
   maxRounds: number
@@ -52,6 +56,9 @@ export default function ChatHeader({
   onToggleTheme: () => void
   onOpenSettings: () => void
   isDebating?: boolean
+  threadTitle?: string | null
+  threadId?: string | null
+  onNewDebate?: () => void
 }) {
   const { data: session } = useSession()
   const isLoggedIn = !!session?.user
@@ -83,7 +90,16 @@ export default function ChatHeader({
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 sm:px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       {/* Title + Round + Length */}
       <div className="flex items-center gap-2 sm:gap-4">
-        <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Quorum</h1>
+        {isLoggedIn && onNewDebate ? (
+          <ThreadDropdown
+            currentThreadId={threadId ?? null}
+            currentTitle={threadTitle ?? null}
+            locale={locale}
+            onNewDebate={onNewDebate}
+          />
+        ) : (
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Quorum</h1>
+        )}
 
         <div className="flex items-center gap-1.5 sm:gap-4">
           <div className="relative group shrink-0">

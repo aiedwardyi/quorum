@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useRef, useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { THEMES } from "@/types"
 import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
 import { useDebateEngine } from "@/hooks/useDebateEngine"
@@ -29,6 +29,7 @@ export default function ChatPage() {
     useDebateEngine({ locale, responseLength, maxRounds })
 
   const persistence = useThreadPersistence()
+  const router = useRouter()
 
   const searchParams = useSearchParams()
   const threadParam = searchParams.get("thread")
@@ -210,6 +211,14 @@ export default function ChatPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.showSummary])
 
+  const currentTitle = state.messages.find(m => m.sender === "user")?.content.slice(0, 80) ?? null
+
+  const handleNewDebate = useCallback(() => {
+    persistence.reset()
+    handleReset()
+    router.push("/chat")
+  }, [persistence, handleReset, router])
+
   // When user continues a completed thread, mark it active again
   const prevShowSummary = useRef(state.showSummary)
   useEffect(() => {
@@ -313,6 +322,9 @@ export default function ChatPage() {
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
         isDebating={state.isDebating}
+        threadTitle={currentTitle}
+        threadId={state.threadId}
+        onNewDebate={handleNewDebate}
       />
 
       <SettingsModal
