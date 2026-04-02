@@ -66,7 +66,7 @@ export function getAIMessageCount(messages: Message[]): number {
 
 /* ---- State ---- */
 
-const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity"]
+const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
 
 export type State = {
   messages: Message[]

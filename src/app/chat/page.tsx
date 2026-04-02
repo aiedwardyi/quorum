@@ -15,7 +15,7 @@ import { ChevronDown } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
 import { incrementDebateCount } from "@/components/LoginGate"
 
-const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity"]
+const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
 
 export default function ChatPage() {
   return (
@@ -29,7 +29,7 @@ function ChatPageContent() {
   // Config loaded from sessionStorage (set by homepage)
   const [locale, setLocale] = useState<Locale>("en")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
-  const [maxRounds, setMaxRounds] = useState(5)
+  const [maxRounds, setMaxRounds] = useState(3)
   const [theme, setTheme] = useState<Theme>("dark")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 

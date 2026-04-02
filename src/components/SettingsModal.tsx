@@ -39,8 +39,8 @@ const ModelIcon = ({ provider, size = 16 }: { provider: Provider; size?: number 
 }
 
 const translations = {
-  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiDesc: "Google's flagship multimodal AI model", perplexityDesc: "AI search engine for up-to-date information", claudeDesc: "Anthropic's advanced reasoning model", gptDesc: "OpenAI's powerful language model", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", discussionRounds: "Discussion Rounds", rounds: "rounds", rounds3Desc: "Quick debate and consensus", rounds5Desc: "Standard back-and-forth discussion", rounds7Desc: "Deep dive with extensive analysis", toggle: "Toggle", theme: "Theme" },
-  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiDesc: "Google의 대표 멀티모달 AI 모델", perplexityDesc: "최신 정보를 위한 AI 검색 엔진", claudeDesc: "Anthropic의 고급 추론 모델", gptDesc: "OpenAI의 강력한 언어 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", discussionRounds: "토론 라운드", rounds: "라운드", rounds3Desc: "빠른 토론 및 합의", rounds5Desc: "표준적인 의견 교환 및 토론", rounds7Desc: "광범위한 분석을 동반한 심층 토론", toggle: "전환", theme: "테마" },
+  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiDesc: "Google's flagship multimodal AI model", perplexityDesc: "AI search engine for up-to-date information", claudeDesc: "Anthropic's advanced reasoning model", gptDesc: "OpenAI's powerful language model", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", discussionRounds: "Discussion Rounds", rounds: "rounds", rounds1Desc: "Single response", rounds2Desc: "Quick back-and-forth", rounds3Desc: "Standard debate", rounds5Desc: "Deep analysis", toggle: "Toggle", theme: "Theme" },
+  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiDesc: "Google의 대표 멀티모달 AI 모델", perplexityDesc: "최신 정보를 위한 AI 검색 엔진", claudeDesc: "Anthropic의 고급 추론 모델", gptDesc: "OpenAI의 강력한 언어 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", discussionRounds: "토론 라운드", rounds: "라운드", rounds1Desc: "단일 응답", rounds2Desc: "빠른 의견 교환", rounds3Desc: "표준 토론", rounds5Desc: "심층 분석", toggle: "전환", theme: "테마" },
 }
 
 type Tab = "account" | "preferences"
@@ -246,9 +246,10 @@ export default function SettingsModal({
                     <div className="flex items-center gap-2 px-1"><RotateCw className="w-3.5 h-3.5 text-muted-foreground" /><span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">{t.discussionRounds}</span></div>
                     <div className={cn("flex items-center gap-1 bg-secondary/30 p-1 rounded-xl border border-border/50", isDebating && "pointer-events-none opacity-40")}>
                       {[
+                        { val: 1, desc: t.rounds1Desc },
+                        { val: 2, desc: t.rounds2Desc },
                         { val: 3, desc: t.rounds3Desc },
                         { val: 5, desc: t.rounds5Desc },
-                        { val: 7, desc: t.rounds7Desc },
                       ].map((r) => (
                         <motion.button
                           key={r.val}

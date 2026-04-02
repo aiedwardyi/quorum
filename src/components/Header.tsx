@@ -240,7 +240,7 @@ export default function ChatHeader({
           whileTap={{ scale: 0.95 }}
           whileHover={{ scale: 1.05 }}
           onClick={onOpenSettings}
-          className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all", isDebating && "pointer-events-none opacity-40")}
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
         >
           <Settings2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
         </motion.button>

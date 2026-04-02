@@ -71,9 +71,10 @@ const t = {
     medium: "Medium",
     long: "Long",
     rounds: "rounds",
-    quickTake: "quick take",
+    singleRound: "single",
+    quickTake: "quick",
     standard: "standard",
-    deepDive: "deep dive",
+    deepDive: "deep",
     responseLength: "Response Length",
     roundsCount: "Rounds",
     models: "Participants",
@@ -88,9 +89,10 @@ const t = {
       short: "1-2 paragraphs per response",
       medium: "3-4 paragraphs per response",
       long: "Comprehensive, detailed analysis",
-      rounds3: "Quick debate and consensus",
-      rounds5: "Standard back-and-forth discussion",
-      rounds7: "Deep dive with extensive analysis",
+      rounds1: "Single response from each model",
+      rounds2: "Quick back-and-forth",
+      rounds3: "Standard debate",
+      rounds5: "Deep analysis",
     },
   },
   ko: {
@@ -100,9 +102,10 @@ const t = {
     medium: "보통",
     long: "길게",
     rounds: "라운드",
-    quickTake: "빠른 토론",
+    singleRound: "단일",
+    quickTake: "빠른",
     standard: "기본",
-    deepDive: "심층 토론",
+    deepDive: "심층",
     responseLength: "응답 길이",
     roundsCount: "라운드 수",
     models: "참여 모델",
@@ -117,9 +120,10 @@ const t = {
       short: "응답당 1-2 문단",
       medium: "응답당 3-4 문단",
       long: "포괄적이고 상세한 분석",
-      rounds3: "빠른 토론 및 합의",
-      rounds5: "표준적인 의견 교환 및 토론",
-      rounds7: "광범위한 분석을 동반한 심층 토론",
+      rounds1: "각 모델의 단일 응답",
+      rounds2: "빠른 의견 교환",
+      rounds3: "표준 토론",
+      rounds5: "심층 분석",
     },
   },
 }
@@ -140,7 +144,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState("")
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
-  const [rounds, setRounds] = useState<number>(5)
+  const [rounds, setRounds] = useState<number>(3)
   const [isFocused, setIsFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -632,9 +636,10 @@ export default function Home() {
                   </span>
                   <div className="flex items-center w-full sm:w-auto gap-1 bg-zinc-100/50 dark:bg-zinc-900/30 p-1 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
                     {[
-                      { val: 3, label: `3 ${t[locale].rounds}`, desc: t[locale].quickTake },
-                      { val: 5, label: `5 ${t[locale].rounds}`, desc: t[locale].standard },
-                      { val: 7, label: `7 ${t[locale].rounds}`, desc: t[locale].deepDive },
+                      { val: 1, label: `1 ${t[locale].rounds}`, desc: t[locale].singleRound },
+                      { val: 2, label: `2 ${t[locale].rounds}`, desc: t[locale].quickTake },
+                      { val: 3, label: `3 ${t[locale].rounds}`, desc: t[locale].standard },
+                      { val: 5, label: `5 ${t[locale].rounds}`, desc: t[locale].deepDive },
                     ].map((r) => (
                       <button
                         key={r.val}
