@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useEffect, useState } from "react"
+import { Suspense, useCallback, useRef, useEffect, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { THEMES } from "@/types"
 import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
@@ -18,6 +18,14 @@ import { incrementDebateCount } from "@/components/LoginGate"
 const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity"]
 
 export default function ChatPage() {
+  return (
+    <Suspense>
+      <ChatPageContent />
+    </Suspense>
+  )
+}
+
+function ChatPageContent() {
   // Config loaded from sessionStorage (set by homepage)
   const [locale, setLocale] = useState<Locale>("en")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
