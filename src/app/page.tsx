@@ -610,8 +610,9 @@ export default function Home() {
                   </span>
                   <div className="flex items-center w-full sm:w-auto gap-1 bg-zinc-100/50 dark:bg-zinc-900/30 p-1 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
                     {(["short", "medium", "long"] as ResponseLength[]).map((len) => (
-                      <button
+                      <motion.button
                         key={len}
+                        whileTap={{ scale: 0.97 }}
                         onClick={() => setResponseLength(len)}
                         className={`group/len relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                           responseLength === len
@@ -624,7 +625,7 @@ export default function Home() {
                           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
                         </div>
                         {t[locale][len]}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 </div>
@@ -641,8 +642,9 @@ export default function Home() {
                       { val: 3, label: `3 ${t[locale].rounds}`, desc: t[locale].standard },
                       { val: 5, label: `5 ${t[locale].rounds}`, desc: t[locale].deepDive },
                     ].map((r) => (
-                      <button
+                      <motion.button
                         key={r.val}
+                        whileTap={{ scale: 0.97 }}
                         onClick={() => setRounds(r.val)}
                         className={`group/round relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                           rounds === r.val
@@ -655,7 +657,7 @@ export default function Home() {
                           <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
                         </div>
                         {r.val} {t[locale].rounds}
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 </div>
