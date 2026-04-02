@@ -63,8 +63,8 @@ Make the ending state decisive and make debates reusable.
 - [x] Stop button stuck state fix (BUG-012)
 - [ ] API error graceful handling (rate limits, quota)
 - [x] Continue discussion from completed verdict (follow-up in same thread)
-- [ ] Session persistence foundation
-- [ ] Chat history page
+- [x] Session persistence foundation
+- [x] Chat history page
 - [ ] **BUG-013**: Round selection display — picking 3 rounds still shows "5/3" in header
 - [ ] **BUG-014**: AI models fake-read pasted URLs/GitHub links — need actual URL fetching or honest refusal
 - [ ] **BUG-015**: Document upload UI attaches files but content not sent to AI models — fix API payload
@@ -78,9 +78,9 @@ Make the ending state decisive and make debates reusable.
 
 Make saved work, identity, and recommendation UX feel complete.
 
-- [ ] User login modal with Google OAuth
-- [ ] User accounts (persist settings, keys, history)
-- [ ] Saved thread sidebar / history browser
+- [x] User login modal with Google OAuth
+- [x] User accounts (persist settings, keys, history)
+- [x] Saved thread sidebar / history browser
 - [ ] Follow-up question shortcuts from verdict card
 - [ ] Korean / English i18n polish for decision-oriented verdict copy
 - [ ] API key management — server-side encrypted storage (users don't re-enter every session)
@@ -116,9 +116,9 @@ Differentiate beyond generic multi-model chat.
 
 | Decision | When | Options |
 |----------|------|---------|
-| Database | Before v2 persistence | SQLite vs PostgreSQL |
+| Database | ✅ Decided | PostgreSQL on Neon + Prisma ORM |
 | API key storage | Before v3 | Browser-only vs encrypted DB vs hybrid |
-| Auth system | Before v3 accounts | NextAuth vs Clerk vs none |
+| Auth system | ✅ Decided | NextAuth v5 + Google OAuth |
 | Payment system | Before v4 | Stripe vs custom token system |
 | Deployment | After v2 stable | Vercel vs self-hosted vs Docker |
 
