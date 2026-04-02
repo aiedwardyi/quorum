@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const discussionMessages = messages.filter((message) => message.sender !== "system")
+    const discussionMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
 
     const aiMessages = discussionMessages.filter((m) => m.sender !== "user")
     if (aiMessages.length < 2) {

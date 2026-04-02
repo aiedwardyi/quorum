@@ -63,20 +63,27 @@ async function* withTimeout<T>(
 ): AsyncGenerator<T> {
   const iterator = iterable[Symbol.asyncIterator]()
   while (true) {
-    if (signal?.aborted) return
+    if (signal?.aborted) {
+      await iterator.return?.()
+      return
+    }
     let timerId: ReturnType<typeof setTimeout> | undefined
-    const result = await Promise.race([
-      iterator.next(),
-      new Promise<never>((_, reject) => {
-        timerId = setTimeout(
-          () => reject(new Error(`Stream timed out after ${timeoutMs}ms`)),
-          timeoutMs
-        )
-      }),
-    ])
-    clearTimeout(timerId)
-    if (result.done) return
-    yield result.value
+    try {
+      const result = await Promise.race<IteratorResult<T> | "timeout">([
+        iterator.next(),
+        new Promise<"timeout">((resolve) => {
+          timerId = setTimeout(() => resolve("timeout"), timeoutMs)
+        }),
+      ])
+      if (result === "timeout") {
+        await iterator.return?.()
+        throw new Error(`Stream timed out after ${timeoutMs}ms`)
+      }
+      if (result.done) return
+      yield result.value
+    } finally {
+      clearTimeout(timerId)
+    }
   }
 }
 

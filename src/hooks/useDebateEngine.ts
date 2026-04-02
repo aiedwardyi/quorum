@@ -222,7 +222,11 @@ export function useDebateEngine(config: {
         })
 
         // Session guard - bail if a newer debate started
-        if (sessionIdRef.current !== sessionId) return null
+        if (sessionIdRef.current !== sessionId) {
+          dispatch({ type: "SET_TYPING", model: null })
+          dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: "" })
+          return null
+        }
 
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const reader = res.body?.getReader()
@@ -232,9 +236,11 @@ export function useDebateEngine(config: {
         let buffer = ""
         let fullContent = ""
         let finalContent: string | null = null
+        let cancelled = false
 
         while (true) {
           if (stopRef.current || sessionIdRef.current !== sessionId) {
+            cancelled = true
             await reader.cancel()
             break
           }
@@ -265,6 +271,12 @@ export function useDebateEngine(config: {
               dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: fullContent })
             }
           }
+        }
+
+        // If loop exited due to stop/session change, don't overwrite newer state
+        if (cancelled) {
+          dispatch({ type: "SET_TYPING", model: null })
+          return null
         }
 
         const cleaned = cleanResponse(finalContent ?? fullContent)
@@ -349,6 +361,9 @@ export function useDebateEngine(config: {
       // Claim a new session - any in-flight debate with old ID will bail
       const thisSession = ++sessionIdRef.current
       logDebate("debate:start", { session: thisSession, models, maxRounds: maxRoundsRef.current })
+
+      // Abort any in-flight request from the previous session
+      abortRef.current?.abort()
 
       // Reset all coordination refs
       stopRef.current = false
@@ -471,6 +486,9 @@ export function useDebateEngine(config: {
   /* ---- handleStop ---- */
 
   const handleStop = useCallback(() => {
+    // Guard against double-stop (double-click, repeated keybind)
+    if (stoppingRef.current) return
+
     logDebate("debate:stop", { session: sessionIdRef.current })
     stoppingRef.current = true
     stopRef.current = true

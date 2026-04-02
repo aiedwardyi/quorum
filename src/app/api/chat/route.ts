@@ -157,7 +157,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const inputMessages = messages.filter((message) => message.sender !== "system")
+    const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
     const streamFn = getStreamFn(provider)
     const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
     const maxTokens = getMaxTokens(validatedResponseLength)
