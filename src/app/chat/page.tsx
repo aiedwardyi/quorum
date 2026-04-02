@@ -41,20 +41,32 @@ export default function ChatPage() {
     }
   }, [theme])
 
-  // BUG-015: Detect bfcache restore (back/forward nav) and re-apply state
+  // BUG-015: Re-apply theme when page becomes visible again
+  // (handles bfcache restore, Next.js client-side back/forward, and tab switching)
   useEffect(() => {
+    const reapplyTheme = () => {
+      const saved = localStorage.getItem("quorum_theme") as Theme | null
+      if (saved && (THEMES as readonly string[]).includes(saved)) {
+        setTheme(saved)
+      }
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") reapplyTheme()
+    }
     const handlePageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
-        // Page was restored from bfcache - re-apply theme and bump key
-        const saved = localStorage.getItem("quorum_theme") as Theme | null
-        if (saved && (THEMES as readonly string[]).includes(saved)) {
-          setTheme(saved)
-        }
+        reapplyTheme()
         setMountKey((k) => k + 1)
       }
     }
+    document.addEventListener("visibilitychange", handleVisibility)
     window.addEventListener("pageshow", handlePageShow)
-    return () => window.removeEventListener("pageshow", handlePageShow)
+    window.addEventListener("focus", reapplyTheme)
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility)
+      window.removeEventListener("pageshow", handlePageShow)
+      window.removeEventListener("focus", reapplyTheme)
+    }
   }, [])
 
   /* ---- Read config from sessionStorage on mount ---- */

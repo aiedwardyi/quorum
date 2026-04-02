@@ -186,12 +186,22 @@ export default function Home() {
     }
     applyTheme()
 
-    // BUG-015: Re-apply theme when page is restored from bfcache
+    // BUG-015: Re-apply theme when page becomes visible again
+    // (handles both bfcache restore and Next.js client-side back/forward)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") applyTheme()
+    }
     const handlePageShow = (e: PageTransitionEvent) => {
       if (e.persisted) applyTheme()
     }
+    document.addEventListener("visibilitychange", handleVisibility)
     window.addEventListener("pageshow", handlePageShow)
-    return () => window.removeEventListener("pageshow", handlePageShow)
+    window.addEventListener("focus", applyTheme)
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility)
+      window.removeEventListener("pageshow", handlePageShow)
+      window.removeEventListener("focus", applyTheme)
+    }
   }, [])
 
   const changeTheme = (t: Theme) => {
