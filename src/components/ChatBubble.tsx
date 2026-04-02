@@ -81,10 +81,12 @@ export default function ChatBubble({
   message,
   isTyping,
   locale = "en",
+  onNewDiscussion,
 }: {
   message: Message
   isTyping?: boolean
   locale?: Locale
+  onNewDiscussion?: () => void
 }) {
   if (message.sender === "system") {
     const isAnalyzing = message.content.includes("Analyzing") || message.content.includes("분석")
@@ -113,7 +115,7 @@ export default function ChatBubble({
     // SummaryCard has its own entrance animation - no wrapper animation needed
     return (
       <div className="w-full">
-        <SummaryCard result={message.verdictData} locale={locale} inline />
+        <SummaryCard result={message.verdictData} locale={locale} inline onNewDiscussion={onNewDiscussion} />
       </div>
     )
   }

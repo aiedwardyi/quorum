@@ -167,7 +167,7 @@ export default function SummaryCard({
 
         {/* Action buttons */}
         <div className="pt-6 border-t border-zinc-100 dark:border-white/[0.04] flex justify-center gap-3">
-          {!inline && onNewDiscussion && (
+          {onNewDiscussion && (
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}

@@ -236,6 +236,15 @@ export default function ChatHeader({
           </motion.button>
         </div>
 
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.05 }}
+          onClick={onOpenSettings}
+          className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all", isDebating && "pointer-events-none opacity-40")}
+        >
+          <Settings2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+        </motion.button>
+
         <div className="relative" data-header-dropdown>
           {isLoggedIn ? (
             <motion.button
@@ -266,14 +275,6 @@ export default function ChatHeader({
                   className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
                 >
                   <div className="p-1">
-                    <button
-                      onClick={() => { setShowUserMenu(false); onOpenSettings() }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-                    >
-                      <Settings2 className="w-4 h-4" />
-                      {t.settings}
-                    </button>
-                    <div className="h-px bg-border my-1" />
                     <button
                       onClick={() => { setShowUserMenu(false); signOut() }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"

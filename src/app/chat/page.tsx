@@ -370,6 +370,7 @@ function ChatPageContent() {
           locale={locale}
           activeModels={state.activeModels}
           onSendMessage={(text) => handleSend(text, "all")}
+          onNewDiscussion={handleNewDebate}
         />
       </main>
 

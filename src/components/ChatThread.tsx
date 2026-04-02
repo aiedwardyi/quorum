@@ -11,12 +11,14 @@ export default function ChatThread({
   locale,
   activeModels,
   onSendMessage,
+  onNewDiscussion,
 }: {
   messages: Message[]
   typingModel?: Provider | null
   locale: Locale
   activeModels: Provider[]
   onSendMessage: (text: string) => void
+  onNewDiscussion?: () => void
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const isNearBottom = useRef(true)
@@ -52,7 +54,7 @@ export default function ChatThread({
     <div className="px-4 py-6">
       <div className="max-w-3xl mx-auto w-full flex flex-col">
         {messages.map((msg) => (
-          <ChatBubble key={msg.id} message={msg} locale={locale} />
+          <ChatBubble key={msg.id} message={msg} locale={locale} onNewDiscussion={onNewDiscussion} />
         ))}
         <div ref={bottomRef} className="h-4" />
       </div>
