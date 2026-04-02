@@ -52,26 +52,30 @@ export async function PATCH(
   const body = await req.json()
   const { status, title, expectedVersion } = body
 
+  const data = {
+    ...(status ? { status } : {}),
+    ...(title ? { title: String(title).slice(0, 80) } : {}),
+    version: { increment: 1 },
+  }
+
   if (typeof expectedVersion === "number") {
-    const current = await prisma.thread.findUnique({
-      where: { id },
-      select: { version: true },
+    const result = await prisma.thread.updateMany({
+      where: { id, version: expectedVersion },
+      data,
     })
-    if (current && current.version !== expectedVersion) {
+    if (result.count === 0) {
       return NextResponse.json(
         { error: "Thread was updated in another tab. Reload to see latest." },
         { status: 409 }
       )
     }
+    const thread = await prisma.thread.findUnique({ where: { id } })
+    return NextResponse.json(thread)
   }
 
   const thread = await prisma.thread.update({
     where: { id },
-    data: {
-      ...(status ? { status } : {}),
-      ...(title ? { title: String(title).slice(0, 80) } : {}),
-      version: { increment: 1 },
-    },
+    data,
   })
 
   return NextResponse.json(thread)

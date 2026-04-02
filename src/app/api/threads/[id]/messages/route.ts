@@ -23,29 +23,40 @@ export async function POST(
 
   const { messages, expectedVersion } = await req.json()
 
-  if (typeof expectedVersion === "number" && thread.version !== expectedVersion) {
-    return NextResponse.json(
-      { error: "Thread was updated in another tab. Reload to see latest." },
-      { status: 409 }
-    )
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.threadMessage.createMany({
+        data: messages.map((m: { sender: string; displayName: string; content: string; orderIndex: number }) => ({
+          threadId: id,
+          sender: m.sender,
+          displayName: m.displayName,
+          content: m.content,
+          orderIndex: m.orderIndex,
+        })),
+        skipDuplicates: true,
+      })
+      if (typeof expectedVersion === "number") {
+        const result = await tx.thread.updateMany({
+          where: { id, version: expectedVersion },
+          data: { version: { increment: 1 } },
+        })
+        if (result.count === 0) throw new Error("VERSION_CONFLICT")
+      } else {
+        await tx.thread.update({
+          where: { id },
+          data: { version: { increment: 1 } },
+        })
+      }
+    })
+  } catch (err) {
+    if (err instanceof Error && err.message === "VERSION_CONFLICT") {
+      return NextResponse.json(
+        { error: "Thread was updated in another tab. Reload to see latest." },
+        { status: 409 }
+      )
+    }
+    throw err
   }
-
-  await prisma.$transaction([
-    prisma.threadMessage.createMany({
-      data: messages.map((m: { sender: string; displayName: string; content: string; orderIndex: number }) => ({
-        threadId: id,
-        sender: m.sender,
-        displayName: m.displayName,
-        content: m.content,
-        orderIndex: m.orderIndex,
-      })),
-      skipDuplicates: true,
-    }),
-    prisma.thread.update({
-      where: { id },
-      data: { version: { increment: 1 } },
-    }),
-  ])
 
   return NextResponse.json({ ok: true })
 }

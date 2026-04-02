@@ -24,38 +24,42 @@ export async function POST(
   const body = await req.json()
   const { recommendation, voteSplit, confidence, reasons, minorityView, oppositeCase, afterMessageIndex, expectedVersion } = body
 
-  // Optimistic locking
-  if (typeof expectedVersion === "number") {
-    const current = await prisma.thread.findUnique({
-      where: { id },
-      select: { version: true },
+  try {
+    const verdict = await prisma.$transaction(async (tx) => {
+      const created = await tx.verdict.create({
+        data: {
+          threadId: id,
+          recommendation,
+          voteSplit,
+          confidence,
+          reasons,
+          minorityView,
+          oppositeCase,
+          afterMessageIndex: afterMessageIndex ?? 0,
+        },
+      })
+      if (typeof expectedVersion === "number") {
+        const result = await tx.thread.updateMany({
+          where: { id, version: expectedVersion },
+          data: { status: "complete", version: { increment: 1 } },
+        })
+        if (result.count === 0) throw new Error("VERSION_CONFLICT")
+      } else {
+        await tx.thread.update({
+          where: { id },
+          data: { status: "complete", version: { increment: 1 } },
+        })
+      }
+      return created
     })
-    if (current && current.version !== expectedVersion) {
+    return NextResponse.json(verdict, { status: 201 })
+  } catch (err) {
+    if (err instanceof Error && err.message === "VERSION_CONFLICT") {
       return NextResponse.json(
         { error: "Thread was updated in another tab. Reload to see latest." },
         { status: 409 }
       )
     }
+    throw err
   }
-
-  const [verdict] = await prisma.$transaction([
-    prisma.verdict.create({
-      data: {
-        threadId: id,
-        recommendation,
-        voteSplit,
-        confidence,
-        reasons,
-        minorityView,
-        oppositeCase,
-        afterMessageIndex: afterMessageIndex ?? 0,
-      },
-    }),
-    prisma.thread.update({
-      where: { id },
-      data: { status: "complete", version: { increment: 1 } },
-    }),
-  ])
-
-  return NextResponse.json(verdict, { status: 201 })
 }

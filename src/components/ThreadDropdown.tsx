@@ -205,7 +205,8 @@ export default function ThreadDropdown({
                       </div>
                       <button
                         onClick={(e) => handleDelete(e, thread.id)}
-                        className="shrink-0 p-1 opacity-0 group-hover:opacity-100 text-[var(--muted-foreground)] hover:text-red-500 transition-all"
+                        aria-label={locale === "ko" ? "토론 삭제" : "Delete thread"}
+                        className="shrink-0 p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[var(--muted-foreground)] hover:text-red-500 transition-all"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

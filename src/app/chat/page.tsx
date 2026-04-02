@@ -176,6 +176,7 @@ function ChatPageContent() {
   }, [])
 
   // Auto-save messages when new ones are added
+  const creatingThreadRef = useRef(false)
   const prevMessageCount = useRef(0)
   useEffect(() => {
     if (!persistence.isLoggedIn) return
@@ -186,9 +187,10 @@ function ChatPageContent() {
     prevMessageCount.current = state.messages.length
 
     // If no thread exists yet and we have a user message, create one
-    if (!persistence.threadId.current && state.messages.length > 0) {
+    if (!persistence.threadId.current && !creatingThreadRef.current && state.messages.length > 0) {
       const firstUserMsg = state.messages.find(m => m.sender === "user")
       if (firstUserMsg) {
+        creatingThreadRef.current = true
         persistence.createThread({
           title: firstUserMsg.content.slice(0, 80),
           models: state.activeModels,
@@ -196,6 +198,7 @@ function ChatPageContent() {
           responseLength,
           locale,
         }).then((id) => {
+          creatingThreadRef.current = false
           if (id) {
             dispatch({ type: "SET_THREAD_ID", id })
             persistence.saveMessages(state.messages)
@@ -222,6 +225,7 @@ function ChatPageContent() {
   const currentTitle = state.messages.find(m => m.sender === "user")?.content.slice(0, 80) ?? null
 
   const handleNewDebate = useCallback(() => {
+    creatingThreadRef.current = false
     persistence.reset()
     handleReset()
     router.push("/chat")
@@ -238,10 +242,10 @@ function ChatPageContent() {
   }, [state.showSummary])
 
   // Load thread from URL parameter
-  const threadLoaded = useRef(false)
+  const threadLoaded = useRef<string | null>(null)
   useEffect(() => {
-    if (!threadParam || threadLoaded.current || !persistence.isLoggedIn) return
-    threadLoaded.current = true
+    if (!threadParam || threadLoaded.current === threadParam || !persistence.isLoggedIn) return
+    threadLoaded.current = threadParam
 
     persistence.loadThread(threadParam).then((thread) => {
       if (!thread) return

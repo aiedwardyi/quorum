@@ -63,11 +63,11 @@ export default function LoginGateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl">
-        <button onClick={onClose} className="absolute top-3 right-3 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
+      <div className="relative bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="login-gate-title">
+        <button onClick={onClose} aria-label={locale === "ko" ? "닫기" : "Close"} className="absolute top-3 right-3 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
           <X className="w-4 h-4" />
         </button>
-        <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">{t.title}</h2>
+        <h2 id="login-gate-title" className="text-lg font-semibold text-[var(--foreground)] mb-2">{t.title}</h2>
         <p className="text-sm text-[var(--muted-foreground)] mb-6">{t.desc}</p>
         <button
           onClick={() => signIn("google", { callbackUrl: "/chat" })}
