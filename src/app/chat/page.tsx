@@ -11,6 +11,8 @@ import ChatHeader from "@/components/Header"
 import SettingsModal from "@/components/SettingsModal"
 import { AnimatePresence, motion } from "framer-motion"
 import { ChevronDown } from "lucide-react"
+import { useThreadPersistence } from "@/hooks/useThreadPersistence"
+import { incrementDebateCount } from "@/components/LoginGate"
 
 const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity"]
 
@@ -24,6 +26,8 @@ export default function ChatPage() {
 
   const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
     useDebateEngine({ locale, responseLength, maxRounds })
+
+  const persistence = useThreadPersistence()
 
   const mainRef = useRef<HTMLElement>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
@@ -157,6 +161,73 @@ export default function ChatPage() {
       return next
     })
   }, [])
+
+  // Auto-save messages when new ones are added
+  const prevMessageCount = useRef(0)
+  useEffect(() => {
+    if (!persistence.isLoggedIn) return
+    if (state.messages.length <= prevMessageCount.current) {
+      prevMessageCount.current = state.messages.length
+      return
+    }
+    prevMessageCount.current = state.messages.length
+
+    // If no thread exists yet and we have a user message, create one
+    if (!persistence.threadId.current && state.messages.length > 0) {
+      const firstUserMsg = state.messages.find(m => m.sender === "user")
+      if (firstUserMsg) {
+        persistence.createThread({
+          title: firstUserMsg.content.slice(0, 80),
+          models: state.activeModels,
+          rounds: maxRounds,
+          responseLength,
+          locale,
+        }).then((id) => {
+          if (id) {
+            dispatch({ type: "SET_THREAD_ID", id })
+            persistence.saveMessages(state.messages)
+          }
+        })
+        return
+      }
+    }
+
+    // Otherwise save incrementally
+    persistence.saveMessages(state.messages)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.messages.length])
+
+  // Auto-save verdict when summary is shown
+  useEffect(() => {
+    if (state.showSummary && state.verdict && persistence.threadId.current) {
+      const afterIndex = state.messages.length - 1
+      persistence.saveVerdict(state.verdict, afterIndex)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.showSummary])
+
+  // When user continues a completed thread, mark it active again
+  const prevShowSummary = useRef(state.showSummary)
+  useEffect(() => {
+    if (prevShowSummary.current && !state.showSummary) {
+      persistence.continueThread()
+    }
+    prevShowSummary.current = state.showSummary
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.showSummary])
+
+  // Increment free-debate counter after verdict (for login gate)
+  const hasIncrementedRef = useRef(false)
+  useEffect(() => {
+    if (state.showSummary && !persistence.isLoggedIn && !hasIncrementedRef.current) {
+      hasIncrementedRef.current = true
+      incrementDebateCount()
+    }
+    if (!state.showSummary) {
+      hasIncrementedRef.current = false
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.showSummary, persistence.isLoggedIn])
 
   /* ---- Render ---- */
 

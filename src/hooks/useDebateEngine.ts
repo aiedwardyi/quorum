@@ -76,6 +76,7 @@ export type State = {
   currentRound: number
   typingModel: Provider | null
   showSummary: boolean
+  threadId: string | null
 }
 
 export type Action =
@@ -89,6 +90,8 @@ export type Action =
   | { type: "CONTINUE_THREAD" }
   | { type: "TOGGLE_MODEL"; model: Provider }
   | { type: "SET_MODELS"; models: Provider[] }
+  | { type: "SET_THREAD_ID"; id: string | null }
+  | { type: "HYDRATE_THREAD"; messages: Message[]; verdict: VerdictResult | null; showSummary: boolean }
   | { type: "RESET" }
 
 function makeInitialState(models: Provider[]): State {
@@ -100,6 +103,7 @@ function makeInitialState(models: Provider[]): State {
     currentRound: 0,
     typingModel: null,
     showSummary: false,
+    threadId: null,
   }
 }
 
@@ -141,6 +145,18 @@ export function reducer(state: State, action: Action): State {
     }
     case "SET_MODELS":
       return { ...state, activeModels: action.models }
+    case "SET_THREAD_ID":
+      return { ...state, threadId: action.id }
+    case "HYDRATE_THREAD":
+      return {
+        ...state,
+        messages: action.messages,
+        verdict: action.verdict,
+        showSummary: action.showSummary,
+        isDebating: false,
+        currentRound: 0,
+        typingModel: null,
+      }
     case "RESET":
       return makeInitialState(state.activeModels)
     default:

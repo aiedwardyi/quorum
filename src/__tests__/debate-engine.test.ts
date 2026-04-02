@@ -19,6 +19,7 @@ const makeState = (overrides: Partial<State> = {}): State => ({
   currentRound: 0,
   typingModel: null,
   showSummary: false,
+  threadId: null,
   ...overrides,
 })
 
