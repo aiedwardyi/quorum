@@ -8,6 +8,9 @@ import { motion, AnimatePresence } from "framer-motion"
 import { THEMES } from "@/types"
 import type { Provider, ResponseLength, Locale, Theme } from "@/types"
 import { cn } from "@/lib/utils"
+import { useSession } from "next-auth/react"
+import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
+import LoginGateModal from "@/components/LoginGate"
 
 /* ─── Model SVG Icons ─── */
 
@@ -142,6 +145,10 @@ export default function Home() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Auth & login gate
+  const { data: session } = useSession()
+  const [showGate, setShowGate] = useState(false)
+
   // Header & Settings state
   const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [showDropdown, setShowDropdown] = useState(false)
@@ -238,6 +245,17 @@ export default function Home() {
 
   const handleSubmit = () => {
     if (!prompt.trim()) return
+    if (shouldShowLoginGate(!!session?.user)) {
+      savePendingDebate({
+        prompt: prompt.trim(),
+        models: selectedModels,
+        responseLength,
+        rounds,
+        locale,
+      })
+      setShowGate(true)
+      return
+    }
     const config = {
       prompt: prompt.trim(),
       models: selectedModels,
@@ -664,6 +682,7 @@ export default function Home() {
         onChangeRounds={setRounds}
         showPreferences={false}
       />
+      {showGate && <LoginGateModal onClose={() => setShowGate(false)} locale={locale} />}
     </div>
   )
 }

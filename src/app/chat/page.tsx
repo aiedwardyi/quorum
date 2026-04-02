@@ -112,6 +112,24 @@ export default function ChatPage() {
     } finally {
       setConfigHydrated(true)
     }
+
+    const pending = sessionStorage.getItem("quorum_pending")
+    if (pending) {
+      sessionStorage.removeItem("quorum_pending")
+      try {
+        const config = JSON.parse(pending)
+        if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
+        if (config.responseLength) setResponseLength(config.responseLength)
+        if (config.rounds) setMaxRounds(config.rounds)
+        if (config.locale) setLocale(config.locale)
+        if (config.prompt) {
+          pendingPrompt.current = {
+            prompt: config.prompt,
+            models: config.models ?? DEFAULT_MODELS,
+          }
+        }
+      } catch { /* ignore */ }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
