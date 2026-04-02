@@ -646,7 +646,7 @@ export default function Home() {
                         key={r.val}
                         whileTap={{ scale: 0.97 }}
                         onClick={() => setRounds(r.val)}
-                        className={`group/round relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
+                        className={`group/round relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-6 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                           rounds === r.val
                             ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
                             : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 border border-transparent"
