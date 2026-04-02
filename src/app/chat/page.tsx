@@ -28,6 +28,8 @@ export default function ChatPage() {
 
   const mainRef = useRef<HTMLElement>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
+  // Bumped on bfcache restore to force framer-motion remount
+  const [mountKey, setMountKey] = useState(0)
 
   // Apply theme classes to <html>
   useEffect(() => {
@@ -38,6 +40,22 @@ export default function ChatPage() {
       if (theme !== "dark") cl.add(theme)
     }
   }, [theme])
+
+  // BUG-015: Detect bfcache restore (back/forward nav) and re-apply state
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        // Page was restored from bfcache - re-apply theme and bump key
+        const saved = localStorage.getItem("quorum_theme") as Theme | null
+        if (saved && (THEMES as readonly string[]).includes(saved)) {
+          setTheme(saved)
+        }
+        setMountKey((k) => k + 1)
+      }
+    }
+    window.addEventListener("pageshow", handlePageShow)
+    return () => window.removeEventListener("pageshow", handlePageShow)
+  }, [])
 
   /* ---- Read config from sessionStorage on mount ---- */
   const initialPromptSent = useRef(false)
@@ -114,7 +132,7 @@ export default function ChatPage() {
   /* ---- Render ---- */
 
   return (
-    <div className="relative flex flex-col h-screen bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
+    <div key={mountKey} className="relative flex flex-col h-screen bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
       <ChatHeader
         currentRound={state.currentRound}
         maxRounds={maxRounds}

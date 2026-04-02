@@ -8,6 +8,14 @@ import { cleanResponse } from "@/lib/clean-response"
 
 const MODEL_TIMEOUT_MS = 30_000
 
+/* ---- Logging ---- */
+
+function logDebate(event: string, data?: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[debate] ${event}`, data ?? "")
+  }
+}
+
 export const DISPLAY_NAMES: Record<Provider, string> = {
   gemini: "Gemini",
   perplexity: "Perplexity",
@@ -157,14 +165,19 @@ export function useDebateEngine(config: {
   const abortRef = useRef<AbortController | null>(null)
   const sessionIdRef = useRef(0)
   const messagesRef = useRef<Message[]>([])
+  const maxRoundsRef = useRef(maxRounds)
   const handleSendRef = useRef<
     (text: string, target: Provider | "all", models: Provider[]) => void
   >(() => {})
 
-  // Keep messagesRef in sync with state
+  // Keep refs in sync with state/config
   useEffect(() => {
     messagesRef.current = state.messages
   }, [state.messages])
+
+  useEffect(() => {
+    maxRoundsRef.current = maxRounds
+  }, [maxRounds])
 
   /* ---- callModel ---- */
 
@@ -174,6 +187,7 @@ export function useDebateEngine(config: {
       allMessages: Message[],
       sessionId: number
     ): Promise<Message | null> => {
+      logDebate("callModel:start", { provider, sessionId, messageCount: allMessages.length })
       dispatch({ type: "SET_TYPING", model: provider })
 
       const placeholderId = createMessageId(provider)
@@ -234,8 +248,14 @@ export function useDebateEngine(config: {
           for (const line of lines) {
             const trimmed = line.trim()
             if (!trimmed.startsWith("data:")) continue
-            const data = JSON.parse(trimmed.slice(5).trim())
-            if (data.error) throw new Error(data.error)
+            let data: Record<string, unknown>
+            try {
+              data = JSON.parse(trimmed.slice(5).trim())
+            } catch {
+              logDebate("callModel:parse-error", { provider, raw: trimmed.slice(0, 100) })
+              continue
+            }
+            if (data.error) throw new Error(String(data.error))
             if (data.done) {
               finalContent =
                 typeof data.content === "string" ? data.content : fullContent
@@ -248,6 +268,7 @@ export function useDebateEngine(config: {
         }
 
         const cleaned = cleanResponse(finalContent ?? fullContent)
+        logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
         dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: cleaned })
         dispatch({ type: "SET_TYPING", model: null })
         return { ...placeholder, content: cleaned }
@@ -259,10 +280,13 @@ export function useDebateEngine(config: {
           const msg = wasTimeout
             ? `${DISPLAY_NAMES[provider]} timed out.`
             : "Response cancelled."
+          logDebate("callModel:abort", { provider, wasTimeout })
           dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: msg })
           return null
         }
-        console.error(`${provider} failed:`, err)
+        const errorMsg = err instanceof Error ? err.message : "Unknown error"
+        logDebate("callModel:error", { provider, error: errorMsg })
+        console.error(`[debate] ${provider} failed:`, err)
         dispatch({ type: "SET_TYPING", model: null })
         dispatch({
           type: "UPDATE_LAST_AI_CONTENT",
@@ -324,6 +348,7 @@ export function useDebateEngine(config: {
     async (text: string, target: Provider | "all", models: Provider[]) => {
       // Claim a new session - any in-flight debate with old ID will bail
       const thisSession = ++sessionIdRef.current
+      logDebate("debate:start", { session: thisSession, models, maxRounds: maxRoundsRef.current })
 
       // Reset all coordination refs
       stopRef.current = false
@@ -349,7 +374,8 @@ export function useDebateEngine(config: {
 
       if (target === "all") {
         let msgs = allMessages
-        const rounds = models.length >= 2 ? maxRounds : 1
+        // Read from ref to avoid stale closure when auto-sending on mount
+        const rounds = models.length >= 2 ? maxRoundsRef.current : 1
         let stoppedEarly = false
 
         for (let r = 0; r < rounds; r++) {
@@ -445,6 +471,7 @@ export function useDebateEngine(config: {
   /* ---- handleStop ---- */
 
   const handleStop = useCallback(() => {
+    logDebate("debate:stop", { session: sessionIdRef.current })
     stoppingRef.current = true
     stopRef.current = true
     abortRef.current?.abort()

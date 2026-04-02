@@ -170,18 +170,28 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const saved = localStorage.getItem("quorum_theme") as Theme | null
-    const valid = THEMES
-    if (saved && valid.includes(saved)) {
-      setTheme(saved)
-      applyThemeToDOM(saved)
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      setTheme("dark")
-      applyThemeToDOM("dark")
-    } else {
-      setTheme("light")
-      applyThemeToDOM("light")
+    const applyTheme = () => {
+      const saved = localStorage.getItem("quorum_theme") as Theme | null
+      const valid = THEMES
+      if (saved && valid.includes(saved)) {
+        setTheme(saved)
+        applyThemeToDOM(saved)
+      } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        setTheme("dark")
+        applyThemeToDOM("dark")
+      } else {
+        setTheme("light")
+        applyThemeToDOM("light")
+      }
     }
+    applyTheme()
+
+    // BUG-015: Re-apply theme when page is restored from bfcache
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) applyTheme()
+    }
+    window.addEventListener("pageshow", handlePageShow)
+    return () => window.removeEventListener("pageshow", handlePageShow)
   }, [])
 
   const changeTheme = (t: Theme) => {
