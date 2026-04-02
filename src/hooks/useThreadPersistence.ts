@@ -112,6 +112,7 @@ export function useThreadPersistence() {
             minorityView: verdict.minorityView,
             oppositeCase: verdict.oppositeCase,
             afterMessageIndex,
+            expectedVersion: versionRef.current,
           }),
         })
         if (res.ok) {
@@ -129,7 +130,7 @@ export function useThreadPersistence() {
     if (!isLoggedIn || !threadId) return
 
     try {
-      await fetch(`/api/threads/${threadId}`, {
+      const res = await fetch(`/api/threads/${threadId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -137,7 +138,7 @@ export function useThreadPersistence() {
           expectedVersion: versionRef.current,
         }),
       })
-      versionRef.current++
+      if (res.ok) versionRef.current++
     } catch {
       // Fire-and-forget
     }

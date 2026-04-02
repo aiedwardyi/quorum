@@ -76,13 +76,13 @@ model Thread {
   updatedAt      DateTime     @updatedAt
 
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages DBMessage[]
+  messages ThreadMessage[]
   verdicts Verdict[]
 
   @@index([userId, updatedAt])
 }
 
-model DBMessage {
+model ThreadMessage {
   id          String   @id @default(cuid())
   threadId    String
   sender      String

@@ -22,7 +22,21 @@ export async function POST(
   }
 
   const body = await req.json()
-  const { recommendation, voteSplit, confidence, reasons, minorityView, oppositeCase, afterMessageIndex } = body
+  const { recommendation, voteSplit, confidence, reasons, minorityView, oppositeCase, afterMessageIndex, expectedVersion } = body
+
+  // Optimistic locking
+  if (typeof expectedVersion === "number") {
+    const current = await prisma.thread.findUnique({
+      where: { id },
+      select: { version: true },
+    })
+    if (current && current.version !== expectedVersion) {
+      return NextResponse.json(
+        { error: "Thread was updated in another tab. Reload to see latest." },
+        { status: 409 }
+      )
+    }
+  }
 
   const [verdict] = await prisma.$transaction([
     prisma.verdict.create({

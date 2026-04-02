@@ -31,7 +31,7 @@ export async function POST(
   }
 
   await prisma.$transaction([
-    prisma.dBMessage.createMany({
+    prisma.threadMessage.createMany({
       data: messages.map((m: { sender: string; displayName: string; content: string; orderIndex: number }) => ({
         threadId: id,
         sender: m.sender,

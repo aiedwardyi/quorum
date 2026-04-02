@@ -170,11 +170,14 @@ export default function ThreadDropdown({
                 </div>
               ) : (
                 threads.map((thread) => (
-                  <button
+                  <div
                     key={thread.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => handleSelect(thread.id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleSelect(thread.id) }}
                     className={cn(
-                      "w-full text-left px-3 py-2.5 hover:bg-[var(--accent)] transition-colors group",
+                      "w-full text-left px-3 py-2.5 hover:bg-[var(--accent)] transition-colors group cursor-pointer",
                       thread.id === currentThreadId && "bg-[var(--accent)]"
                     )}
                   >
@@ -207,7 +210,7 @@ export default function ThreadDropdown({
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
