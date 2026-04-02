@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const discussionMessages = messages.filter((message) => message.sender !== "system")
+    const discussionMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
 
     const aiMessages = discussionMessages.filter((m) => m.sender !== "user")
     if (aiMessages.length < 2) {
@@ -74,22 +74,28 @@ export async function POST(req: NextRequest) {
 
     console.log(`[verdict] Generating verdict for ${aiMessages.length} AI messages, locale=${locale}`)
 
-    const result = await model.generateContent({
-      systemInstruction: {
-        role: "system",
-        parts: [{ text: getVerdictPrompt(locale) }],
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `Here is the discussion to analyze:\n\n${thread}`,
-            },
-          ],
+    const VERDICT_TIMEOUT_MS = 30_000
+    const result = await Promise.race([
+      model.generateContent({
+        systemInstruction: {
+          role: "system",
+          parts: [{ text: getVerdictPrompt(locale) }],
         },
-      ],
-    })
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `Here is the discussion to analyze:\n\n${thread}`,
+              },
+            ],
+          },
+        ],
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Verdict generation timed out")), VERDICT_TIMEOUT_MS)
+      ),
+    ])
 
     const raw =
       result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""

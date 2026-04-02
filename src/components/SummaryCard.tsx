@@ -48,10 +48,12 @@ export default function SummaryCard({
   result,
   onNewDiscussion,
   locale,
+  inline = false,
 }: {
   result: VerdictResult
-  onNewDiscussion: () => void
+  onNewDiscussion?: () => void
   locale: Locale
+  inline?: boolean
 }) {
   const t = translations[locale]
   const [copied, setCopied] = useState(false)
@@ -165,15 +167,17 @@ export default function SummaryCard({
 
         {/* Action buttons */}
         <div className="pt-6 border-t border-zinc-100 dark:border-white/[0.04] flex justify-center gap-3">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={onNewDiscussion}
-            className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-sm font-medium rounded-xl transition-colors shadow-sm"
-          >
-            <RefreshCw className="w-4 h-4" />
-            {t.newDiscussion}
-          </motion.button>
+          {!inline && onNewDiscussion && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={onNewDiscussion}
+              className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-sm font-medium rounded-xl transition-colors shadow-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              {t.newDiscussion}
+            </motion.button>
+          )}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}

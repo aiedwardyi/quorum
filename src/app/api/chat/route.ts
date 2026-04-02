@@ -110,6 +110,7 @@ ${lengthLine}
 This is a discussion, not an essay.
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
+IMPORTANT: You CANNOT access URLs, links, or websites. If the user shares a link, do NOT pretend you visited it or describe its contents. Say honestly that you cannot access links and ask the user to paste the relevant content instead.
 ${responseLength === "short" ? `\n${lengthLine}` : ""}`
 }
 
@@ -156,7 +157,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const inputMessages = messages.filter((message) => message.sender !== "system")
+    const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
     const streamFn = getStreamFn(provider)
     const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
     const maxTokens = getMaxTokens(validatedResponseLength)

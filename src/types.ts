@@ -9,10 +9,11 @@ export type Theme = (typeof THEMES)[number]
 
 export type Message = {
   id: string
-  sender: Provider | "user" | "system"
+  sender: Provider | "user" | "system" | "verdict"
   displayName: string
   content: string
   timestamp: Date
+  verdictData?: VerdictResult
 }
 
 export type VerdictResult = {

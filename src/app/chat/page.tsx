@@ -1,139 +1,18 @@
 "use client"
 
-import { useReducer, useCallback, useRef, useEffect, useState } from "react"
+import { useCallback, useRef, useEffect, useState } from "react"
 import { THEMES } from "@/types"
-import type { Message, Provider, VerdictResult, Locale, ResponseLength, Theme } from "@/types"
-import { cleanResponse } from "@/lib/clean-response"
+import type { Provider, Locale, ResponseLength, Theme } from "@/types"
+import { useDebateEngine } from "@/hooks/useDebateEngine"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
 import ConsensusMeter from "@/components/ConsensusMeter"
-import SummaryCard from "@/components/SummaryCard"
 import ChatHeader from "@/components/Header"
 import SettingsModal from "@/components/SettingsModal"
 import { AnimatePresence, motion } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 
-/* ─── Types ─── */
-
-type State = {
-  messages: Message[]
-  activeModels: Provider[]
-  verdict: VerdictResult | null
-  isDebating: boolean
-  currentRound: number
-  typingModel: Provider | null
-  showSummary: boolean
-}
-
-type Action =
-  | { type: "ADD_MESSAGE"; message: Message }
-  | { type: "UPDATE_LAST_AI_CONTENT"; content: string }
-  | { type: "SET_TYPING"; model: Provider | null }
-  | { type: "SET_DEBATING"; value: boolean }
-  | { type: "SET_VERDICT"; result: VerdictResult }
-  | { type: "SET_ROUND"; round: number }
-  | { type: "SHOW_SUMMARY" }
-  | { type: "CONTINUE_THREAD" }
-  | { type: "TOGGLE_MODEL"; model: Provider }
-  | { type: "SET_MODELS"; models: Provider[] }
-  | { type: "RESET" }
-
-function makeInitialState(models: Provider[]): State {
-  return {
-    messages: [],
-    activeModels: models,
-    verdict: null,
-    isDebating: false,
-    currentRound: 0,
-    typingModel: null,
-    showSummary: false,
-  }
-}
-
 const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity"]
-
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case "ADD_MESSAGE":
-      return { ...state, messages: [...state.messages, action.message] }
-    case "UPDATE_LAST_AI_CONTENT": {
-      const msgs = [...state.messages]
-      const last = msgs[msgs.length - 1]
-      if (last && last.sender !== "user" && last.sender !== "system") {
-        msgs[msgs.length - 1] = { ...last, content: action.content }
-      }
-      return { ...state, messages: msgs }
-    }
-    case "SET_TYPING":
-      return { ...state, typingModel: action.model }
-    case "SET_DEBATING":
-      return { ...state, isDebating: action.value }
-    case "SET_VERDICT":
-      return { ...state, verdict: action.result }
-    case "SET_ROUND":
-      return { ...state, currentRound: action.round }
-    case "SHOW_SUMMARY":
-      return { ...state, showSummary: true, isDebating: false, typingModel: null }
-    case "CONTINUE_THREAD":
-      return { ...state, showSummary: false, verdict: null, currentRound: 0 }
-    case "TOGGLE_MODEL": {
-      const has = state.activeModels.includes(action.model)
-      if (has && state.activeModels.length <= 1) return state
-      return { ...state, activeModels: has ? state.activeModels.filter((m) => m !== action.model) : [...state.activeModels, action.model] }
-    }
-    case "SET_MODELS":
-      return { ...state, activeModels: action.models }
-    case "RESET":
-      return makeInitialState(state.activeModels)
-    default:
-      return state
-  }
-}
-
-const DISPLAY_NAMES: Record<Provider, string> = {
-  gemini: "Gemini",
-  perplexity: "Perplexity",
-  claude: "Claude",
-  gpt: "GPT",
-}
-
-const SYSTEM_DISPLAY_NAMES: Record<Locale, string> = {
-  en: "System",
-  ko: "시스템",
-}
-
-const SYSTEM_MESSAGES = {
-  round: (locale: Locale, round: number) => (locale === "ko" ? `라운드 ${round}` : `Round ${round}`),
-  analyzing: (locale: Locale) => (locale === "ko" ? "토론 분석 중..." : "Analyzing discussion..."),
-}
-
-function createMessageId(prefix: string): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `${prefix}-${crypto.randomUUID()}`
-  }
-
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
-
-function createSystemMessage(content: string, locale: Locale): Message {
-  return {
-    id: createMessageId("system"),
-    sender: "system",
-    displayName: SYSTEM_DISPLAY_NAMES[locale],
-    content,
-    timestamp: new Date(),
-  }
-}
-
-function getApiMessages(messages: Message[]): Message[] {
-  return messages.filter((message) => message.sender !== "system")
-}
-
-function getAIMessageCount(messages: Message[]): number {
-  return messages.filter((message) => message.sender !== "user" && message.sender !== "system").length
-}
-
-/* ─── Page ─── */
 
 export default function ChatPage() {
   // Config loaded from sessionStorage (set by homepage)
@@ -144,13 +23,13 @@ export default function ChatPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(true)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
-  const [state, dispatch] = useReducer(reducer, makeInitialState(DEFAULT_MODELS))
-  const stopRef = useRef(false)
-  const abortRef = useRef<AbortController | null>(null)
-  const summaryRef = useRef<HTMLDivElement>(null)
+  const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
+    useDebateEngine({ locale, responseLength, maxRounds })
+
   const mainRef = useRef<HTMLElement>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
-  const handleSendRef = useRef<(text: string, target: Provider | "all", models: Provider[]) => void>(() => {})
+  // Bumped on bfcache restore to force framer-motion remount
+  const [mountKey, setMountKey] = useState(0)
 
   // Apply theme classes to <html>
   useEffect(() => {
@@ -162,22 +41,40 @@ export default function ChatPage() {
     }
   }, [theme])
 
-  // Auto-scroll to top of summary card when it appears
+  // BUG-015: Re-apply theme when page becomes visible again
+  // (handles bfcache restore, Next.js client-side back/forward, and tab switching)
   useEffect(() => {
-    if (state.showSummary && summaryRef.current) {
-      setTimeout(() => {
-        summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-      }, 300)
+    const reapplyTheme = () => {
+      const saved = localStorage.getItem("quorum_theme") as Theme | null
+      if (saved && (THEMES as readonly string[]).includes(saved)) {
+        setTheme(saved)
+      }
     }
-  }, [state.showSummary])
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") reapplyTheme()
+    }
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        reapplyTheme()
+        setMountKey((k) => k + 1)
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+    window.addEventListener("pageshow", handlePageShow)
+    window.addEventListener("focus", reapplyTheme)
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility)
+      window.removeEventListener("pageshow", handlePageShow)
+      window.removeEventListener("focus", reapplyTheme)
+    }
+  }, [])
 
-  /* ─── Read config from sessionStorage on mount ─── */
+  /* ---- Read config from sessionStorage on mount ---- */
   const initialPromptSent = useRef(false)
   const pendingPrompt = useRef<{ prompt: string; models: Provider[] } | null>(null)
   const [configHydrated, setConfigHydrated] = useState(false)
 
   useEffect(() => {
-    // Read theme from localStorage (set by homepage)
     const savedTheme = localStorage.getItem("quorum_theme") as Theme | null
     if (savedTheme && (THEMES as readonly string[]).includes(savedTheme)) {
       setTheme(savedTheme)
@@ -212,7 +109,7 @@ export default function ChatPage() {
         }
       }
     } catch {
-      // malformed config — ignore
+      // malformed config - ignore
     } finally {
       setConfigHydrated(true)
     }
@@ -228,245 +125,26 @@ export default function ChatPage() {
       pendingPrompt.current = null
       setTimeout(() => handleSendRef.current(p, "all", models), 0)
     }
-  }, [configHydrated])
+  }, [configHydrated, handleSendRef])
 
-  /* ─── Streaming logic (v1 preserved) ─── */
-
-  const callModel = useCallback(
-    async (provider: Provider, allMessages: Message[]): Promise<Message | null> => {
-      dispatch({ type: "SET_TYPING", model: provider })
-
-      const placeholderId = createMessageId(provider)
-      const placeholder: Message = {
-        id: placeholderId,
-        sender: provider,
-        displayName: DISPLAY_NAMES[provider],
-        content: "",
-        timestamp: new Date(),
-      }
-      dispatch({ type: "ADD_MESSAGE", message: placeholder })
-
-      const controller = new AbortController()
-      abortRef.current = controller
-
-      try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: getApiMessages(allMessages), provider, locale, responseLength }),
-          signal: controller.signal,
-        })
-
-        if (!res.ok) throw new Error(`API error: ${res.status}`)
-        const reader = res.body?.getReader()
-        if (!reader) throw new Error("No response body")
-
-        const decoder = new TextDecoder()
-        let buffer = ""
-        let fullContent = ""
-        let finalContent: string | null = null
-
-        while (true) {
-          if (stopRef.current) { await reader.cancel(); break }
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split("\n")
-          buffer = lines.pop() ?? ""
-
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (!trimmed.startsWith("data:")) continue
-            const data = JSON.parse(trimmed.slice(5).trim())
-            if (data.error) throw new Error(data.error)
-            if (data.done) {
-              finalContent = typeof data.content === "string" ? data.content : fullContent
-            }
-            if (data.chunk) {
-              fullContent += data.chunk
-              dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: fullContent })
-            }
-          }
-        }
-
-        const cleaned = cleanResponse(finalContent ?? fullContent)
-        dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: cleaned })
-        dispatch({ type: "SET_TYPING", model: null })
-        return { ...placeholder, content: cleaned }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          dispatch({ type: "SET_TYPING", model: null })
-          dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: "Response cancelled." })
-          return null
-        }
-        console.error(`${provider} failed:`, err)
-        dispatch({ type: "SET_TYPING", model: null })
-        dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: `⚠️ ${provider} encountered an error.` })
-        return null
-      }
-    },
-    [locale, responseLength]
-  )
-
-  const runRound = useCallback(
-    async (currentMessages: Message[], activeModels: Provider[]): Promise<{ msgs: Message[]; done: boolean }> => {
-      let msgs = [...currentMessages]
-
-      for (const model of activeModels) {
-        if (stopRef.current) break
-        const result = await callModel(model, msgs)
-        if (result) msgs = [...msgs, result]
-      }
-
-      if (stopRef.current) return { msgs, done: true }
-
-      const aiCount = getAIMessageCount(msgs)
-      if (aiCount >= 2 && activeModels.length >= 2) {
-        try {
-          const res = await fetch("/api/consensus", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: getApiMessages(msgs), locale }),
-          })
-          if (res.ok) {
-            const result: VerdictResult = await res.json()
-            dispatch({ type: "SET_VERDICT", result })
-          }
-        } catch (err) {
-          console.error("Verdict check failed:", err)
-        }
-      }
-
-      return { msgs, done: false }
-    },
-    [callModel, locale]
-  )
-
-  // Internal send that accepts explicit models (used for auto-send on mount)
-  const handleSendWithModels = useCallback(
-    async (text: string, target: Provider | "all", models: Provider[]) => {
-      const userMsg: Message = {
-        id: createMessageId("user"),
-        sender: "user",
-        displayName: "You",
-        content: text,
-        timestamp: new Date(),
-      }
-      if (state.showSummary) {
-        dispatch({ type: "CONTINUE_THREAD" })
-      }
-      dispatch({ type: "ADD_MESSAGE", message: userMsg })
-      dispatch({ type: "SET_DEBATING", value: true })
-      stopRef.current = false
-
-      const allMessages = [...state.messages, userMsg]
-
-      if (target === "all") {
-        let msgs = allMessages
-        const rounds = models.length >= 2 ? maxRounds : 1
-        let stoppedEarly = false
-        for (let r = 0; r < rounds; r++) {
-          if (stopRef.current) break
-          dispatch({ type: "SET_ROUND", round: r + 1 })
-          const result = await runRound(msgs, models)
-          msgs = result.msgs
-          if (result.done) { stoppedEarly = true; break }
-          if (models.length >= 2 && r < rounds - 1) {
-            const roundDivider = createSystemMessage(SYSTEM_MESSAGES.round(locale, r + 2), locale)
-            dispatch({ type: "ADD_MESSAGE", message: roundDivider })
-            msgs = [...msgs, roundDivider]
-          }
-        }
-
-        // If all rounds finished without being stopped early, fetch final consensus and show summary
-        if (!stoppedEarly && !stopRef.current && models.length >= 2) {
-          const aiCount = getAIMessageCount(msgs)
-          if (aiCount >= 2) {
-            try {
-              const analyzingMessage = createSystemMessage(SYSTEM_MESSAGES.analyzing(locale), locale)
-              dispatch({ type: "ADD_MESSAGE", message: analyzingMessage })
-              msgs = [...msgs, analyzingMessage]
-
-              const res = await fetch("/api/consensus", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: getApiMessages(msgs), locale }),
-              })
-              if (res.ok) {
-                const result: VerdictResult = await res.json()
-                dispatch({ type: "SET_VERDICT", result })
-                dispatch({ type: "SHOW_SUMMARY" })
-              }
-            } catch (err) {
-              console.error("Final verdict failed:", err)
-            }
-          }
-        }
-      } else {
-        await callModel(target, allMessages)
-      }
-
-      dispatch({ type: "SET_DEBATING", value: false })
-    },
-    [state.messages, state.showSummary, maxRounds, callModel, runRound, locale]
-  )
-
-  handleSendRef.current = handleSendWithModels
-
-  const handleSend = useCallback(
-    async (text: string, target: Provider | "all") => {
-      handleSendWithModels(text, target, state.activeModels)
-    },
-    [handleSendWithModels, state.activeModels]
-  )
-
-  const handleStop = useCallback(async () => {
-    stopRef.current = true
-    abortRef.current?.abort()
-    dispatch({ type: "SET_DEBATING", value: false })
-    dispatch({ type: "SET_TYPING", model: null })
-
-    const aiCount = getAIMessageCount(state.messages)
-    if (aiCount >= 2) {
-      try {
-        const res = await fetch("/api/consensus", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: getApiMessages(state.messages), locale }),
-        })
-        if (res.ok) {
-          const result: VerdictResult = await res.json()
-          dispatch({ type: "SET_VERDICT", result })
-          dispatch({ type: "SHOW_SUMMARY" })
-        }
-      } catch (err) {
-        console.error("Final verdict failed:", err)
-      }
-    }
-  }, [state.messages, locale])
-
-  const handleReset = useCallback(() => {
-    stopRef.current = true
-    abortRef.current?.abort()
-    dispatch({ type: "RESET" })
-  }, [])
-
-  const changeTheme = (t: Theme) => {
+  const changeTheme = useCallback((t: Theme) => {
     setTheme(t)
     localStorage.setItem("quorum_theme", t)
-  }
+  }, [])
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     const order = THEMES
-    const next = order[(order.indexOf(theme) + 1) % order.length]
-    changeTheme(next)
-  }
+    setTheme((prev) => {
+      const next = order[(order.indexOf(prev) + 1) % order.length]
+      localStorage.setItem("quorum_theme", next)
+      return next
+    })
+  }, [])
 
-  /* ─── Render ─── */
+  /* ---- Render ---- */
 
   return (
-    <div className="relative flex flex-col h-screen bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
+    <div key={mountKey} className="relative flex flex-col h-screen bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
       <ChatHeader
         currentRound={state.currentRound}
         maxRounds={maxRounds}
@@ -514,13 +192,6 @@ export default function ChatPage() {
           activeModels={state.activeModels}
           onSendMessage={(text) => handleSend(text, "all")}
         />
-
-        {state.showSummary && state.verdict && (
-          <div ref={summaryRef} className="px-4 pb-8">
-            <SummaryCard result={state.verdict} onNewDiscussion={handleReset} locale={locale} />
-          </div>
-        )}
-
       </main>
 
       <AnimatePresence>
