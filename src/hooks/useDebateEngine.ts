@@ -33,6 +33,10 @@ const SYSTEM_MESSAGES = {
     locale === "ko" ? `라운드 ${round}` : `Round ${round}`,
   analyzing: (locale: Locale) =>
     locale === "ko" ? "토론 분석 중..." : "Analyzing discussion...",
+  analysisFailed: (locale: Locale) =>
+    locale === "ko"
+      ? "분석을 완료할 수 없습니다. 새 메시지를 보내 계속하세요."
+      : "Could not complete analysis. Send a new message to continue.",
 }
 
 /* ---- Helpers (exported for testing) ---- */
@@ -91,6 +95,7 @@ export type Action =
   | { type: "TOGGLE_MODEL"; model: Provider }
   | { type: "SET_MODELS"; models: Provider[] }
   | { type: "SET_THREAD_ID"; id: string | null }
+  | { type: "UPDATE_MESSAGE"; id: string; content: string }
   | { type: "HYDRATE_THREAD"; messages: Message[]; verdict: VerdictResult | null; showSummary: boolean }
   | { type: "RESET" }
 
@@ -118,6 +123,14 @@ export function reducer(state: State, action: Action): State {
         msgs[msgs.length - 1] = { ...last, content: action.content }
       }
       return { ...state, messages: msgs }
+    }
+    case "UPDATE_MESSAGE": {
+      return {
+        ...state,
+        messages: state.messages.map((m) =>
+          m.id === action.id ? { ...m, content: action.content } : m
+        ),
+      }
     }
     case "SET_TYPING":
       return { ...state, typingModel: action.model }
@@ -441,14 +454,14 @@ export function useDebateEngine(config: {
         ) {
           const aiCount = getAIMessageCount(msgs)
           if (aiCount >= 2) {
-            try {
-              const analyzingMsg = createSystemMessage(
-                SYSTEM_MESSAGES.analyzing(locale),
-                locale
-              )
-              dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
-              msgs = [...msgs, analyzingMsg]
+            const analyzingMsg = createSystemMessage(
+              SYSTEM_MESSAGES.analyzing(locale),
+              locale
+            )
+            dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
+            msgs = [...msgs, analyzingMsg]
 
+            try {
               const res = await fetch("/api/consensus", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -470,9 +483,20 @@ export function useDebateEngine(config: {
                 dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
                 dispatch({ type: "SET_VERDICT", result })
                 dispatch({ type: "SHOW_SUMMARY" })
+              } else if (!res.ok) {
+                dispatch({
+                  type: "UPDATE_MESSAGE",
+                  id: analyzingMsg.id,
+                  content: SYSTEM_MESSAGES.analysisFailed(locale),
+                })
               }
             } catch (err) {
               console.error("Final verdict failed:", err)
+              dispatch({
+                type: "UPDATE_MESSAGE",
+                id: analyzingMsg.id,
+                content: SYSTEM_MESSAGES.analysisFailed(locale),
+              })
             }
           }
         }
@@ -531,9 +555,12 @@ export function useDebateEngine(config: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: getApiMessages(currentMessages), locale }),
       })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((result: VerdictResult | null) => {
-          if (result && sessionIdRef.current === stoppedSession) {
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`API error: ${res.status}`)
+          return res.json()
+        })
+        .then((result: VerdictResult) => {
+          if (sessionIdRef.current === stoppedSession) {
             const verdictMsg: Message = {
               id: createMessageId("verdict"),
               sender: "verdict",
@@ -547,7 +574,14 @@ export function useDebateEngine(config: {
             dispatch({ type: "SHOW_SUMMARY" })
           }
         })
-        .catch((err) => console.error("Stop verdict failed:", err))
+        .catch((err) => {
+          console.error("Stop verdict failed:", err)
+          dispatch({
+            type: "UPDATE_MESSAGE",
+            id: analyzingMsg.id,
+            content: SYSTEM_MESSAGES.analysisFailed(locale),
+          })
+        })
     }
   }, [locale])
 

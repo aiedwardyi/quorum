@@ -37,7 +37,9 @@ export default function ChatThread({
   }, [hasMessages])
 
   useEffect(() => {
-    if (isNearBottom.current) {
+    const lastMsg = messages[messages.length - 1]
+    const userJustSent = lastMsg?.sender === "user"
+    if (isNearBottom.current || userJustSent) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages, typingModel])
