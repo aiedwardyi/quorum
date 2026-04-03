@@ -180,11 +180,19 @@ function ChatPageContent() {
     })
   }, [])
 
-  // Auto-save messages when new ones are added
+  // Persistence-related refs
   const creatingThreadRef = useRef(false)
   const prevMessageCount = useRef(0)
+  const isHydratingRef = useRef(false)
+  const threadLoaded = useRef<string | null>(null)
+
+  // Auto-save messages when new ones are added
   useEffect(() => {
     if (!persistence.isLoggedIn) return
+    if (isHydratingRef.current) {
+      prevMessageCount.current = state.messages.length
+      return
+    }
     if (state.messages.length <= prevMessageCount.current) {
       prevMessageCount.current = state.messages.length
       return
@@ -206,11 +214,24 @@ function ChatPageContent() {
           creatingThreadRef.current = false
           if (id) {
             dispatch({ type: "SET_THREAD_ID", id })
-            persistence.saveMessages(state.messages)
+            // Don't save here — auto-save handles it on next trigger,
+            // avoiding saving empty AI placeholders during thread creation.
           }
         })
         return
       }
+    }
+
+    // Skip verdict message batch — verdict-save effect handles it sequentially
+    if (state.showSummary && state.messages[state.messages.length - 1]?.sender === "verdict") {
+      return
+    }
+
+    // Don't save while an AI message is still streaming (empty placeholder).
+    // The next ADD_MESSAGE trigger will include the now-complete message.
+    const lastMsg = state.messages[state.messages.length - 1]
+    if (lastMsg && !lastMsg.content && lastMsg.sender !== "user" && lastMsg.sender !== "system" && lastMsg.sender !== "verdict") {
+      return
     }
 
     // Otherwise save incrementally
@@ -218,11 +239,16 @@ function ChatPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.messages.length])
 
-  // Auto-save verdict when summary is shown
+  // Auto-save verdict when summary is shown (save messages first to avoid version race)
   useEffect(() => {
+    if (isHydratingRef.current) return
     if (state.showSummary && state.verdict && persistence.threadId.current) {
-      const afterIndex = state.messages.length - 1
-      persistence.saveVerdict(state.verdict, afterIndex)
+      const doSave = async () => {
+        await persistence.saveMessages(state.messages)
+        const afterIndex = state.messages.length - 1
+        await persistence.saveVerdict(state.verdict!, afterIndex)
+      }
+      doSave()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.showSummary])
@@ -231,6 +257,8 @@ function ChatPageContent() {
 
   const handleNewDebate = useCallback(() => {
     creatingThreadRef.current = false
+    threadLoaded.current = null
+    prevMessageCount.current = 0
     persistence.reset()
     handleReset()
     router.push("/chat")
@@ -247,13 +275,20 @@ function ChatPageContent() {
   }, [state.showSummary])
 
   // Load thread from URL parameter
-  const threadLoaded = useRef<string | null>(null)
   useEffect(() => {
     if (!threadParam || threadLoaded.current === threadParam || !persistence.isLoggedIn) return
     threadLoaded.current = threadParam
+    creatingThreadRef.current = false
+    isHydratingRef.current = true
+    prevMessageCount.current = 0
+    handleReset()
 
     persistence.loadThread(threadParam).then((thread) => {
-      if (!thread) return
+      if (!thread) {
+        isHydratingRef.current = false
+        threadLoaded.current = null
+        return
+      }
 
       // Rebuild client messages from DB records
       const messages: Message[] = thread.messages.map((m: any) => ({
@@ -308,9 +343,11 @@ function ChatPageContent() {
         showSummary: thread.status === "complete",
       })
       dispatch({ type: "SET_THREAD_ID", id: thread.id })
+      prevMessageCount.current = messages.length
+      setTimeout(() => { isHydratingRef.current = false }, 0)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadParam, persistence.isLoggedIn])
+  }, [threadParam, persistence.isLoggedIn, handleReset])
 
   // Increment free-debate counter after verdict (for login gate)
   const hasIncrementedRef = useRef(false)

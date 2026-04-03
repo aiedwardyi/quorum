@@ -89,17 +89,17 @@ cd quorum
 npm install
 ```
 
-Create a `.env` file from [`.env.example`](./.env.example):
+Create a `.env.local` file from [`.env.example`](./.env.example):
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item .env.example .env.local
 ```
 
-Fill in your provider credentials:
+Fill in your credentials (see `.env.example` for all required variables):
 
 ```env
 # Google Vertex AI
@@ -110,9 +110,17 @@ VERTEX_LOCATION=us-central1
 PERPLEXITY_API_KEY=your_perplexity_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
 OPENAI_API_KEY=your_openai_api_key
+
+# Database (Neon PostgreSQL)
+DATABASE_URL=postgresql://user:password@host/neondb?sslmode=require
+
+# Auth (NextAuth v5 + Google OAuth)
+AUTH_SECRET=generate_with_openssl_rand_-base64_32
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 ```
 
-Required for the current MVP: `VERTEX_PROJECT_ID`, `VERTEX_LOCATION`, and `PERPLEXITY_API_KEY`.
+> **Important:** Prefer `.env.local` for local secrets — it takes precedence over `.env` and is gitignored by default.
 
 Gemini uses Google Cloud Application Default Credentials:
 
@@ -120,9 +128,11 @@ Gemini uses Google Cloud Application Default Credentials:
 gcloud auth application-default login
 ```
 
-Then run:
+Push the Prisma schema to your database, then run:
 
 ```bash
+npx prisma db push
+npx prisma generate
 npm run dev
 ```
 
@@ -136,10 +146,12 @@ Open [localhost:3000](http://localhost:3000) and start debating.
 |-------|-----------|
 | Framework | Next.js 16, React 19, TypeScript 5 |
 | Styling | Tailwind CSS 4, shadcn/ui, Framer Motion |
-| AI Models | Gemini 2.5 Flash (Vertex AI), Perplexity Sonar Pro |
+| AI Models | Gemini 2.5 Flash (Vertex AI), Perplexity Sonar Pro, Claude (Anthropic), GPT-4o (OpenAI) |
+| Database | PostgreSQL on Neon, Prisma 7 |
+| Auth | NextAuth v5 + Google OAuth |
 | Streaming | Server-Sent Events (SSE) |
 | i18n | English / Korean |
-| Themes | Light, Dark, Tokyo Night, Lovelace (more coming) |
+| Themes | Light, Dark, Tokyo Night, Lovelace, Gruvbox, Catppuccin, Nord, Solarized, Rose Pine |
 
 ## Roadmap
 
@@ -148,9 +160,9 @@ See [ROADMAP.md](./ROADMAP.md) for details.
 | Version | Focus | Status |
 |---------|-------|--------|
 | **v1** | Core group chat - Gemini + Perplexity | Done |
-| **v2** | Claude + GPT, persistence, UI refresh | In Progress |
-| **v3** | BYOK, OAuth, more themes | In Progress |
-| **v4** | Monetization, debate templates | Future |
+| **v2** | Claude + GPT, decisive verdict, continue-thread, 9 themes | Done |
+| **v3** | Persistence, OAuth, thread history | In Progress |
+| **v4** | BYOK, share verdicts, monetization | Future |
 
 ## License
 
