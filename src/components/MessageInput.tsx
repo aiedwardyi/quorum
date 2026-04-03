@@ -151,8 +151,7 @@ export default function MessageInput({
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder={t.placeholder}
-            disabled={disabled}
-            className="w-full max-h-[200px] min-h-[56px] resize-none bg-transparent px-4 py-4 text-[15px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none disabled:opacity-50"
+            className="w-full max-h-[200px] min-h-[56px] resize-none bg-transparent px-4 py-4 text-[15px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none"
             rows={1}
           />
 
