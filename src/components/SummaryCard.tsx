@@ -39,8 +39,8 @@ const translations = {
 }
 
 function getConfidenceColor(confidence: number) {
-  if (confidence >= 80) return { text: "text-success", bg: "bg-success", border: "border-success/30" }
-  if (confidence >= 60) return { text: "text-warning", bg: "bg-warning", border: "border-warning/30" }
+  if (confidence >= 60) return { text: "text-success", bg: "bg-success", border: "border-success/30" }
+  if (confidence >= 40) return { text: "text-warning", bg: "bg-warning", border: "border-warning/30" }
   return { text: "text-danger", bg: "bg-danger", border: "border-danger/30" }
 }
 

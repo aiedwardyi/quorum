@@ -51,12 +51,12 @@ function ChatPageContent() {
   useEffect(() => {
     const cl = document.documentElement.classList
     cl.remove(...THEMES.filter((t) => t !== "light"))
-    const isLightTheme = theme === "light" || theme === "github"
+    const isLightTheme = theme === "light" || theme === "solarized"
     if (!isLightTheme) {
       cl.add("dark")
       if (theme !== "dark") cl.add(theme)
-    } else if (theme === "github") {
-      cl.add("github")
+    } else if (theme === "solarized") {
+      cl.add("solarized")
     }
   }, [theme])
 

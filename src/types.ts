@@ -4,7 +4,7 @@ export type Locale = "en" | "ko"
 
 export type ResponseLength = "short" | "medium" | "long"
 
-export const THEMES = ["light", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord", "github"] as const
+export const THEMES = ["light", "solarized", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"] as const
 export type Theme = (typeof THEMES)[number]
 
 export type Message = {

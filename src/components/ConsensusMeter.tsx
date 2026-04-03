@@ -42,14 +42,14 @@ export default function ConsensusMeter({
   }, [score, scoreValue])
 
   const getColor = (s: number) => {
-    if (s >= 80) return "bg-success shadow-[0_0_15px_var(--success-bg)]"
-    if (s >= 50) return "bg-warning shadow-[0_0_15px_var(--warning-bg)]"
+    if (s >= 60) return "bg-success shadow-[0_0_15px_var(--success-bg)]"
+    if (s >= 40) return "bg-warning shadow-[0_0_15px_var(--warning-bg)]"
     return "bg-danger shadow-[0_0_15px_var(--danger-bg)]"
   }
 
   const getTextColor = (s: number) => {
-    if (s >= 80) return "text-success"
-    if (s >= 50) return "text-warning"
+    if (s >= 60) return "text-success"
+    if (s >= 40) return "text-warning"
     return "text-danger"
   }
 
@@ -68,9 +68,9 @@ export default function ConsensusMeter({
                 <div
                   className={cn(
                     "w-2 h-2 rounded-full",
-                    score !== null && score >= 80
+                    score !== null && score >= 60
                       ? "bg-success"
-                      : score !== null && score >= 50
+                      : score !== null && score >= 40
                       ? "bg-warning"
                       : "bg-danger"
                   )}
