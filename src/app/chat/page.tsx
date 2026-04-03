@@ -286,6 +286,7 @@ function ChatPageContent() {
     persistence.loadThread(threadParam).then((thread) => {
       if (!thread) {
         isHydratingRef.current = false
+        threadLoaded.current = null
         return
       }
 

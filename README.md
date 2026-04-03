@@ -120,7 +120,7 @@ GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 ```
 
-> **Important:** Use `.env.local`, not `.env` — Next.js only auto-loads `.env.local`.
+> **Important:** Prefer `.env.local` for local secrets — it takes precedence over `.env` and is gitignored by default.
 
 Gemini uses Google Cloud Application Default Credentials:
 
