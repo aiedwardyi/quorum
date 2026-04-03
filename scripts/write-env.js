@@ -17,9 +17,8 @@ const keys = [
 let content = ""
 for (const key of keys) {
   if (process.env[key]) {
-    // Quote values to handle special chars (JSON, URLs with passwords, etc.)
-    const escaped = process.env[key].replace(/\\/g, "\\\\").replace(/"/g, '\\"')
-    content += `${key}="${escaped}"\n`
+    // Single-quote values so dotenv treats them as literals (no escaping)
+    content += `${key}='${process.env[key]}'\n`
   }
 }
 
