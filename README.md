@@ -12,7 +12,7 @@ Replaces the manual workflow of copy-pasting between AI tabs. Instead of switchi
 [![Claude](https://img.shields.io/badge/Claude-Anthropic-F97316?logo=anthropic&logoColor=white)](https://anthropic.com/)
 [![GPT](https://img.shields.io/badge/GPT-OpenAI-10B981?logo=openai&logoColor=white)](https://openai.com/)
 
-https://github.com/user-attachments/assets/265d9414-4eb4-4ab8-a7f3-831c82b4ae9e
+https://github.com/user-attachments/assets/b6e84e58-b5c8-4428-9fac-bdf0febc7ddd
 
 ---
 
