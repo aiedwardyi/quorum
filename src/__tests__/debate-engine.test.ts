@@ -140,6 +140,28 @@ describe("reducer", () => {
     expect(next.activeModels).toEqual(["gemini"])
   })
 
+  it("UPDATE_MESSAGE updates matching message and leaves others unchanged", () => {
+    const state = makeState({ messages: [userMsg, systemMsg, aiMsg] })
+    const next = reducer(state, {
+      type: "UPDATE_MESSAGE",
+      id: "system-1",
+      content: "Could not complete analysis.",
+    })
+    expect(next.messages[1].content).toBe("Could not complete analysis.")
+    expect(next.messages[0]).toBe(userMsg)
+    expect(next.messages[2]).toBe(aiMsg)
+  })
+
+  it("UPDATE_MESSAGE is a no-op when id does not match", () => {
+    const state = makeState({ messages: [userMsg, aiMsg] })
+    const next = reducer(state, {
+      type: "UPDATE_MESSAGE",
+      id: "nonexistent",
+      content: "Should not appear",
+    })
+    expect(next.messages).toEqual(state.messages)
+  })
+
   it("RESET returns initial state with current models", () => {
     const state = makeState({
       messages: [userMsg, aiMsg],
