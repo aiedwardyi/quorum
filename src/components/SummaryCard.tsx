@@ -39,8 +39,8 @@ const translations = {
 }
 
 function getConfidenceColor(confidence: number) {
-  if (confidence >= 60) return { text: "text-success", bg: "bg-success", border: "border-success/30" }
-  if (confidence >= 40) return { text: "text-warning", bg: "bg-warning", border: "border-warning/30" }
+  if (confidence >= 60) return { text: "text-theme-accent", bg: "bg-theme-accent", border: "border-theme-accent/30" }
+  if (confidence >= 40) return { text: "text-theme-accent-light", bg: "bg-theme-accent-light", border: "border-theme-accent-light/30" }
   return { text: "text-danger", bg: "bg-danger", border: "border-danger/30" }
 }
 
@@ -89,25 +89,30 @@ export default function SummaryCard({
     <motion.div
       initial={{ opacity: 0, scale: 0.98, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      className="relative overflow-hidden w-full max-w-3xl mx-auto mt-8 mb-12 rounded-[28px] border border-zinc-200/80 dark:border-white/[0.08] bg-white dark:bg-[linear-gradient(180deg,#121317_0%,#0c0d10_100%)] p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-[0_18px_50px_rgba(0,0,0,0.34)]"
+      className="relative overflow-hidden w-full max-w-3xl mx-auto mt-8 mb-12 rounded-[28px] p-6 sm:p-8"
+      style={{
+        background: 'var(--summary-card-bg)',
+        border: '1px solid var(--summary-card-border)',
+        boxShadow: 'var(--summary-card-shadow)',
+      }}
     >
-      <div className="pointer-events-none absolute inset-0 hidden dark:block bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.12),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.08),transparent_26%)]" />
+      <div className="pointer-events-none absolute inset-0" style={{ background: 'var(--summary-card-overlay)' }} />
 
       {/* Header - verdict badge + confidence pills */}
-      <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-5 border-b border-zinc-100 dark:border-white/[0.06]">
+      <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-5" style={{ borderBottom: '1px solid var(--summary-callout-border)' }}>
         <div className="flex items-center gap-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-success-border bg-success-bg text-[10px] font-bold uppercase tracking-[0.14em] text-success">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-theme-accent-border bg-theme-accent-bg text-[10px] font-bold uppercase tracking-[0.14em] text-theme-accent">
             {t.verdict}
           </div>
           <span className={`text-xs font-semibold ${colors.text}`}>{getStatusText(result.confidence)}</span>
         </div>
         <div className="flex items-center gap-3">
           {/* Vote split badge */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-zinc-200/80 dark:border-white/[0.08] bg-zinc-50 dark:bg-white/[0.04] text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold" style={{ border: '1px solid var(--summary-callout-border)', background: 'var(--summary-callout-bg)', color: 'var(--summary-secondary-text)' }}>
             {result.voteSplit}
           </div>
           {/* Confidence badge */}
-          <div className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border ${colors.border} bg-zinc-50 dark:bg-white/[0.04]`}>
+          <div className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border ${colors.border}`} style={{ background: 'var(--summary-callout-bg)' }}>
             <div className={`w-1.5 h-1.5 rounded-full ${colors.bg}`} />
             <span className={`text-xs font-bold font-mono ${colors.text}`}>{result.confidence}%</span>
           </div>
@@ -116,8 +121,8 @@ export default function SummaryCard({
 
       <div className="relative space-y-6">
         {/* THE ANSWER - hero text */}
-        <div className={`rounded-2xl border-l-4 ${colors.border} bg-zinc-50/90 dark:bg-white/[0.04] px-5 py-4`}>
-          <p className="text-xl sm:text-2xl leading-snug font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
+        <div className={`rounded-2xl border-l-4 ${colors.border} px-5 py-4`} style={{ background: 'var(--summary-callout-bg)' }}>
+          <p className="text-xl sm:text-2xl leading-snug font-bold tracking-tight" style={{ color: 'var(--summary-main-text)' }}>
             {result.recommendedAnswer}
           </p>
         </div>
@@ -125,14 +130,14 @@ export default function SummaryCard({
         {/* Key Reasons */}
         {result.reasons.length > 0 && (
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-success flex items-center gap-1.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-theme-accent flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5" />
               {t.reasons}
             </h3>
             <div className="space-y-1">
               {result.reasons.map((item, i) => (
-                <div key={i} className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm text-zinc-700 dark:text-zinc-200 leading-snug">
-                  <span className="text-success mt-0.5 text-sm leading-none shrink-0">•</span>
+                <div key={i} className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
+                  <span className="text-theme-accent mt-0.5 text-sm leading-none shrink-0">•</span>
                   <span>{item}</span>
                 </div>
               ))}
@@ -143,12 +148,12 @@ export default function SummaryCard({
         {/* Minority View */}
         {result.minorityView && (
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-warning flex items-center gap-1.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--summary-muted-text)' }}>
               <AlertTriangle className="w-3.5 h-3.5" />
               {t.minorityView}
             </h3>
-            <div className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm text-zinc-600 dark:text-zinc-300 leading-snug">
-              <span className="text-warning mt-0.5 text-sm leading-none shrink-0">•</span>
+            <div className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
+              <span className="mt-0.5 text-sm leading-none shrink-0" style={{ color: 'var(--summary-muted-text)' }}>•</span>
               <span>{result.minorityView}</span>
             </div>
           </div>
@@ -156,9 +161,9 @@ export default function SummaryCard({
 
         {/* Opposite Case */}
         {result.oppositeCase && (
-          <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl border border-zinc-200/60 dark:border-white/[0.04] bg-zinc-50/50 dark:bg-white/[0.02]">
-            <Info className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+          <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl" style={{ border: '1px solid var(--summary-row-border)', background: 'var(--summary-row-bg)' }}>
+            <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: 'var(--summary-muted-text)' }} />
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--summary-muted-text)' }}>
               <span className="font-semibold">{t.oppositeCase}:</span>{" "}
               {result.oppositeCase}
             </p>
@@ -166,13 +171,14 @@ export default function SummaryCard({
         )}
 
         {/* Action buttons */}
-        <div className="pt-6 border-t border-zinc-100 dark:border-white/[0.04] flex justify-center gap-3">
+        <div className="pt-6 flex justify-center gap-3" style={{ borderTop: '1px solid var(--summary-callout-border)' }}>
           {onNewDiscussion && (
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
               onClick={onNewDiscussion}
-              className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-sm font-medium rounded-xl transition-colors shadow-sm"
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-colors shadow-sm"
+              style={{ background: 'var(--user-bubble)', color: 'var(--user-bubble-foreground)' }}
             >
               <RefreshCw className="w-4 h-4" />
               {t.newDiscussion}
@@ -182,7 +188,8 @@ export default function SummaryCard({
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             onClick={handleCopy}
-            className="flex items-center gap-2 px-5 py-2.5 bg-transparent border border-zinc-200 dark:border-white/[0.08] hover:bg-zinc-50 dark:hover:bg-white/[0.04] text-zinc-500 dark:text-zinc-400 text-sm font-medium rounded-xl transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 bg-transparent text-sm font-medium rounded-xl transition-colors"
+            style={{ border: '1px solid var(--summary-callout-border)', color: 'var(--summary-muted-text)' }}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             {copied ? t.copied : t.copy}
