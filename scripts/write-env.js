@@ -17,9 +17,12 @@ const keys = [
 let content = ""
 for (const key of keys) {
   if (process.env[key]) {
-    content += `${key}=${process.env[key]}\n`
+    // Quote values to handle special chars (JSON, URLs with passwords, etc.)
+    const escaped = process.env[key].replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+    content += `${key}="${escaped}"\n`
   }
 }
 
-fs.writeFileSync(".env.production", content)
-console.log(`Wrote ${keys.filter(k => process.env[k]).length} env vars to .env.production`)
+// Write to .env so Next.js loads it at both build and runtime
+fs.writeFileSync(".env", content)
+console.log(`Wrote ${keys.filter(k => process.env[k]).length} env vars to .env`)
