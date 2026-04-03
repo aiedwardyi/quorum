@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 
 export async function POST(
   req: NextRequest,
@@ -35,7 +36,7 @@ export async function POST(
   }
 
   try {
-    const verdict = await prisma.$transaction(async (tx) => {
+    const verdict = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const created = await tx.verdict.create({
         data: {
           threadId: id,

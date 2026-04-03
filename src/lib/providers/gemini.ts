@@ -8,7 +8,13 @@ import { getVertexConfig } from "@/lib/vertex-config"
 
 function getModel() {
   const { projectId, location } = getVertexConfig()
-  const vertexAI = new VertexAI({ project: projectId, location })
+  const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+    opts.googleAuthOptions = {
+      credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+    }
+  }
+  const vertexAI = new VertexAI(opts)
   return vertexAI.getGenerativeModel({
     model: "gemini-2.5-flash",
     safetySettings: [
