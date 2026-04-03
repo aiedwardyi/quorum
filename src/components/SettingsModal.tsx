@@ -2,7 +2,7 @@
 
 import { useState, type ComponentType } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, RotateCw, Palette, Sun, Moon, Flame, Cat, Snowflake, Check } from "lucide-react"
+import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, RotateCw, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Code2 } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 
@@ -16,6 +16,7 @@ const THEME_SWATCHES: { id: Theme; bg: string; fg: string; accent: string; ring:
   { id: "gruvbox", bg: "#1d2021", fg: "#ebdbb2", accent: "#fe8019", ring: "#fe8019", label: { en: "Gruvbox", ko: "그루브" }, Icon: Flame, iconColor: "#fe8019" },
   { id: "catppuccin", bg: "#1e1e2e", fg: "#cdd6f4", accent: "#cba6f7", ring: "#cba6f7", label: { en: "Mocha", ko: "모카" }, Icon: Cat, iconColor: "#cba6f7" },
   { id: "nord", bg: "#2e3440", fg: "#eceff4", accent: "#88c0d0", ring: "#88c0d0", label: { en: "Nord", ko: "노르드" }, Icon: Snowflake, iconColor: "#88c0d0" },
+  { id: "github", bg: "#ffffff", fg: "#1f2328", accent: "#0969da", ring: "#0969da", label: { en: "GitHub", ko: "깃허브" }, Icon: Code2, iconColor: "#0969da" },
 ]
 
 const modelStyles: Record<Provider, { activeBorder: string; glow: string; iconBg: string; iconColor: string; dot: string }> = {

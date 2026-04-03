@@ -552,6 +552,74 @@
   --summary-meter-ring: rgba(136, 192, 208, 0.18);
 }
 
+.github {
+  --background: #ffffff;
+  --foreground: #1f2328;
+  --card: #f6f8fa;
+  --card-foreground: #1f2328;
+  --popover: #ffffff;
+  --popover-foreground: #1f2328;
+  --primary: #1f2328;
+  --primary-foreground: #ffffff;
+  --secondary: #f6f8fa;
+  --secondary-foreground: #1f2328;
+  --muted: #f6f8fa;
+  --muted-foreground: #656d76;
+  --accent: #f6f8fa;
+  --accent-foreground: #1f2328;
+  --destructive: #cf222e;
+  --border: #d1d9e0;
+  --input: #d1d9e0;
+  --ring: #0969da;
+  --sidebar: #f6f8fa;
+  --sidebar-foreground: #1f2328;
+  --sidebar-primary: #0969da;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eaeef2;
+  --sidebar-accent-foreground: #1f2328;
+  --sidebar-border: #d1d9e0;
+  --sidebar-ring: #0969da;
+
+  --success: #1a7f37;
+  --success-light: #2da44e;
+  --success-bg: rgba(45, 164, 78, 0.08);
+  --success-border: rgba(45, 164, 78, 0.25);
+  --warning: #bf8700;
+  --warning-bg: rgba(191, 135, 0, 0.08);
+  --warning-border: rgba(191, 135, 0, 0.2);
+  --warning-text: #7d5600;
+  --danger: #cf222e;
+  --danger-bg: rgba(207, 34, 46, 0.06);
+  --danger-border: rgba(207, 34, 46, 0.2);
+
+  --theme-accent: #0969da;
+  --theme-accent-light: #218bff;
+  --theme-accent-glow: rgba(9, 105, 218, 0.2);
+  --theme-accent-bg: rgba(9, 105, 218, 0.08);
+  --theme-accent-border: rgba(9, 105, 218, 0.25);
+  --panel: #eaeef2;
+  --text-dim: #656d76;
+
+  --summary-card-bg: linear-gradient(180deg, #ffffff 0%, #f6f8fa 100%);
+  --summary-card-border: rgba(31, 35, 40, 0.08);
+  --summary-card-shadow: 0 18px 45px rgba(31, 35, 40, 0.08);
+  --summary-card-overlay: radial-gradient(circle at top right, rgba(9, 105, 218, 0.08), transparent 32%), radial-gradient(circle at bottom left, rgba(26, 127, 55, 0.06), transparent 26%);
+  --summary-accent-bg: rgba(9, 105, 218, 0.1);
+  --summary-accent-border: rgba(9, 105, 218, 0.18);
+  --summary-accent-text: #0550ae;
+  --summary-main-text: #1f2328;
+  --summary-secondary-text: #32383f;
+  --summary-muted-text: #656d76;
+  --summary-callout-bg: rgba(246, 248, 250, 0.92);
+  --summary-callout-border: rgba(209, 217, 224, 0.24);
+  --summary-row-bg: rgba(255, 255, 255, 0.9);
+  --summary-row-border: rgba(209, 217, 224, 0.18);
+  --summary-score-glow: 0 0 18px rgba(9, 105, 218, 0.08);
+  --summary-meter-label: #0550ae;
+  --summary-meter-track: rgba(209, 217, 224, 0.6);
+  --summary-meter-ring: rgba(209, 217, 224, 0.32);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
