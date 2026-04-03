@@ -3,7 +3,6 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
-@custom-variant solarized (&:is(.solarized *));
 
 @theme inline {
   --color-background: var(--background);

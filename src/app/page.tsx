@@ -185,11 +185,12 @@ export default function Home() {
 
   useEffect(() => {
     const applyTheme = () => {
-      const saved = localStorage.getItem("quorum_theme") as Theme | null
+      let saved = localStorage.getItem("quorum_theme") as string | null
+      if (saved === "github") { saved = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
       const valid = THEMES
-      if (saved && valid.includes(saved)) {
-        setTheme(saved)
-        applyThemeToDOM(saved)
+      if (saved && valid.includes(saved as Theme)) {
+        setTheme(saved as Theme)
+        applyThemeToDOM(saved as Theme)
       } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
         setTheme("dark")
         applyThemeToDOM("dark")

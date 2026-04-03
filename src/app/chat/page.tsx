@@ -64,9 +64,10 @@ function ChatPageContent() {
   // (handles bfcache restore, Next.js client-side back/forward, and tab switching)
   useEffect(() => {
     const reapplyTheme = () => {
-      const saved = localStorage.getItem("quorum_theme") as Theme | null
+      let saved = localStorage.getItem("quorum_theme") as string | null
+      if (saved === "github") { saved = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
       if (saved && (THEMES as readonly string[]).includes(saved)) {
-        setTheme(saved)
+        setTheme(saved as Theme)
       }
     }
     const handleVisibility = () => {
@@ -94,9 +95,10 @@ function ChatPageContent() {
   const [configHydrated, setConfigHydrated] = useState(false)
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("quorum_theme") as Theme | null
+    let savedTheme = localStorage.getItem("quorum_theme") as string | null
+    if (savedTheme === "github") { savedTheme = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
     if (savedTheme && (THEMES as readonly string[]).includes(savedTheme)) {
-      setTheme(savedTheme)
+      setTheme(savedTheme as Theme)
     }
 
     const raw = sessionStorage.getItem("quorum_config")
