@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@prisma/client"
 
 export async function POST(
   req: NextRequest,
@@ -29,7 +28,7 @@ export async function POST(
   }
 
   try {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx) => {
       await tx.threadMessage.createMany({
         data: messages.map((m: { sender: string; displayName: string; content: string; orderIndex: number }) => ({
           threadId: id,
