@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip, Code2 } from "lucide-react"
+import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip, Sunrise } from "lucide-react"
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
 import { THEMES } from "@/types"
@@ -174,22 +174,23 @@ export default function Home() {
   const applyThemeToDOM = (t: Theme) => {
     const cl = document.documentElement.classList
     cl.remove(...THEMES.filter((t) => t !== "light"))
-    const isLightTheme = t === "light" || t === "github"
+    const isLightTheme = t === "light" || t === "solarized"
     if (!isLightTheme) {
       cl.add("dark")
       if (t !== "dark") cl.add(t)
-    } else if (t === "github") {
-      cl.add("github")
+    } else if (t === "solarized") {
+      cl.add("solarized")
     }
   }
 
   useEffect(() => {
     const applyTheme = () => {
-      const saved = localStorage.getItem("quorum_theme") as Theme | null
+      let saved = localStorage.getItem("quorum_theme") as string | null
+      if (saved === "github") { saved = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
       const valid = THEMES
-      if (saved && valid.includes(saved)) {
-        setTheme(saved)
-        applyThemeToDOM(saved)
+      if (saved && valid.includes(saved as Theme)) {
+        setTheme(saved as Theme)
+        applyThemeToDOM(saved as Theme)
       } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
         setTheme("dark")
         applyThemeToDOM("dark")
@@ -326,7 +327,7 @@ export default function Home() {
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             onClick={() => setLocale(locale === "en" ? "ko" : "en")}
-            className={cn("cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors rounded-md px-1", theme === "lovelace" && "hover:ring-2 hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-2 hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-2 hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-2 hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-2 hover:ring-[#88c0d0]/50", theme === "github" && "hover:ring-2 hover:ring-[#0969da]/50")}
+            className={cn("cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors rounded-md px-1", theme === "lovelace" && "hover:ring-2 hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-2 hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-2 hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-2 hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-2 hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-2 hover:ring-[#073642]/50")}
           >
             {locale === "en" ? "EN" : "KO"}
           </motion.button>
@@ -334,10 +335,10 @@ export default function Home() {
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             onClick={toggleTheme}
-            className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "github" && "hover:ring-[1.5px] hover:ring-[#0969da]/50")}
+            className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
             aria-label="Toggle theme"
           >
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="popLayout">
               {theme === "light" && (
                 <motion.div key="sun" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}
                   whileHover={{ rotate: [0, 360], transition: { duration: 3, repeat: Infinity, ease: "linear" } }}>
@@ -380,10 +381,10 @@ export default function Home() {
                   <Snowflake className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.div>
               )}
-              {theme === "github" && (
-                <motion.div key="code" initial={{ scale: 0, x: -5 }} animate={{ scale: 1, x: 0 }} exit={{ scale: 0, x: 5 }} transition={{ duration: 0.2 }}
-                  whileHover={{ scale: [1, 1.15, 1], transition: { duration: 0.8, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Code2 className="w-3.5 h-3.5 text-zinc-600" />
+              {theme === "solarized" && (
+                <motion.div key="solar" initial={{ scale: 0, y: 4 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0, y: -4 }} transition={{ duration: 0.2 }}
+                  whileHover={{ y: [0, -3, 0], scale: [1, 1.15, 1], transition: { duration: 1.2, repeat: Infinity, ease: "easeInOut" } }}>
+                  <Sunrise className="w-3.5 h-3.5 text-[#b58900]" />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -395,7 +396,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <motion.div
                 whileHover={{ scale: 1.05 }}
-                className={cn("flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "github" && "hover:ring-[1.5px] hover:ring-[#0969da]/50")}
+                className={cn("flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
               >
                 <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
                 <span className="text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100">1,250</span>
@@ -406,7 +407,7 @@ export default function Home() {
                   whileTap={{ scale: 0.95 }}
                   whileHover={{ scale: 1.05 }}
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#c574dd]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "github" && "hover:ring-[1.5px] hover:ring-[#0969da]/50")}
+                  className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
                 >
                   <User className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </motion.button>

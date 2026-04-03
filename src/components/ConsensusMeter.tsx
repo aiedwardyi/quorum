@@ -42,14 +42,14 @@ export default function ConsensusMeter({
   }, [score, scoreValue])
 
   const getColor = (s: number) => {
-    if (s >= 80) return "bg-success shadow-[0_0_15px_var(--success-bg)]"
-    if (s >= 50) return "bg-warning shadow-[0_0_15px_var(--warning-bg)]"
+    if (s >= 60) return "bg-theme-accent shadow-[0_0_15px_var(--theme-accent-glow)]"
+    if (s >= 40) return "bg-theme-accent-light/50 shadow-[0_0_10px_var(--theme-accent-glow)]"
     return "bg-danger shadow-[0_0_15px_var(--danger-bg)]"
   }
 
   const getTextColor = (s: number) => {
-    if (s >= 80) return "text-success"
-    if (s >= 50) return "text-warning"
+    if (s >= 60) return "text-theme-accent"
+    if (s >= 40) return "text-theme-accent-light"
     return "text-danger"
   }
 
@@ -68,10 +68,10 @@ export default function ConsensusMeter({
                 <div
                   className={cn(
                     "w-2 h-2 rounded-full",
-                    score !== null && score >= 80
-                      ? "bg-success"
-                      : score !== null && score >= 50
-                      ? "bg-warning"
+                    score !== null && score >= 60
+                      ? "bg-theme-accent"
+                      : score !== null && score >= 40
+                      ? "bg-theme-accent-light"
                       : "bg-danger"
                   )}
                 />
@@ -82,7 +82,7 @@ export default function ConsensusMeter({
                 </>
               )}
             </div>
-            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em] transition-colors", isFinal ? "text-success" : "text-zinc-500 dark:text-zinc-400")}>
+            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em] transition-colors", isFinal ? "text-theme-accent" : "text-zinc-500 dark:text-zinc-400")}>
               {result ? t.verdict : t.confidence}
             </span>
             <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] font-medium rounded opacity-0 group-hover/label:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-sm">
@@ -95,7 +95,7 @@ export default function ConsensusMeter({
               key={score}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className={cn("flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500", getTextColor(score), isFinal && "drop-shadow-[0_0_8px_rgba(16,185,129,0.25)]")}
+              className={cn("flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500", getTextColor(score), isFinal && "drop-shadow-[0_0_8px_var(--theme-accent-glow)]")}
             >
               <motion.span>{displayScore}</motion.span>
               <span className="text-xs ml-0.5">%</span>

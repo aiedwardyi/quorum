@@ -164,7 +164,7 @@ export default function ChatBubble({
             className={cn(
               "px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm break-words whitespace-pre-wrap transition-all duration-200",
               isUser
-                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-tr-sm"
+                ? "bg-[var(--user-bubble)] text-[var(--user-bubble-foreground)] rounded-tr-sm"
                 : cn(
                     "border rounded-tl-sm text-zinc-800 dark:text-zinc-200",
                     modelBorders[message.sender] ?? "border-zinc-200 dark:border-zinc-800",

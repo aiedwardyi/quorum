@@ -2,7 +2,7 @@
 
 import { useState, type ComponentType } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, RotateCw, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Code2 } from "lucide-react"
+import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, RotateCw, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 
@@ -10,13 +10,13 @@ const ALL_MODELS: Provider[] = ["gemini", "claude", "gpt", "perplexity"]
 
 const THEME_SWATCHES: { id: Theme; bg: string; fg: string; accent: string; ring: string; label: Record<Locale, string>; Icon: ComponentType<{ className?: string; size?: number }>; iconColor: string }[] = [
   { id: "light", bg: "#fafaf9", fg: "#18181b", accent: "#e4e4e7", ring: "#18181b", label: { en: "Light", ko: "라이트" }, Icon: Sun, iconColor: "#f59e0b" },
+  { id: "solarized", bg: "#fdf6e3", fg: "#586e75", accent: "#073642", ring: "#073642", label: { en: "Solar", ko: "솔라" }, Icon: Sunrise, iconColor: "#b58900" },
   { id: "dark", bg: "#09090b", fg: "#fafafa", accent: "#27272a", ring: "#71717a", label: { en: "Dark", ko: "다크" }, Icon: Moon, iconColor: "#a1a1aa" },
   { id: "tokyonight", bg: "#1a1b26", fg: "#c0caf5", accent: "#7aa2f7", ring: "#7aa2f7", label: { en: "Tokyo", ko: "도쿄" }, Icon: Star, iconColor: "#7aa2f7" },
-  { id: "lovelace", bg: "#1d1f28", fg: "#fdfdfd", accent: "#c574dd", ring: "#c574dd", label: { en: "Love", ko: "러브" }, Icon: Heart, iconColor: "#c574dd" },
+  { id: "lovelace", bg: "#191724", fg: "#e0def4", accent: "#eb6f92", ring: "#eb6f92", label: { en: "Rosé", ko: "로제" }, Icon: Heart, iconColor: "#eb6f92" },
   { id: "gruvbox", bg: "#1d2021", fg: "#ebdbb2", accent: "#fe8019", ring: "#fe8019", label: { en: "Gruvbox", ko: "그루브" }, Icon: Flame, iconColor: "#fe8019" },
   { id: "catppuccin", bg: "#1e1e2e", fg: "#cdd6f4", accent: "#cba6f7", ring: "#cba6f7", label: { en: "Mocha", ko: "모카" }, Icon: Cat, iconColor: "#cba6f7" },
   { id: "nord", bg: "#2e3440", fg: "#eceff4", accent: "#88c0d0", ring: "#88c0d0", label: { en: "Nord", ko: "노르드" }, Icon: Snowflake, iconColor: "#88c0d0" },
-  { id: "github", bg: "#ffffff", fg: "#1f2328", accent: "#0969da", ring: "#0969da", label: { en: "GitHub", ko: "깃허브" }, Icon: Code2, iconColor: "#0969da" },
 ]
 
 const modelStyles: Record<Provider, { activeBorder: string; glow: string; iconBg: string; iconColor: string; dot: string }> = {
