@@ -53,7 +53,7 @@ export default function ChatThread({
   }
 
   return (
-    <div className="px-4 py-6">
+    <div className="px-4 py-6" role="log" aria-live="polite">
       <div className="max-w-3xl mx-auto w-full flex flex-col">
         {messages.map((msg) => (
           <ChatBubble key={msg.id} message={msg} locale={locale} onNewDiscussion={onNewDiscussion} />

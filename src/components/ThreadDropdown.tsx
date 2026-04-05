@@ -121,6 +121,8 @@ export default function ThreadDropdown({
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         className="flex items-center gap-1.5 text-sm font-semibold text-[var(--foreground)] hover:text-[var(--foreground)]/80 transition-colors max-w-[200px] sm:max-w-[300px]"
       >
         <span className="truncate">{displayTitle}</span>

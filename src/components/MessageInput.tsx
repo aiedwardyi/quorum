@@ -151,6 +151,7 @@ export default function MessageInput({
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder={t.placeholder}
+            aria-label={t.placeholder}
             className="w-full max-h-[200px] min-h-[56px] resize-none bg-transparent px-4 py-4 text-[15px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none"
             rows={1}
           />
@@ -162,6 +163,7 @@ export default function MessageInput({
                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
                 disabled={disabled}
                 title={t.attach}
+                aria-label={t.attach}
                 className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
               >
                 <Paperclip className="w-4 h-4" />

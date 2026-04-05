@@ -101,7 +101,7 @@ export default function ConsensusMeter({
               <span className="text-xs ml-0.5">%</span>
             </motion.div>
           ) : (
-            <span className="text-[10px] font-mono font-medium text-zinc-400 dark:text-zinc-600 tracking-widest animate-pulse">
+            <span className="text-[10px] font-mono font-medium text-zinc-400 dark:text-zinc-600 tracking-widest animate-pulse" aria-live="polite">
               {t.analyzing}
             </span>
           )}
