@@ -52,8 +52,8 @@ describe("shouldAutoSave", () => {
     expect(shouldAutoSave(true, "thread-123")).toBe(true)
   })
 
-  it("returns true when threadId is an empty string (not null)", () => {
-    expect(shouldAutoSave(true, "")).toBe(true)
+  it("returns false when threadId is an empty string", () => {
+    expect(shouldAutoSave(true, "")).toBe(false)
   })
 })
 

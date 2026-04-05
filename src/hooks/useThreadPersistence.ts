@@ -23,7 +23,7 @@ export function buildSaveMessages(messages: Message[], offset: number): DBMessag
 }
 
 export function shouldAutoSave(isLoggedIn: boolean, threadId: string | null): boolean {
-  return isLoggedIn && threadId !== null
+  return isLoggedIn && !!threadId
 }
 
 // ---- Hook ----
