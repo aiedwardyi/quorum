@@ -51,4 +51,25 @@ describe("shouldAutoSave", () => {
   it("returns true when logged in with thread id", () => {
     expect(shouldAutoSave(true, "thread-123")).toBe(true)
   })
+
+  it("returns false when threadId is an empty string", () => {
+    expect(shouldAutoSave(true, "")).toBe(false)
+  })
+})
+
+describe("buildSaveMessages - additional cases", () => {
+  it("maps multiple messages with non-zero offset", () => {
+    const msgs = [
+      makeMsg("user", "follow-up question", 0),
+      makeMsg("gemini", "gemini reply", 1),
+      makeMsg("claude", "claude reply", 2),
+    ]
+    const result = buildSaveMessages(msgs, 10)
+    expect(result).toHaveLength(3)
+    expect(result[0].orderIndex).toBe(10)
+    expect(result[1].orderIndex).toBe(11)
+    expect(result[2].orderIndex).toBe(12)
+    expect(result[0].content).toBe("follow-up question")
+    expect(result[2].sender).toBe("claude")
+  })
 })

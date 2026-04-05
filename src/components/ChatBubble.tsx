@@ -3,7 +3,10 @@
 import { Message, Provider, Locale } from "@/types"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
-import SummaryCard from "@/components/SummaryCard"
+import dynamic from "next/dynamic"
+const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
+  loading: () => <div className="h-48 w-full max-w-3xl mx-auto mt-8 mb-12 bg-muted rounded-[28px] animate-pulse" />,
+})
 
 const thinkingText = { en: "is thinking...", ko: "생각 중..." }
 

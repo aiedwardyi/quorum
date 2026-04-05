@@ -241,3 +241,156 @@ describe("getAIMessageCount", () => {
     expect(getAIMessageCount([userMsg, systemMsg])).toBe(0)
   })
 })
+
+/* ---- Additional reducer action tests ---- */
+
+describe("reducer - SET_TYPING", () => {
+  it("sets typingModel to a provider", () => {
+    const state = makeState()
+    const next = reducer(state, { type: "SET_TYPING", model: "gemini" })
+    expect(next.typingModel).toBe("gemini")
+  })
+
+  it("sets typingModel to null", () => {
+    const state = makeState({ typingModel: "claude" })
+    const next = reducer(state, { type: "SET_TYPING", model: null })
+    expect(next.typingModel).toBeNull()
+  })
+
+  it("does not mutate other state fields", () => {
+    const state = makeState({ isDebating: true, currentRound: 2 })
+    const next = reducer(state, { type: "SET_TYPING", model: "gpt" })
+    expect(next.isDebating).toBe(true)
+    expect(next.currentRound).toBe(2)
+    expect(next.typingModel).toBe("gpt")
+  })
+})
+
+describe("reducer - SET_DEBATING", () => {
+  it("sets isDebating to true", () => {
+    const state = makeState()
+    const next = reducer(state, { type: "SET_DEBATING", value: true })
+    expect(next.isDebating).toBe(true)
+  })
+
+  it("sets isDebating to false", () => {
+    const state = makeState({ isDebating: true })
+    const next = reducer(state, { type: "SET_DEBATING", value: false })
+    expect(next.isDebating).toBe(false)
+  })
+})
+
+describe("reducer - SET_VERDICT", () => {
+  it("sets verdict result", () => {
+    const state = makeState()
+    const next = reducer(state, { type: "SET_VERDICT", result: verdictData })
+    expect(next.verdict).toBe(verdictData)
+  })
+
+  it("replaces existing verdict", () => {
+    const newVerdict: VerdictResult = {
+      ...verdictData,
+      recommendedAnswer: "Choose Option B.",
+      confidence: 92,
+    }
+    const state = makeState({ verdict: verdictData })
+    const next = reducer(state, { type: "SET_VERDICT", result: newVerdict })
+    expect(next.verdict).toBe(newVerdict)
+    expect(next.verdict!.recommendedAnswer).toBe("Choose Option B.")
+  })
+})
+
+describe("reducer - SET_ROUND", () => {
+  it("sets currentRound to a number", () => {
+    const state = makeState()
+    const next = reducer(state, { type: "SET_ROUND", round: 3 })
+    expect(next.currentRound).toBe(3)
+  })
+
+  it("sets currentRound back to zero", () => {
+    const state = makeState({ currentRound: 5 })
+    const next = reducer(state, { type: "SET_ROUND", round: 0 })
+    expect(next.currentRound).toBe(0)
+  })
+})
+
+describe("reducer - SET_MODELS", () => {
+  it("sets activeModels", () => {
+    const state = makeState()
+    const next = reducer(state, { type: "SET_MODELS", models: ["claude", "gpt"] })
+    expect(next.activeModels).toEqual(["claude", "gpt"])
+  })
+
+  it("replaces existing models completely", () => {
+    const state = makeState({ activeModels: ["gemini", "perplexity"] })
+    const next = reducer(state, { type: "SET_MODELS", models: ["claude"] })
+    expect(next.activeModels).toEqual(["claude"])
+  })
+})
+
+describe("reducer - SET_THREAD_ID", () => {
+  it("sets threadId", () => {
+    const state = makeState()
+    const next = reducer(state, { type: "SET_THREAD_ID", id: "thread-abc" })
+    expect(next.threadId).toBe("thread-abc")
+  })
+
+  it("sets threadId to null", () => {
+    const state = makeState({ threadId: "thread-abc" })
+    const next = reducer(state, { type: "SET_THREAD_ID", id: null })
+    expect(next.threadId).toBeNull()
+  })
+})
+
+describe("reducer - HYDRATE_THREAD", () => {
+  it("hydrates messages and verdict", () => {
+    const state = makeState({ isDebating: true, currentRound: 3, typingModel: "gemini" })
+    const msgs = [userMsg, aiMsg]
+    const next = reducer(state, {
+      type: "HYDRATE_THREAD",
+      messages: msgs,
+      verdict: verdictData,
+      showSummary: true,
+    })
+    expect(next.messages).toBe(msgs)
+    expect(next.verdict).toBe(verdictData)
+    expect(next.showSummary).toBe(true)
+    expect(next.isDebating).toBe(false)
+    expect(next.currentRound).toBe(0)
+    expect(next.typingModel).toBeNull()
+  })
+
+  it("hydrates with null verdict and no summary", () => {
+    const state = makeState()
+    const next = reducer(state, {
+      type: "HYDRATE_THREAD",
+      messages: [userMsg],
+      verdict: null,
+      showSummary: false,
+    })
+    expect(next.messages).toEqual([userMsg])
+    expect(next.verdict).toBeNull()
+    expect(next.showSummary).toBe(false)
+  })
+
+  it("preserves activeModels and threadId", () => {
+    const state = makeState({ activeModels: ["claude", "gpt"], threadId: "t-1" })
+    const next = reducer(state, {
+      type: "HYDRATE_THREAD",
+      messages: [],
+      verdict: null,
+      showSummary: false,
+    })
+    expect(next.activeModels).toEqual(["claude", "gpt"])
+    expect(next.threadId).toBe("t-1")
+  })
+})
+
+describe("reducer - default case (unknown action)", () => {
+  it("returns state unchanged for unknown action type", () => {
+    const state = makeState({ currentRound: 7, isDebating: true })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const next = reducer(state, { type: "UNKNOWN_ACTION" } as any)
+    expect(next).toBe(state)
+  })
+})

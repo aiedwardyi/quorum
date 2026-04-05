@@ -123,6 +123,8 @@ export default function ChatHeader({
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowLengthDropdown(!showLengthDropdown)}
+              aria-haspopup="listbox"
+              aria-expanded={showLengthDropdown}
               className="flex items-center gap-1 sm:gap-1.5 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             >
               <AlignLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 dark:text-zinc-500" />
@@ -187,6 +189,7 @@ export default function ChatHeader({
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             onClick={onToggleTheme}
+            aria-label="Toggle theme"
             className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
           >
             <AnimatePresence mode="popLayout">
@@ -246,6 +249,7 @@ export default function ChatHeader({
           whileTap={{ scale: 0.95 }}
           whileHover={{ scale: 1.05 }}
           onClick={onOpenSettings}
+          aria-label="Settings"
           className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
         >
           <Settings2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
@@ -257,6 +261,9 @@ export default function ChatHeader({
               whileTap={{ scale: 0.95 }}
               whileHover={{ scale: 1.05 }}
               onClick={() => setShowUserMenu(!showUserMenu)}
+              aria-label="User menu"
+              aria-haspopup="menu"
+              aria-expanded={showUserMenu}
               className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
             >
               <User className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />

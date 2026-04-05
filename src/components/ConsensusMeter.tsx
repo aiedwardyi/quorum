@@ -61,7 +61,7 @@ export default function ConsensusMeter({
       className="w-full max-w-2xl mx-auto px-4 mb-3"
     >
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" aria-live="polite">
           <div className="flex items-center gap-2 group/label relative cursor-help">
             <div className="relative">
               {result ? (
