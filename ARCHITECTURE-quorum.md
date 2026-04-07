@@ -107,6 +107,8 @@ export default function ComponentName({ ... }: Props) {
 ### Pattern: Extract Pure Logic for Testing
 
 ```tsx
+"use client"
+
 // 1. Export pure helper functions (top of file)
 export function createMessageId(): string { ... }
 export function getApiMessages(messages: Message[]): ApiMessage[] { ... }
@@ -125,6 +127,7 @@ export function useHookName(config: Config) {
 
 ### Rules
 
+- Mark hooks with `"use client"` on line 1 (hooks use client-side React APIs like `useReducer`, `useSession`).
 - Name hooks `use<Feature>` - one hook per file.
 - Extract all pure logic into standalone exported functions at the top of the file.
 - Export reducers so tests can exercise state transitions directly.
@@ -174,7 +177,7 @@ export async function POST(req: NextRequest) {
 
 ### Rules
 
-- Every mutating route (POST/PATCH/DELETE) must verify the session with `await auth()`.
+- Data-mutation routes (threads, messages, verdicts) must verify the session with `await auth()`. Note: the `/api/chat` and `/api/consensus` routes currently skip auth - see [Known Drift #6](#6-missing-auth-on-chatconsensus-routes-medium-priority).
 - Validate all user input before processing - check types and required fields.
 - Use Prisma transactions for operations spanning multiple tables.
 - Return consistent error shapes: `{ error: string }` with the appropriate HTTP status.
@@ -186,25 +189,23 @@ export async function POST(req: NextRequest) {
 **Reference:** `src/app/api/chat/route.ts`
 
 ```tsx
-export async function POST(req: NextRequest) {
-  const stream = new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder()
-      for await (const chunk of streamFn(prompt, messages, signal)) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ token: chunk })}\n\n`))
-      }
-      controller.enqueue(encoder.encode("data: [DONE]\n\n"))
-      controller.close()
-    },
-  })
-  return new Response(stream, {
-    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
-  })
+// Helper to enqueue SSE events
+function enqueueEvent(payload: object) {
+  controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
 }
+
+// Stream chunks
+for await (const nextChunk of streamFn(prompt, messages, signal)) {
+  enqueueEvent({ chunk: nextChunk })
+}
+
+// Terminate with a done event containing the full response
+enqueueEvent({ done: true, sender, displayName, content: fullContent })
 ```
 
 - Use SSE (`data: ...\n\n`) format for streaming responses.
-- Terminate streams with `data: [DONE]\n\n`.
+- Stream chunks as `{ chunk: string }` payloads.
+- Terminate streams with a `{ done: true, sender, displayName, content }` event containing the full assembled response.
 - Set `Content-Type: text/event-stream` and `Cache-Control: no-cache`.
 
 ---
@@ -218,7 +219,8 @@ export async function POST(req: NextRequest) {
 Every provider exports an async generator with this signature:
 
 ```tsx
-export async function* streamProvider(
+// Naming convention: stream<ProviderName>
+export async function* streamClaude(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
@@ -228,12 +230,15 @@ export async function* streamProvider(
 }
 ```
 
+Concrete exports: `streamClaude()`, `streamGPT()`, `streamGemini()`, `streamPerplexity()`.
+
 ### Rules
 
 - All providers must implement the same `(systemPrompt, messages, signal?, maxTokens?) => AsyncGenerator<string>` signature.
 - Sanitize error messages to strip API keys: `msg.replace(/sk-[a-zA-Z0-9-_]+/g, "sk-***")`.
+- Name streaming functions `stream<ProviderName>` (e.g. `streamClaude`, `streamGPT`).
 - Map provider names to stream functions via a `getStreamFn(provider)` switch in the chat route.
-- For non-streaming use cases (e.g. verdict generation), export a separate `queryProvider()` function.
+- For non-streaming use cases, some providers export a `query<ProviderName>()` function (currently `queryGemini` and `queryPerplexity`). Not all providers need one.
 
 ---
 
@@ -245,7 +250,7 @@ export async function* streamProvider(
 
 - Define all shared types in `src/types.ts` - this is the single source of truth.
 - Use union literals for constrained values: `type Provider = "gemini" | "claude" | "gpt" | "perplexity"`.
-- Import types with the `type` keyword: `import type { Message, Provider } from "@/types"`.
+- Prefer importing types with the `type` keyword: `import type { Message, Provider } from "@/types"`. Some components currently use value imports - prefer `import type` in new code.
 - Module augmentations (e.g. NextAuth session extensions) go in `src/types/*.d.ts`.
 - TypeScript strict mode is enabled - do not weaken it.
 
@@ -260,7 +265,7 @@ export async function* streamProvider(
 - **Tailwind CSS v4** with `@tailwindcss/postcss`
 - **shadcn/ui** for base primitives (`src/components/ui/`)
 - **Framer Motion** for animations
-- **CSS custom properties** for theme tokens (OKLCh color space)
+- **CSS custom properties** for theme tokens (`oklch()` color space)
 
 ### Rules
 
@@ -268,7 +273,7 @@ export async function* streamProvider(
 - Use `cn()` from `src/lib/utils.ts` for conditional/merged class names.
 - Define theme-specific colors as CSS custom properties in `globals.css` (e.g. `--color-theme-accent`).
 - Reference theme tokens via Tailwind's arbitrary value syntax: `bg-[var(--user-bubble)]`.
-- Use Framer Motion's `<motion.div>` for animations - no CSS keyframes.
+- Use Framer Motion's `<motion.div>` for component animations. CSS `@keyframes` are acceptable for standalone decorative effects (e.g. border rotation in `globals.css`).
 - Supported themes: light, dark, tokyonight, lovelace, gruvbox, catppuccin, nord, solarized.
 
 ---
@@ -338,7 +343,7 @@ export async function* streamProvider(
 - Client-side: use `useSession()` from `next-auth/react` wrapped in `<SessionProvider>`.
 - Inject `user.id` into the session via the NextAuth `session` callback.
 - Gracefully degrade when OAuth credentials are missing (log warnings, don't crash).
-- Every mutating API route must verify session ownership before processing.
+- Data-mutation routes must verify session ownership before processing. See [Known Drift #6](#6-missing-auth-on-chatconsensus-routes-medium-priority) for current gaps.
 
 ---
 
@@ -439,7 +444,7 @@ Defined in `.env.example`:
 | `AUTH_SECRET` | NextAuth session encryption |
 | `GOOGLE_CLIENT_ID` | OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | OAuth client secret |
-| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | GCP service account (optional) |
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | GCP service account (optional, used in code but not yet in `.env.example`) |
 
 ### Rules
 
@@ -466,7 +471,7 @@ The patterns above represent the target state. The following inconsistencies exi
 
 ### 1. Translation Duplication (Medium Priority)
 
-**Current state:** Translation objects are copy-pasted across 7+ components (Header, ChatBubble, SummaryCard, SettingsModal, ConsensusMeter, ChatThread, ThreadDropdown).
+**Current state:** Translation objects are copy-pasted across 6 components (Header, MessageInput, SummaryCard, SettingsModal, ConsensusMeter, WelcomeHero).
 
 **Impact:** Adding a new locale or updating a string requires touching every component.
 
@@ -474,9 +479,9 @@ The patterns above represent the target state. The following inconsistencies exi
 
 ### 2. Icon Component Duplication (Low Priority)
 
-**Current state:** `ModelIcon()` components with identical switch statements exist in both `ChatBubble.tsx` and `SettingsModal.tsx`.
+**Current state:** `ModelIcon()` components with identical switch statements exist in three files: `ChatBubble.tsx`, `SettingsModal.tsx`, and `WelcomeHero.tsx`.
 
-**Impact:** Adding a new AI model requires updating multiple icon switch statements.
+**Impact:** Adding a new AI model requires updating three separate icon switch statements.
 
 **Remediation:** Extract to `src/components/ModelIcon.tsx` as a shared component.
 
@@ -503,3 +508,11 @@ The patterns above represent the target state. The following inconsistencies exi
 **Impact:** Missing API keys surface as opaque runtime errors instead of clear startup messages.
 
 **Remediation:** Route all provider env access through a validated config module.
+
+### 6. Missing Auth on Chat/Consensus Routes (Medium Priority)
+
+**Current state:** The `/api/chat` and `/api/consensus` routes do not call `await auth()`. All other mutating routes (threads, messages, verdicts) verify the session.
+
+**Impact:** Unauthenticated users can invoke AI provider calls, which consume API credits.
+
+**Remediation:** Add `await auth()` checks to both routes, consistent with the thread routes pattern.
