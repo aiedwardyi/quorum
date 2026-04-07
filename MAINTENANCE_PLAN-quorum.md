@@ -61,7 +61,7 @@ This function orchestrates the entire multi-round debate lifecycle. It contains:
 - A for-loop iterating rounds (lines 425-442) with conditional divider insertion
 - Session guard checks at multiple async boundaries (lines 446, 449)
 - A separate try-catch for verdict fetching (lines 453-501) with 409 handling
-- 6+ dispatch calls spread across branches
+- 11 dispatch calls spread across branches
 
 **Refactor:** Split into `executeRounds()` and `fetchFinalVerdict()` helper functions.
 
@@ -83,8 +83,8 @@ The SSE parsing loop (lines 270-303) is the densest section:
 
 **File:** `src/app/chat/page.tsx` lines 29-454 (425 lines)
 **Effects:** 9 separate `useEffect` hooks
-**Refs:** 10 refs for coordination (`creatingThreadRef`, `prevMessageCount`, `isHydratingRef`, `threadLoaded`, `initialPromptSent`, `pendingPrompt`, `prevShowSummary`, `hasIncrementedRef`, `mainRef`, `mountKey`)
-**State:** 6 `useState` declarations
+**Refs:** 9 refs for coordination (`creatingThreadRef`, `prevMessageCount`, `isHydratingRef`, `threadLoaded`, `initialPromptSent`, `pendingPrompt`, `prevShowSummary`, `hasIncrementedRef`, `mainRef`)
+**State:** 8 `useState` declarations
 
 This is a God component managing theme application, config hydration, auto-save orchestration, thread loading, scroll behavior, and UI composition.
 
@@ -223,9 +223,9 @@ Several dependencies have available patches:
 
 ### 3. Duplicated ModelIcon components - LOW
 
-**Files:** `src/components/ChatBubble.tsx` line 44, `src/components/SettingsModal.tsx` line 29, `src/components/WelcomeHero.tsx` line 44
+**Files:** `src/components/ChatBubble.tsx` line 44, `src/components/SettingsModal.tsx` line 29, `src/components/WelcomeHero.tsx` line 44, `src/app/page.tsx` lines 17-51
 
-**Issue:** Three identical `ModelIcon` components with the same SVG switch statement. Adding a new AI provider requires updating all three.
+**Issue:** Four sets of model icon components with the same SVG definitions. The home page defines standalone `GeminiIcon`, `PerplexityIcon`, `ClaudeIcon`, and `GPTIcon` components, while the other three files use a `ModelIcon` switch pattern. Adding a new AI provider requires updating all four locations.
 **Fix:** Extract to `src/components/ModelIcon.tsx`.
 
 ---
@@ -250,8 +250,8 @@ Several dependencies have available patches:
 ### 3. Dev-mode error details in production risk - MEDIUM
 
 **File:** `src/app/api/consensus/route.ts` line 136
-**Issue:** Error `detail` field conditionally included when `process.env.NODE_ENV !== "production"`. If environment is misconfigured, internal errors (including provider responses) leak to the client.
-**Fix:** Default to omitting details unless explicitly opt-in. Use a constant check rather than runtime env comparison.
+**Issue:** Error `detail` field conditionally included when `process.env.NODE_ENV === "development"`. This is the safer check (only leaks in explicit dev mode, not in staging/test/unset environments), but internal errors could still surface during local development.
+**Risk:** Low. The check is strict - only explicit development mode triggers it. This is standard practice.
 
 ### 4. Title input not charset-validated - LOW
 
@@ -265,7 +265,7 @@ Several dependencies have available patches:
 
 ### 1. ChatPageContent is a God component - MEDIUM
 
-**File:** `src/app/chat/page.tsx` (455 lines, 9 effects, 10 refs, 6 state vars)
+**File:** `src/app/chat/page.tsx` (455 lines, 9 effects, 9 refs, 8 state vars)
 **Issue:** One component handles theme management, config hydration from sessionStorage, auto-save orchestration, thread loading from URL, scroll behavior, verdict tracking, and UI composition.
 **Fix:** Extract concerns into focused hooks:
 - `useThemeManager(theme)` - theme application and BUG-015 workaround
@@ -359,31 +359,31 @@ Timeout values are scattered across files with no central config:
 | 4 | Add scroll debounce | 10 min | Fewer re-renders while scrolling | `app/chat/page.tsx` |
 | 5 | Wrap `ChatBubble` in `React.memo` | 5 min | Prevents animation restarts | `components/ChatBubble.tsx` |
 | 6 | Centralize timeout constants | 15 min | Single place to tune | New `lib/constants.ts` |
+| 7 | Add rate limiting to API routes | 1 hr | Prevents unbounded API cost abuse | New middleware or per-route |
 
 ### Phase 2 - Component Decomposition (3-5 hours)
 
 | # | Item | Effort | Impact | Files |
 |---|------|--------|--------|-------|
-| 7 | Extract `useThemeManager` hook | 30 min | Eliminates duplication in 2 pages + BUG-015 workaround | New `hooks/useThemeManager.ts`, `app/chat/page.tsx`, `app/page.tsx` |
-| 8 | Extract `ModelIcon` shared component | 15 min | Single update point for new providers | New `components/ModelIcon.tsx`, update 3 consumers |
-| 9 | Extract Vertex AI client factory | 20 min | Eliminates init duplication | `lib/vertex-config.ts`, `lib/providers/gemini.ts`, `api/consensus/route.ts` |
-| 10 | Split `SettingsModal` into tab components | 45 min | Reduces 282-line component | `components/SettingsModal.tsx` |
-| 11 | Split `ChatPageContent` with sub-hooks | 2 hr | Reduces 455-line God component | `app/chat/page.tsx`, new hooks |
+| 8 | Extract `useThemeManager` hook | 30 min | Eliminates duplication in 2 pages + BUG-015 workaround | New `hooks/useThemeManager.ts`, `app/chat/page.tsx`, `app/page.tsx` |
+| 9 | Extract `ModelIcon` shared component | 15 min | Single update point for new providers | New `components/ModelIcon.tsx`, update 4 consumers |
+| 10 | Extract Vertex AI client factory | 20 min | Eliminates init duplication | `lib/vertex-config.ts`, `lib/providers/gemini.ts`, `api/consensus/route.ts` |
+| 11 | Split `SettingsModal` into tab components | 45 min | Reduces 282-line component | `components/SettingsModal.tsx` |
+| 12 | Split `ChatPageContent` with sub-hooks | 2 hr | Reduces 455-line God component | `app/chat/page.tsx`, new hooks |
 
 ### Phase 3 - Complexity Reduction (3-4 hours)
 
 | # | Item | Effort | Impact | Files |
 |---|------|--------|--------|-------|
-| 12 | Extract SSE parser from `callModel` | 1 hr | Testable stream parser, simpler callModel | `hooks/useDebateEngine.ts` |
-| 13 | Split `handleSendWithModels` | 1 hr | Testable round execution + verdict fetch | `hooks/useDebateEngine.ts` |
-| 14 | Extract word-limit transform from chat route | 30 min | Testable, reusable stream transform | `api/chat/route.ts` |
-| 15 | Standardize API error responses | 45 min | Consistent client error handling | All `api/` routes |
+| 13 | Extract SSE parser from `callModel` | 1 hr | Testable stream parser, simpler callModel | `hooks/useDebateEngine.ts` |
+| 14 | Split `handleSendWithModels` | 1 hr | Testable round execution + verdict fetch | `hooks/useDebateEngine.ts` |
+| 15 | Extract word-limit transform from chat route | 30 min | Testable, reusable stream transform | `api/chat/route.ts` |
+| 16 | Standardize API error responses | 45 min | Consistent client error handling | All `api/` routes |
 
 ### Phase 4 - Security & Reliability (2-3 hours)
 
 | # | Item | Effort | Impact | Files |
 |---|------|--------|--------|-------|
-| 16 | Add rate limiting middleware | 1 hr | Prevents API cost abuse | New middleware or per-route |
 | 17 | Broaden error sanitization | 30 min | Prevents credential leaks | `api/chat/route.ts`, providers |
 | 18 | Remove or complete file upload UI | 30 min | Eliminates dead code / user confusion | `app/page.tsx`, `components/MessageInput.tsx` |
 | 19 | Add save-failure indicator | 45 min | User knows when persistence fails | `hooks/useThreadPersistence.ts`, UI |
@@ -397,20 +397,22 @@ Timeout values are scattered across files with no central config:
 | 22 | Update `@types/node` to match prod | 5 min | Correct type definitions | `package.json` |
 | 23 | Add ESLint unused-import rule | 10 min | Catches dead imports | `eslint.config.mjs` |
 
+> **Note:** Rate limiting (item 7) was elevated to Phase 1 due to unauthenticated `/api/chat` and `/api/consensus` routes exposing paid AI provider calls with no throttle.
+
 ---
 
 ### Heatmap: Technical Debt by File
 
 Files ranked by total debt items. Address top files first for maximum impact.
 
-| File | Complexity | Performance | Architecture | Security | Total Items |
-|------|-----------|-------------|--------------|----------|-------------|
-| `hooks/useDebateEngine.ts` | 2 (HIGH) | 1 | 0 | 0 | 3 |
-| `app/chat/page.tsx` | 1 (MED-HIGH) | 2 | 2 | 0 | 5 |
-| `app/api/chat/route.ts` | 1 (MED) | 0 | 1 | 1 | 3 |
-| `app/page.tsx` | 0 | 0 | 1 | 0 | 1 |
-| `components/Header.tsx` | 1 (MED) | 1 | 0 | 0 | 2 |
-| `components/SettingsModal.tsx` | 1 (MED) | 0 | 0 | 0 | 1 |
-| `api/consensus/route.ts` | 0 | 0 | 1 | 1 | 2 |
-| `hooks/useThreadPersistence.ts` | 0 | 0 | 1 | 0 | 1 |
-| `lib/providers/gemini.ts` | 0 | 0 | 0 | 0 | 0 |
+| File | Complexity | Performance | Dead Code | Architecture | Security | Total |
+|------|-----------|-------------|-----------|--------------|----------|-------|
+| `app/chat/page.tsx` | 1 (MED-HIGH) | 2 | 0 | 2 | 0 | 5 |
+| `hooks/useDebateEngine.ts` | 2 (HIGH) | 1 | 0 | 0 | 0 | 3 |
+| `app/page.tsx` | 0 | 1 | 2 | 1 | 0 | 4 |
+| `app/api/chat/route.ts` | 1 (MED) | 0 | 0 | 1 | 1 | 3 |
+| `api/consensus/route.ts` | 0 | 0 | 1 | 1 | 1 | 3 |
+| `components/Header.tsx` | 1 (MED) | 1 | 0 | 0 | 0 | 2 |
+| `lib/providers/gemini.ts` | 0 | 0 | 1 | 0 | 0 | 1 |
+| `components/SettingsModal.tsx` | 1 (MED) | 0 | 0 | 0 | 0 | 1 |
+| `hooks/useThreadPersistence.ts` | 0 | 0 | 0 | 1 | 0 | 1 |
