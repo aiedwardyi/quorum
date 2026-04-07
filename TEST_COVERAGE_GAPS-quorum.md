@@ -23,17 +23,17 @@
 **Config:** `vitest.config.ts` - pattern `src/__tests__/**/*.test.ts`
 **Coverage thresholds:** None configured
 **Total test files:** 7
-**Total test cases:** ~80
+**Total test cases:** 103
 
 | Test File | Lines | Cases | Covers Module | Tests What |
 |-----------|-------|-------|---------------|------------|
 | `clean-response.test.ts` | 51 | 10 | `lib/clean-response.ts` | Pure string transformation |
-| `debate-engine.test.ts` | 396 | 29 | `hooks/useDebateEngine.ts` | Reducer + pure helpers only |
-| `login-gate.test.ts` | 91 | 12 | `components/LoginGate.tsx` | Exported pure functions only |
+| `debate-engine.test.ts` | 396 | 41 | `hooks/useDebateEngine.ts` | Reducer + pure helpers only |
+| `login-gate.test.ts` | 91 | 11 | `components/LoginGate.tsx` | Exported pure functions only |
 | `thread-persistence.test.ts` | 75 | 8 | `hooks/useThreadPersistence.ts` | Exported pure functions only |
 | `types.test.ts` | 24 | 3 | `types.ts` | THEMES constant only |
-| `validate-verdict.test.ts` | 120 | 24 | `lib/validate-verdict.ts` | Full validation logic |
-| `verdict-prompt.test.ts` | 46 | 6 | `lib/verdict-prompt.ts` | Prompt generation |
+| `validate-verdict.test.ts` | 120 | 23 | `lib/validate-verdict.ts` | Full validation logic |
+| `verdict-prompt.test.ts` | 46 | 7 | `lib/verdict-prompt.ts` | Prompt generation |
 
 ### What the tests actually cover
 
@@ -85,8 +85,12 @@ Mapping every source module to its test status.
 | Auth config | `lib/auth.ts` | 28 | MEDIUM |
 | Prisma singleton | `lib/prisma.ts` | 24 | MEDIUM |
 | Vertex config | `lib/vertex-config.ts` | 32 | MEDIUM |
+| Home page | `app/page.tsx` | 706 | MEDIUM |
 | Chat page | `app/chat/page.tsx` | 456 | MEDIUM |
-| All other components | `components/*.tsx` | ~1200 | LOW |
+| Demo page | `app/demo/page.tsx` | 61 | LOW |
+| Root layout | `app/layout.tsx` | 57 | LOW |
+| Error boundary | `app/error.tsx` | 57 | LOW |
+| All components | `components/*.tsx` | ~1840 | LOW |
 
 ---
 
@@ -100,19 +104,19 @@ Mapping every source module to its test status.
 
 | Line(s) | Branch | Risk |
 |---------|--------|------|
-| 130-135 | Input validation: missing messages/provider | Medium - malformed requests pass through |
-| 136 | Provider whitelist check (`VALID_PROVIDERS`) | Medium - invalid provider name could throw |
+| 146-151 | Input validation: missing messages/provider | Medium - malformed requests pass through |
+| 153-158 | Provider whitelist check (`VALID_PROVIDERS`) | Medium - invalid provider name could throw |
 | 160-164 | Response length to maxTokens switch (short/medium/long) | Low - simple mapping |
-| 182-191 | `AbortSignal.any` availability check + fallback | Medium - polyfill path untested |
+| 188-191 | `AbortSignal.any` availability check + fallback | Medium - polyfill path untested |
 | 194-200 | Pre-stream abort detection | Medium - request cancelled before streaming starts |
-| 202-226 | Streaming loop with word-limit truncation | **High** - core streaming logic, truncation edge cases |
+| 203-226 | Streaming loop with word-limit truncation | **High** - core streaming logic, truncation edge cases |
 | 211-215 | Short-response truncation triggers abort | High - could corrupt response |
 | 229-231 | Post-truncation polish (incomplete markdown, trailing conjunctions) | Medium - regex logic |
 | 240-260 | Error handling with credential sanitization | **High** - API key leak risk |
 | 63-71 | `stripUnmatchedPair` helper | Medium - markdown cleaning |
 | 85-89 | Unmatched markdown pair stripping | Medium |
 
-**No auth check present** - any unauthenticated request can invoke AI providers.
+**No auth check present** - any unauthenticated request can invoke AI providers and incur API costs.
 
 #### `/api/consensus` (POST) - `src/app/api/consensus/route.ts`
 
@@ -129,7 +133,7 @@ Mapping every source module to its test status.
 | 124-126 | Hedging phrase detection in verdict | Low - logging only |
 | 129-140 | Error handling: timeout vs generic, dev-only detail stripping | Medium |
 
-**No auth check present.**
+**No auth check present** - unauthenticated access to paid Vertex AI API.
 
 #### `/api/threads` (GET/POST) - `src/app/api/threads/route.ts`
 
@@ -251,7 +255,7 @@ All four providers share the same interface pattern but have zero test coverage.
 | Gemini | `lib/providers/gemini.ts:12-16` | Conditional credential loading from JSON env var | Medium |
 | Gemini | `lib/providers/gemini.ts:113-115` | Silent skip of chunks without text | Medium |
 | Perplexity | `lib/providers/perplexity.ts:5-19` | Multi-AI message packing into single user message | High |
-| Perplexity | `lib/providers/perplexity.ts:88-114` | SSE parsing loop with buffer management | **High** |
+| Perplexity | `lib/providers/perplexity.ts:88-115` | SSE parsing loop with buffer management | **High** |
 | Perplexity | `lib/providers/perplexity.ts:102` | `[DONE]` sentinel handling | Medium |
 
 ---
@@ -315,9 +319,15 @@ Optimistic concurrency control exists across 3 routes but is never tested:
 
 A bug here causes silent data loss or corrupt thread state.
 
+**4. Unauthenticated AI API access**
+
+The `/api/chat` and `/api/consensus` routes have no `await auth()` check. Any unauthenticated request can invoke paid AI providers (Anthropic, OpenAI, Perplexity, Vertex AI), incurring unbounded API costs.
+
+**Files:** `app/api/chat/route.ts`, `app/api/consensus/route.ts`
+
 ### Tier 2 - High Risk
 
-**4. API key sanitization in error messages**
+**5. API key sanitization in error messages**
 
 Provider errors are sanitized with regex patterns:
 - `claude.ts` line 54: `msg.replace(/sk-[a-zA-Z0-9-_]+/g, "sk-***")`
@@ -328,13 +338,13 @@ Risks:
 - Other credential formats (bearer tokens, GCP credentials) are not sanitized
 - Regex could fail on unusual key formats
 
-**5. Auth and ownership verification**
+**6. Auth and ownership verification**
 
-Thread routes verify ownership via `verifyOwnership()` (threads/[id]/route.ts lines 5-11). Chat and consensus routes have no auth check at all. None of this is tested.
+Thread routes verify ownership via `verifyOwnership()` (threads/[id]/route.ts lines 5-11). None of this is tested.
 
-**6. Perplexity SSE parser**
+**7. Perplexity SSE parser**
 
-Custom SSE parsing in `lib/providers/perplexity.ts` (lines 88-114):
+Custom SSE parsing in `lib/providers/perplexity.ts` (lines 88-115):
 - Buffer-based line splitting
 - Manual `data:` prefix detection
 - `[DONE]` sentinel handling
@@ -344,14 +354,14 @@ This is a hand-rolled protocol parser with no tests.
 
 ### Tier 3 - Medium Risk
 
-**7. Gemini timeout wrapper**
+**8. Gemini timeout wrapper**
 
 Custom async generator timeout in `lib/providers/gemini.ts` (lines 65-94):
 - `Promise.race` between `iterator.next()` and timeout
 - Cleanup in finally block
 - 15s per-chunk timeout
 
-**8. Multi-round debate orchestration**
+**9. Multi-round debate orchestration**
 
 `useDebateEngine.handleSendWithModels` (lines 388-510):
 - Session ID coordination across rounds
@@ -359,7 +369,7 @@ Custom async generator timeout in `lib/providers/gemini.ts` (lines 65-94):
 - Round divider insertion
 - Post-debate verdict generation
 
-**9. Chat page lifecycle**
+**10. Chat page lifecycle**
 
 `app/chat/page.tsx` (456 lines):
 - Theme hydration from localStorage (lines 51-62)
@@ -420,12 +430,14 @@ Custom async generator timeout in `lib/providers/gemini.ts` (lines 65-94):
 ```
                     Tested    Untested
                     ------    --------
-CRITICAL paths:       0          3      (streaming, consensus, version conflicts)
-HIGH risk paths:      0          6      (auth, providers, sanitization, SSE parsing,
-                                         ownership, Gemini timeout)
-MEDIUM risk paths:    3          6      (debate orchestration, chat lifecycle,
-                                         config, auth config, prisma, vertex)
-LOW risk paths:       4          2      (types, utils, component rendering)
+CRITICAL paths:       0          4      (streaming, consensus, version conflicts,
+                                         unauthenticated API access)
+HIGH risk paths:      0          7      (sanitization, providers, SSE parsing,
+                                         ownership, Gemini timeout, auth,
+                                         Perplexity parser)
+MEDIUM risk paths:    3          7      (debate orchestration, chat lifecycle,
+                                         home page, config, auth config, prisma, vertex)
+LOW risk paths:       4          3      (types, utils, component rendering, demo/layout)
 ```
 
 ### Estimated Line Coverage
@@ -434,12 +446,13 @@ LOW risk paths:       4          2      (types, utils, component rendering)
 |----------|-------|-------------|----------|
 | Pure utilities | ~180 | ~180 | ~100% |
 | Reducer logic | ~65 | ~65 | ~100% |
-| Hook behavior | ~725 | 0 | 0% |
+| Hook behavior | ~575 | 0 | 0% |
 | API routes | ~750 | 0 | 0% |
 | Provider functions | ~350 | 0 | 0% |
-| Components | ~1500 | 0 | 0% |
+| Pages (home, chat, demo, layout, error) | ~1280 | 0 | 0% |
+| Components | ~1840 | 0 | 0% |
 | Config/auth | ~85 | 0 | 0% |
-| **Total** | **~3655** | **~245** | **~7%** |
+| **Total** | **~5125** | **~245** | **~5%** |
 
 ---
 
@@ -600,4 +613,6 @@ Estimated: ~15 test cases.
 | 5. Components | ~15 | Medium | **Low** - covers UI correctness |
 | **Total** | **~129** | | |
 
-Adding these ~129 tests would raise estimated coverage from ~7% to ~45-55%, with all critical and high-risk paths exercised.
+Adding these ~129 tests would raise estimated coverage from ~5% to ~35-45%, with all critical and high-risk paths exercised.
+
+> **Note:** `src/lib/providers/test-providers.ts` is a manual integration test script (run via `npm run test:providers`) - it is not part of the Vitest automated suite and is excluded from the counts above.
