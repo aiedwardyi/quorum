@@ -140,7 +140,7 @@ function modelDisplayName(id: Provider): string {
 export default function Home() {
   const router = useRouter()
   const [theme, setTheme] = useState<Theme>("dark")
-  const [locale, setLocale] = useState<Locale>("en")
+  const [locale, setLocale] = useState<Locale>("ko")
   const [prompt, setPrompt] = useState("")
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
@@ -200,6 +200,11 @@ export default function Home() {
       }
     }
     applyTheme()
+
+    const savedLocale = localStorage.getItem("quorum_locale") as string | null
+    if (savedLocale === "en" || savedLocale === "ko") {
+      setLocale(savedLocale)
+    }
 
     // BUG-015: Re-apply theme when page becomes visible again
     // (handles both bfcache restore and Next.js client-side back/forward)
@@ -326,7 +331,11 @@ export default function Home() {
           <motion.button
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
-            onClick={() => setLocale(locale === "en" ? "ko" : "en")}
+            onClick={() => {
+              const next = locale === "en" ? "ko" : "en"
+              setLocale(next)
+              localStorage.setItem("quorum_locale", next)
+            }}
             className={cn("cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors rounded-md px-1", theme === "lovelace" && "hover:ring-2 hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-2 hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-2 hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-2 hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-2 hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-2 hover:ring-[#073642]/50")}
           >
             {locale === "en" ? "EN" : "KO"}

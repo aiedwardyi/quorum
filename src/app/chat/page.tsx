@@ -28,7 +28,7 @@ export default function ChatPage() {
 
 function ChatPageContent() {
   // Config loaded from sessionStorage (set by homepage)
-  const [locale, setLocale] = useState<Locale>("en")
+  const [locale, setLocale] = useState<Locale>("ko")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(3)
   const [theme, setTheme] = useState<Theme>("dark")
@@ -100,6 +100,11 @@ function ChatPageContent() {
     if (savedTheme === "github") { savedTheme = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
     if (savedTheme && (THEMES as readonly string[]).includes(savedTheme)) {
       setTheme(savedTheme as Theme)
+    }
+
+    const savedLocale = localStorage.getItem("quorum_locale") as string | null
+    if (savedLocale === "en" || savedLocale === "ko") {
+      setLocale(savedLocale)
     }
 
     const raw = sessionStorage.getItem("quorum_config")
@@ -385,7 +390,11 @@ function ChatPageContent() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         locale={locale}
-        onToggleLocale={() => setLocale((l) => (l === "en" ? "ko" : "en"))}
+        onToggleLocale={() => setLocale((l) => {
+          const next = l === "en" ? "ko" : "en"
+          localStorage.setItem("quorum_locale", next)
+          return next
+        })}
         activeModels={state.activeModels}
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         maxRounds={maxRounds}
