@@ -532,6 +532,7 @@ export default function Home() {
                   ref={fileInputRef}
                   className="hidden"
                   multiple
+                  accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv"
                   onChange={(e) => {
                     if (e.target.files) {
                       setFiles((prev) => [...prev, ...Array.from(e.target.files!)])

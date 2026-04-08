@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { Provider, Locale } from "@/types"
 import { Send, Square, Paperclip, X, FileText, File } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { parseFile } from "@/lib/file-parser"
 
 const translations = {
   en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file" },
@@ -49,14 +50,38 @@ export default function MessageInput({
     }
   }, [attachedFiles])
 
-  const handleSend = () => {
-    if (text.trim() && !disabled) {
-      onSend(text.trim(), "all")
-      setText("")
-      attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
-      setAttachedFiles([])
-      if (textareaRef.current) textareaRef.current.style.height = "auto"
+  const handleSend = async () => {
+    if ((!text.trim() && attachedFiles.length === 0) || disabled) return
+
+    let messageText = text.trim()
+
+    if (attachedFiles.length > 0) {
+      const fileContents: string[] = []
+      for (const af of attachedFiles) {
+        try {
+          const content = await parseFile(af.file)
+          if (content && !content.startsWith('[Unsupported')) {
+            fileContents.push(`--- File: ${af.file.name} ---\n${content}`)
+          }
+        } catch (err) {
+          console.error(`Failed to parse ${af.file.name}:`, err)
+          fileContents.push(`--- File: ${af.file.name} ---\n[Error: Could not read file]`)
+        }
+      }
+      if (fileContents.length > 0) {
+        messageText = messageText
+          ? `${messageText}\n\n${fileContents.join('\n\n')}`
+          : fileContents.join('\n\n')
+      }
     }
+
+    if (!messageText) return
+
+    onSend(messageText, "all")
+    setText("")
+    attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
+    setAttachedFiles([])
+    if (textareaRef.current) textareaRef.current.style.height = "auto"
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -158,7 +183,7 @@ export default function MessageInput({
 
           <div className="flex items-center justify-between px-3 pb-3 pt-1">
             <div className="flex items-center gap-1">
-              <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)) }} className="hidden" multiple />
+              <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)) }} className="hidden" multiple accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv" />
               <button
                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
                 disabled={disabled}
@@ -182,7 +207,7 @@ export default function MessageInput({
               ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleSend() }}
-                  disabled={!text.trim()}
+                  disabled={!text.trim() && attachedFiles.length === 0}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
                 >
                   <Send className="w-3.5 h-3.5" />
