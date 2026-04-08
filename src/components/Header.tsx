@@ -46,6 +46,7 @@ export default function ChatHeader({
   threadTitle,
   threadId,
   onNewDebate,
+  onDeleteCurrent,
 }: {
   currentRound: number
   maxRounds: number
@@ -59,6 +60,7 @@ export default function ChatHeader({
   threadTitle?: string | null
   threadId?: string | null
   onNewDebate?: () => void
+  onDeleteCurrent?: () => void
 }) {
   const { data: session } = useSession()
   const isLoggedIn = !!session?.user
@@ -96,6 +98,7 @@ export default function ChatHeader({
             currentTitle={threadTitle ?? null}
             locale={locale}
             onNewDebate={onNewDebate}
+            onDeleteCurrent={onDeleteCurrent}
           />
         ) : (
           <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Quorum</h1>

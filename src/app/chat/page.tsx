@@ -384,6 +384,7 @@ function ChatPageContent() {
         threadTitle={currentTitle}
         threadId={state.threadId}
         onNewDebate={handleNewDebate}
+        onDeleteCurrent={handleNewDebate}
       />
 
       <SettingsModal
