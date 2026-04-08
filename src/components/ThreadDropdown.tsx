@@ -77,23 +77,22 @@ export default function ThreadDropdown({
     }
   }, [])
 
-  // Fetch on open, reset search
+  // Fetch on open, reset state, focus search
+  const skipNextSearchEffect = useRef(false)
   useEffect(() => {
-    if (isOpen) {
-      setSearch("")
-      setConfirmDeleteId(null)
-      fetchThreads()
-      // Focus search input after render
-      requestAnimationFrame(() => searchInputRef.current?.focus())
-    }
+    if (!isOpen) return
+    skipNextSearchEffect.current = true
+    setSearch("")
+    setConfirmDeleteId(null)
+    fetchThreads()
+    const rafId = requestAnimationFrame(() => searchInputRef.current?.focus())
+    return () => cancelAnimationFrame(rafId)
   }, [isOpen, fetchThreads])
 
-  // Debounced search (only when user types, not on open)
-  const isFirstRender = useRef(true)
+  // Debounced search (only when user types, not on programmatic reset)
   useEffect(() => {
-    if (!isOpen) { isFirstRender.current = true; return }
-    // Skip the first render (handled by the open effect above)
-    if (isFirstRender.current) { isFirstRender.current = false; return }
+    if (!isOpen) return
+    if (skipNextSearchEffect.current) { skipNextSearchEffect.current = false; return }
     const timer = setTimeout(() => fetchThreads(search || undefined), 300)
     return () => clearTimeout(timer)
   }, [search, isOpen, fetchThreads])
@@ -105,18 +104,20 @@ export default function ThreadDropdown({
     return () => clearTimeout(timer)
   }, [confirmDeleteId])
 
+  // Reset navigation flag when the active thread changes (navigation completed)
+  useEffect(() => {
+    isNavigatingRef.current = false
+  }, [currentThreadId])
+
   const handleSelect = (threadId: string) => {
     if (threadId === currentThreadId) {
-      // Already viewing this thread, just close
       setIsOpen(false)
       return
     }
-    // Close immediately without animation to prevent flash during navigation
+    // Close before navigation to minimize visible flicker during the route change
     isNavigatingRef.current = true
     setIsOpen(false)
     router.push(`/chat?thread=${threadId}`)
-    // Reset navigation flag after transition
-    setTimeout(() => { isNavigatingRef.current = false }, 500)
   }
 
   const handleDelete = async (e: React.MouseEvent, threadId: string) => {
