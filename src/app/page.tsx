@@ -325,29 +325,29 @@ export default function Home() {
 
   const buildPromptWithFiles = async (): Promise<{ text: string | null; fileWarnings: string[] }> => {
     let messageText = prompt.trim()
-    const fileWarnings: string[] = []
 
     if (files.length > 0) {
       const results = await Promise.allSettled(
         files.map(async (af) => {
           const parsed = await parseFile(af.file)
           if (parsed.warning === "empty") {
-            fileWarnings.push(t[locale].empty(af.file.name))
-            return null
+            return { content: null, warning: t[locale].empty(af.file.name) }
           }
-          if (parsed.warning === "truncated") {
-            fileWarnings.push(t[locale].truncated(af.file.name))
-          }
+          const warning = parsed.warning === "truncated" ? t[locale].truncated(af.file.name) : null
           if (parsed.text && !parsed.text.startsWith("[Unsupported")) {
-            return `--- File: ${af.file.name} ---\n${parsed.text}`
+            return { content: `--- File: ${af.file.name} ---\n${parsed.text}`, warning }
           }
-          return null
+          return { content: null, warning }
         })
       )
 
+      const fileWarnings = results
+        .map(r => r.status === "fulfilled" ? r.value.warning : null)
+        .filter(Boolean) as string[]
+
       const fileContents = results
         .map((r, i) => {
-          if (r.status === "fulfilled" && r.value) return r.value
+          if (r.status === "fulfilled" && r.value.content) return r.value.content
           if (r.status === "rejected") {
             console.error(`Failed to parse ${files[i].file.name}:`, r.reason)
             return `--- File: ${files[i].file.name} ---\n[Error: Could not read file]`
@@ -361,9 +361,11 @@ export default function Home() {
           ? `${messageText}\n\n${fileContents.join("\n\n")}`
           : fileContents.join("\n\n")
       }
+
+      return { text: messageText || null, fileWarnings }
     }
 
-    return { text: messageText || null, fileWarnings }
+    return { text: messageText || null, fileWarnings: [] }
   }
 
   const handleSubmit = async () => {
@@ -372,6 +374,7 @@ export default function Home() {
     setIsParsing(true)
     try {
       const { text: messageText, fileWarnings } = await buildPromptWithFiles()
+      if (fileWarnings.length > 0) setFileError(fileWarnings.join("\n"))
       if (!messageText) return
 
       if (shouldShowLoginGate(!!session?.user)) {
@@ -394,6 +397,7 @@ export default function Home() {
         locale,
       }
       sessionStorage.setItem("quorum_config", JSON.stringify(config))
+      sessionStorage.removeItem("quorum_file_warnings")
       if (fileWarnings.length > 0) {
         sessionStorage.setItem("quorum_file_warnings", JSON.stringify(fileWarnings))
       }
@@ -561,14 +565,25 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => signIn("google")}
-              className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline text-xs font-bold">Sign In</span>
-            </motion.button>
+            <div className="flex items-center gap-3">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={() => setShowSettings(true)}
+                className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
+                aria-label={t[locale].settings}
+              >
+                <Settings2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => signIn("google")}
+                className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-xs font-bold">Sign In</span>
+              </motion.button>
+            </div>
           )}
         </div>
       </header>
@@ -604,7 +619,7 @@ export default function Home() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="mb-3 px-3 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-xl"
+                    className="mb-3 px-3 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-xl whitespace-pre-line"
                   >
                     {fileError}
                   </motion.div>

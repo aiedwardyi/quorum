@@ -140,7 +140,13 @@ function ChatPageContent() {
       const warningsRaw = sessionStorage.getItem("quorum_file_warnings")
       if (warningsRaw) {
         sessionStorage.removeItem("quorum_file_warnings")
-        try { setFileWarning(JSON.parse(warningsRaw).join("\n")) } catch { /* ignore */ }
+        try {
+          const parsed = JSON.parse(warningsRaw)
+          if (Array.isArray(parsed)) {
+            const joined = parsed.filter((w): w is string => typeof w === "string").join("\n")
+            if (joined) setFileWarning(joined)
+          }
+        } catch { /* ignore */ }
       }
 
       if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
