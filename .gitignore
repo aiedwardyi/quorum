@@ -40,24 +40,19 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Environment
-.env
-.env.local
-
 # Credentials
 service-account*.json
-*.pem
-
-# Environment
-.env
-.env.local
-
-# Credentials
-service-account*.json
-*.pem
 
 # Superpowers brainstorm sessions
 .superpowers/
 
 # Playwright MCP (Claude Code)
 .playwright-mcp/
+
+# Internal planning docs
+CURRENT_SPRINT.md
+IMPLEMENTATION_PLAN.md
+
+# Unused demo drafts
+docs/demo/pipeline-demo-intro.html
+docs/demo/pipeline-demo.html
