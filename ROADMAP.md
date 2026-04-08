@@ -91,8 +91,14 @@ Make saved work, identity, and recommendation UX feel complete.
 - [x] Theme system — 7 themes (Light/Dark/Tokyo Night/Lovelace/Gruvbox/Catppuccin/Nord) with icon grid picker in Settings
 - [x] Theme-aware semantic color tokens (success/warning/danger) — ConsensusMeter + SummaryCard respond to active theme
 - [ ] Additional custom themes (accent colors, more palettes)
-- [ ] Settings page — exists with Account + Preferences tabs
+- [ ] Settings page - exists with Account + Preferences tabs
 - [ ] Voice input (Watson STT)
+- [x] Homepage chat history section (logged-in users can access past debates from homepage)
+- [x] Mobile-friendly chat history (responsive history browsing on chat page)
+- [x] Persistent locale in localStorage
+- [x] **BUG-016**: Gemini streaming cut-off (increased chunk timeout for thinking models)
+- [x] **BUG-017**: Perplexity garbled characters (HTML entity and citation artifact cleanup)
+- [x] **BUG-018**: Contradicting verdicts across rounds (prior verdict context in consensus prompt)
 
 ---
 
@@ -109,6 +115,8 @@ Differentiate beyond generic multi-model chat.
 - [ ] Custom model support (any OpenAI-compatible endpoint)
 - [ ] Cost tracking dashboard
 - [ ] Share full sessions via link
+- [ ] Analytics dashboard (signups, active users, debates, model usage, language distribution)
+- [x] File reading support (PDF, DOCX, Excel) - parse and send as context to AI models
 
 ---
 
