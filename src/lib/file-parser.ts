@@ -5,10 +5,11 @@
 
 const MAX_FILE_CHARS = 50000
 const MAX_PDF_PAGES = 20
+const MAX_FILE_SIZE_MB = 50
 
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
-export type ParseWarning = "truncated" | "empty"
+export type ParseWarning = "truncated" | "empty" | "too_large" | "parse_error"
 
 export interface ParseResult {
   text: string
@@ -16,14 +17,24 @@ export interface ParseResult {
 }
 
 export async function parseFile(file: File): Promise<ParseResult> {
+  const sizeMB = file.size / (1024 * 1024)
+  if (sizeMB > MAX_FILE_SIZE_MB) {
+    return { text: '', warning: 'too_large' }
+  }
+
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
 
   let result: string
-  if (ext === 'pdf') result = await parsePDF(file)
-  else if (ext === 'docx') result = await parseDOCX(file)
-  else if (ext === 'xlsx' || ext === 'xls') result = await parseExcel(file)
-  else if (ext === 'txt' || ext === 'md' || ext === 'csv') result = await parseText(file)
-  else return { text: `[Unsupported file type: ${file.name}]` }
+  try {
+    if (ext === 'pdf') result = await parsePDF(file)
+    else if (ext === 'docx') result = await parseDOCX(file)
+    else if (ext === 'xlsx' || ext === 'xls') result = await parseExcel(file)
+    else if (ext === 'txt' || ext === 'md' || ext === 'csv') result = await parseText(file)
+    else return { text: `[Unsupported file type: ${file.name}]` }
+  } catch (err) {
+    console.error(`[file-parser] Failed to parse ${file.name}:`, err)
+    return { text: '', warning: 'parse_error' }
+  }
 
   if (!result.trim()) {
     return { text: '', warning: 'empty' }
