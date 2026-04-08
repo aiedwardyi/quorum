@@ -292,7 +292,7 @@ function ChatPageContent() {
       }
 
       // Rebuild client messages from DB records
-      const messages: Message[] = thread.messages.map((m: { id: string; sender: string; displayName: string; content: string }) => ({
+      const messages: Message[] = thread.messages.map((m: { id: string; sender: string; displayName: string; content: string; createdAt: string }) => ({
         id: `db-${m.id}`,
         sender: m.sender as Message["sender"],
         displayName: m.displayName,
