@@ -6,7 +6,7 @@ import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Setti
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
 import { THEMES } from "@/types"
-import type { Provider, ResponseLength, Locale, Theme } from "@/types"
+import type { Provider, ResponseLength, Locale, Theme, ThreadSummary } from "@/types"
 import { cn } from "@/lib/utils"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
@@ -135,6 +135,20 @@ function modelDisplayName(id: Provider): string {
   return id.charAt(0).toUpperCase() + id.slice(1)
 }
 
+/* ─── Time helper ─── */
+
+function timeAgo(date: string, locale: Locale): string {
+  const diff = Date.now() - new Date(date).getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return locale === "ko" ? "방금" : "just now"
+  if (minutes < 60) return locale === "ko" ? `${minutes}분 전` : `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return locale === "ko" ? `${hours}시간 전` : `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return locale === "ko" ? `${days}일 전` : `${days}d ago`
+  return new Date(date).toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US", { month: "short", day: "numeric" })
+}
+
 /* ─── Component ─── */
 
 export default function Home() {
@@ -159,6 +173,15 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [recentThreads, setRecentThreads] = useState<ThreadSummary[]>([])
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    fetch("/api/threads")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.threads) setRecentThreads(data.threads.slice(0, 5)) })
+      .catch(() => {})
+  }, [isLoggedIn])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -694,6 +717,50 @@ export default function Home() {
             </div>
           </div>
         </motion.div>
+
+          {/* Recent Debates */}
+          {isLoggedIn && recentThreads.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="mt-12"
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                {locale === "ko" ? "최근 토론" : "Recent Debates"}
+              </span>
+              <div className="mt-4 flex flex-col gap-2">
+                {recentThreads.map((thread) => (
+                  <motion.button
+                    key={thread.id}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => {
+                      sessionStorage.removeItem("quorum_config")
+                      router.push(`/chat?thread=${thread.id}`)
+                    }}
+                    className="w-full text-left p-3 sm:p-4 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-all group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                          {thread.title}
+                        </p>
+                        {thread.verdicts[0] && (
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-1">
+                            {thread.verdicts[0].recommendation}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0 mt-0.5">
+                        {timeAgo(thread.updatedAt, locale)}
+                      </span>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
       </main>
 
       {/* Settings Modal */}
