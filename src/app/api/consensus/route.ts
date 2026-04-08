@@ -46,6 +46,11 @@ export async function POST(req: NextRequest) {
 
     const discussionMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
 
+    // Extract previous verdict recommendations for context
+    const previousVerdicts = messages
+      .filter((m) => m.sender === "verdict")
+      .map((m) => m.content)
+
     const aiMessages = discussionMessages.filter((m) => m.sender !== "user")
     if (aiMessages.length < 2) {
       return NextResponse.json(
@@ -92,7 +97,9 @@ export async function POST(req: NextRequest) {
             role: "user",
             parts: [
               {
-                text: `Here is the discussion to analyze:\n\n${thread}`,
+                text: `Here is the discussion to analyze:\n\n${thread}${previousVerdicts.length > 0
+                  ? `\n\nPrevious verdict(s) from earlier rounds of this discussion:\n${previousVerdicts.map((v, i) => `- Round ${i + 1} verdict: "${v}"`).join("\n")}\n\nThe user continued the discussion after the above verdict(s). Analyze the NEW discussion carefully. Only change the recommendation if there is strong, specific new evidence. Do NOT flip-flop without justification.`
+                  : ""}`,
               },
             ],
           },
