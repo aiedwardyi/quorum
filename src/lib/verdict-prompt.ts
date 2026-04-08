@@ -27,5 +27,6 @@ Rules:
 - reasons: provide 2-4 short, scannable bullet points supporting the recommendation. Each reason should be one sentence.
 - minorityView: the single strongest counterargument. If all models agreed, write "No significant dissent."
 - oppositeCase: one sentence describing when the user should ignore this recommendation and do the opposite.
-- Return ONLY the JSON object. No markdown fences, no explanation, no preamble.${localeRule}`
+- Return ONLY the JSON object. No markdown fences, no explanation, no preamble.
+- If previous verdicts are included in the context, maintain consistency with them unless the continued discussion provides strong, specific new evidence that changes the answer. Stability matters: do not reverse a recommendation without clear justification from the new discussion.${localeRule}`
 }

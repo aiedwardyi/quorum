@@ -6,54 +6,42 @@ import { Search, Plus, Trash2, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import type { ThreadSummary, Locale } from "@/types"
+import { timeAgo } from "@/lib/time"
 
 const t = {
   en: {
     search: "Search threads...",
     newDebate: "New Debate",
     noThreads: "No past debates",
-    deleteConfirm: "Delete this thread?",
     active: "Active",
   },
   ko: {
     search: "토론 검색...",
     newDebate: "새 토론",
     noThreads: "이전 토론이 없습니다",
-    deleteConfirm: "이 토론을 삭제하시겠습니까?",
     active: "진행 중",
   },
 }
 
-function timeAgo(date: string, locale: Locale): string {
-  const diff = Date.now() - new Date(date).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return locale === "ko" ? "방금" : "just now"
-  if (minutes < 60) return locale === "ko" ? `${minutes}분 전` : `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return locale === "ko" ? `${hours}시간 전` : `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return locale === "ko" ? `${days}일 전` : `${days}d ago`
-  return new Date(date).toLocaleDateString(locale === "ko" ? "ko-KR" : "en-US", {
-    month: "short",
-    day: "numeric",
-  })
-}
 
 export default function ThreadDropdown({
   currentThreadId,
   currentTitle,
   locale,
   onNewDebate,
+  onDeleteCurrent,
 }: {
   currentThreadId: string | null
   currentTitle: string | null
   locale: Locale
   onNewDebate: () => void
+  onDeleteCurrent?: () => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [threads, setThreads] = useState<ThreadSummary[]>([])
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const labels = t[locale]
@@ -99,6 +87,13 @@ export default function ThreadDropdown({
     return () => clearTimeout(timer)
   }, [search, isOpen, fetchThreads])
 
+  // Auto-dismiss confirm state after 3s
+  useEffect(() => {
+    if (!confirmDeleteId) return
+    const timer = setTimeout(() => setConfirmDeleteId(null), 3000)
+    return () => clearTimeout(timer)
+  }, [confirmDeleteId])
+
   const handleSelect = (threadId: string) => {
     setIsOpen(false)
     router.push(`/chat?thread=${threadId}`)
@@ -106,12 +101,21 @@ export default function ThreadDropdown({
 
   const handleDelete = async (e: React.MouseEvent, threadId: string) => {
     e.stopPropagation()
-    if (!confirm(labels.deleteConfirm)) return
-    try {
-      const res = await fetch(`/api/threads/${threadId}`, { method: "DELETE" })
-      if (res.ok) setThreads((prev) => prev.filter((t) => t.id !== threadId))
-    } catch {
-      // Silently fail
+    if (confirmDeleteId === threadId) {
+      try {
+        const res = await fetch(`/api/threads/${threadId}`, { method: "DELETE" })
+        if (res.ok) {
+          setThreads((prev) => prev.filter((t) => t.id !== threadId))
+          if (threadId === currentThreadId && onDeleteCurrent) {
+            onDeleteCurrent()
+          }
+        }
+      } catch {
+        // Silently fail
+      }
+      setConfirmDeleteId(null)
+    } else {
+      setConfirmDeleteId(threadId)
     }
   }
 
@@ -147,7 +151,7 @@ export default function ThreadDropdown({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={labels.search}
-                  className="w-full pl-8 pr-3 py-1.5 text-sm bg-transparent text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
+                  className="w-full pl-8 pr-3 py-2 sm:py-1.5 text-sm bg-transparent text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
                   autoFocus
                 />
               </div>
@@ -179,8 +183,9 @@ export default function ThreadDropdown({
                     onClick={() => handleSelect(thread.id)}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(thread.id) } }}
                     className={cn(
-                      "w-full text-left px-3 py-2.5 hover:bg-[var(--accent)] transition-colors group cursor-pointer",
-                      thread.id === currentThreadId && "bg-[var(--accent)]"
+                      "w-full text-left px-3 py-2.5 hover:bg-[var(--accent)] transition-colors group cursor-pointer min-h-[48px]",
+                      thread.id === currentThreadId && "bg-[var(--accent)]",
+                      confirmDeleteId === thread.id && "bg-red-50/50 dark:bg-red-900/10"
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -205,13 +210,30 @@ export default function ThreadDropdown({
                           )}
                         </div>
                       </div>
-                      <button
-                        onClick={(e) => handleDelete(e, thread.id)}
-                        aria-label={locale === "ko" ? "토론 삭제" : "Delete thread"}
-                        className="shrink-0 p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[var(--muted-foreground)] hover:text-red-500 transition-all"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {confirmDeleteId === thread.id ? (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null) }}
+                            className="p-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                          >
+                            {locale === "ko" ? "취소" : "Cancel"}
+                          </button>
+                          <button
+                            onClick={(e) => handleDelete(e, thread.id)}
+                            className="p-1 px-2 text-xs font-medium text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                          >
+                            {locale === "ko" ? "삭제" : "Delete"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => handleDelete(e, thread.id)}
+                          aria-label={locale === "ko" ? "토론 삭제" : "Delete thread"}
+                          className="shrink-0 p-1 opacity-0 group-hover:opacity-100 focus:opacity-100 text-[var(--muted-foreground)] hover:text-red-500 transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))

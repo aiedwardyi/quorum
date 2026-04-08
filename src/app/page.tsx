@@ -6,11 +6,12 @@ import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Setti
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
 import { THEMES } from "@/types"
-import type { Provider, ResponseLength, Locale, Theme } from "@/types"
+import type { Provider, ResponseLength, Locale, Theme, ThreadSummary } from "@/types"
 import { cn } from "@/lib/utils"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
 import LoginGateModal from "@/components/LoginGate"
+import { timeAgo } from "@/lib/time"
 
 /* ─── Model SVG Icons ─── */
 
@@ -140,11 +141,24 @@ function modelDisplayName(id: Provider): string {
 export default function Home() {
   const router = useRouter()
   const [theme, setTheme] = useState<Theme>("dark")
-  const [locale, setLocale] = useState<Locale>("en")
+  const [locale, setLocale] = useState<Locale>(() => {
+    if (typeof window === "undefined") return "ko"
+    const saved = localStorage.getItem("quorum_locale")
+    return saved === "en" || saved === "ko" ? saved : "ko"
+  })
   const [prompt, setPrompt] = useState("")
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
-  const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
-  const [rounds, setRounds] = useState<number>(3)
+  const [responseLength, setResponseLength] = useState<ResponseLength>(() => {
+    if (typeof window === "undefined") return "short"
+    const saved = localStorage.getItem("quorum_responseLength")
+    return saved === "short" || saved === "medium" || saved === "long" ? saved : "short"
+  })
+  const [rounds, setRounds] = useState<number>(() => {
+    if (typeof window === "undefined") return 1
+    const saved = localStorage.getItem("quorum_rounds")
+    if (saved) { const n = parseInt(saved, 10); if ([1, 2, 3, 5].includes(n)) return n }
+    return 1
+  })
   const [isFocused, setIsFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -159,6 +173,15 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [recentThreads, setRecentThreads] = useState<ThreadSummary[]>([])
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    fetch("/api/threads")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.threads) setRecentThreads(data.threads.slice(0, 5)) })
+      .catch(() => {})
+  }, [isLoggedIn])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -326,7 +349,11 @@ export default function Home() {
           <motion.button
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
-            onClick={() => setLocale(locale === "en" ? "ko" : "en")}
+            onClick={() => {
+              const next = locale === "en" ? "ko" : "en"
+              setLocale(next)
+              localStorage.setItem("quorum_locale", next)
+            }}
             className={cn("cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors rounded-md px-1", theme === "lovelace" && "hover:ring-2 hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-2 hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-2 hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-2 hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-2 hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-2 hover:ring-[#073642]/50")}
           >
             {locale === "en" ? "EN" : "KO"}
@@ -500,6 +527,7 @@ export default function Home() {
                   ref={fileInputRef}
                   className="hidden"
                   multiple
+                  accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv"
                   onChange={(e) => {
                     if (e.target.files) {
                       setFiles((prev) => [...prev, ...Array.from(e.target.files!)])
@@ -623,7 +651,7 @@ export default function Home() {
                       <motion.button
                         key={len}
                         whileTap={{ scale: 0.97 }}
-                        onClick={() => setResponseLength(len)}
+                        onClick={() => { setResponseLength(len); localStorage.setItem("quorum_responseLength", len) }}
                         className={`group/len relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                           responseLength === len
                             ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
@@ -655,7 +683,7 @@ export default function Home() {
                       <motion.button
                         key={r.val}
                         whileTap={{ scale: 0.97 }}
-                        onClick={() => setRounds(r.val)}
+                        onClick={() => { setRounds(r.val); localStorage.setItem("quorum_rounds", String(r.val)) }}
                         className={`group/round relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-6 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                           rounds === r.val
                             ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
@@ -685,6 +713,50 @@ export default function Home() {
             </div>
           </div>
         </motion.div>
+
+          {/* Recent Debates */}
+          {isLoggedIn && recentThreads.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="mt-12"
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                {locale === "ko" ? "최근 토론" : "Recent Debates"}
+              </span>
+              <div className="mt-4 flex flex-col gap-2">
+                {recentThreads.map((thread) => (
+                  <motion.button
+                    key={thread.id}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => {
+                      sessionStorage.removeItem("quorum_config")
+                      router.push(`/chat?thread=${thread.id}`)
+                    }}
+                    className="w-full text-left p-3 sm:p-4 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-all group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                          {thread.title}
+                        </p>
+                        {thread.verdicts[0] && (
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-1">
+                            {thread.verdicts[0].recommendation}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0 mt-0.5">
+                        {timeAgo(thread.updatedAt, locale)}
+                      </span>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
       </main>
 
       {/* Settings Modal */}

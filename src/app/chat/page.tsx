@@ -28,11 +28,12 @@ export default function ChatPage() {
 
 function ChatPageContent() {
   // Config loaded from sessionStorage (set by homepage)
-  const [locale, setLocale] = useState<Locale>("en")
-  const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
-  const [maxRounds, setMaxRounds] = useState(3)
+  const [locale, setLocale] = useState<Locale>("ko")
+  const [responseLength, setResponseLength] = useState<ResponseLength>("short")
+  const [maxRounds, setMaxRounds] = useState(1)
   const [theme, setTheme] = useState<Theme>("dark")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isLoadingThread, setIsLoadingThread] = useState(false)
 
   const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
     useDebateEngine({ locale, responseLength, maxRounds })
@@ -100,6 +101,22 @@ function ChatPageContent() {
     if (savedTheme === "github") { savedTheme = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
     if (savedTheme && (THEMES as readonly string[]).includes(savedTheme)) {
       setTheme(savedTheme as Theme)
+    }
+
+    const savedLocale = localStorage.getItem("quorum_locale") as string | null
+    if (savedLocale === "en" || savedLocale === "ko") {
+      setLocale(savedLocale)
+    }
+
+    const savedLength = localStorage.getItem("quorum_responseLength") as string | null
+    if (savedLength === "short" || savedLength === "medium" || savedLength === "long") {
+      setResponseLength(savedLength)
+    }
+
+    const savedRounds = localStorage.getItem("quorum_rounds")
+    if (savedRounds) {
+      const n = parseInt(savedRounds, 10)
+      if ([1, 2, 3, 5].includes(n)) setMaxRounds(n)
     }
 
     const raw = sessionStorage.getItem("quorum_config")
@@ -282,12 +299,14 @@ function ChatPageContent() {
     creatingThreadRef.current = false
     isHydratingRef.current = true
     prevMessageCount.current = 0
+    setIsLoadingThread(true)
     handleReset()
 
     persistence.loadThread(threadParam).then((thread) => {
       if (!thread) {
         isHydratingRef.current = false
         threadLoaded.current = null
+        setIsLoadingThread(false)
         return
       }
 
@@ -345,7 +364,12 @@ function ChatPageContent() {
       })
       dispatch({ type: "SET_THREAD_ID", id: thread.id })
       prevMessageCount.current = messages.length
-      setTimeout(() => { isHydratingRef.current = false }, 0)
+      setTimeout(() => { isHydratingRef.current = false; setIsLoadingThread(false) }, 0)
+    }).catch((err) => {
+      console.error("[thread] Failed to load thread:", err)
+      isHydratingRef.current = false
+      threadLoaded.current = null
+      setIsLoadingThread(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadParam, persistence.isLoggedIn, handleReset])
@@ -370,7 +394,7 @@ function ChatPageContent() {
         currentRound={state.currentRound}
         maxRounds={maxRounds}
         responseLength={responseLength}
-        onChangeResponseLength={setResponseLength}
+        onChangeResponseLength={(len) => { setResponseLength(len); localStorage.setItem("quorum_responseLength", len) }}
         locale={locale}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -379,17 +403,22 @@ function ChatPageContent() {
         threadTitle={currentTitle}
         threadId={state.threadId}
         onNewDebate={handleNewDebate}
+        onDeleteCurrent={handleNewDebate}
       />
 
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         locale={locale}
-        onToggleLocale={() => setLocale((l) => (l === "en" ? "ko" : "en"))}
+        onToggleLocale={() => setLocale((l) => {
+          const next = l === "en" ? "ko" : "en"
+          localStorage.setItem("quorum_locale", next)
+          return next
+        })}
         activeModels={state.activeModels}
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         maxRounds={maxRounds}
-        onChangeRounds={setMaxRounds}
+        onChangeRounds={(r) => { setMaxRounds(r); localStorage.setItem("quorum_rounds", String(r)) }}
         isDebating={state.isDebating}
         theme={theme}
         onChangeTheme={changeTheme}
@@ -406,14 +435,25 @@ function ChatPageContent() {
           setShowScrollDown(distFromBottom > 200)
         }}
       >
-        <ChatThread
-          messages={state.messages}
-          typingModel={state.typingModel}
-          locale={locale}
-          activeModels={state.activeModels}
-          onSendMessage={(text) => handleSend(text, "all")}
-          onNewDiscussion={handleNewDebate}
-        />
+        {isLoadingThread ? (
+          <div className="flex-1 flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-5 h-5 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
+              <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                {locale === "ko" ? "불러오는 중..." : "Loading..."}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <ChatThread
+            messages={state.messages}
+            typingModel={state.typingModel}
+            locale={locale}
+            activeModels={state.activeModels}
+            onSendMessage={(text) => handleSend(text, "all")}
+            onNewDiscussion={handleNewDebate}
+          />
+        )}
       </main>
 
       <AnimatePresence>

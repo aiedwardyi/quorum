@@ -3,12 +3,13 @@
 import React, { useState, useRef, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Provider, Locale } from "@/types"
-import { Send, Square, Paperclip, X, FileText, File } from "lucide-react"
+import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { parseFile } from "@/lib/file-parser"
 
 const translations = {
-  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file" },
-  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부" },
+  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files..." },
+  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중..." },
 }
 
 interface AttachedFile {
@@ -32,8 +33,10 @@ export default function MessageInput({
   const [isDragging, setIsDragging] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [isParsing, setIsParsing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const attachedFilesRef = useRef<AttachedFile[]>([])
   const t = translations[locale]
 
   useEffect(() => {
@@ -43,19 +46,60 @@ export default function MessageInput({
     }
   }, [text])
 
+  // Track current files in ref for unmount cleanup only
   useEffect(() => {
-    return () => {
-      attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
-    }
+    attachedFilesRef.current = attachedFiles
   }, [attachedFiles])
 
-  const handleSend = () => {
-    if (text.trim() && !disabled) {
-      onSend(text.trim(), "all")
+  useEffect(() => {
+    return () => {
+      attachedFilesRef.current.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
+    }
+  }, [])
+
+  const handleSend = async () => {
+    if (isParsing || (!text.trim() && attachedFiles.length === 0) || disabled) return
+    setIsParsing(true)
+
+    try {
+      let messageText = text.trim()
+
+      if (attachedFiles.length > 0) {
+        const results = await Promise.allSettled(
+          attachedFiles.map(async (af) => {
+            const content = await parseFile(af.file)
+            if (content && !content.startsWith('[Unsupported')) {
+              return `--- File: ${af.file.name} ---\n${content}`
+            }
+            return null
+          })
+        )
+
+        const fileContents = results.map((r, i) => {
+          if (r.status === "fulfilled" && r.value) return r.value
+          if (r.status === "rejected") {
+            console.error(`Failed to parse ${attachedFiles[i].file.name}:`, r.reason)
+            return `--- File: ${attachedFiles[i].file.name} ---\n[Error: Could not read file]`
+          }
+          return null
+        }).filter(Boolean) as string[]
+
+        if (fileContents.length > 0) {
+          messageText = messageText
+            ? `${messageText}\n\n${fileContents.join('\n\n')}`
+            : fileContents.join('\n\n')
+        }
+      }
+
+      if (!messageText) return
+
+      onSend(messageText, "all")
       setText("")
       attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
       setAttachedFiles([])
       if (textareaRef.current) textareaRef.current.style.height = "auto"
+    } finally {
+      setIsParsing(false)
     }
   }
 
@@ -82,6 +126,8 @@ export default function MessageInput({
       return prev.filter((f) => f.id !== id)
     })
   }
+
+  const sendDisabled = isParsing || (!text.trim() && attachedFiles.length === 0)
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 pb-6">
@@ -158,10 +204,10 @@ export default function MessageInput({
 
           <div className="flex items-center justify-between px-3 pb-3 pt-1">
             <div className="flex items-center gap-1">
-              <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)) }} className="hidden" multiple />
+              <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)) }} className="hidden" multiple accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv" />
               <button
                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
-                disabled={disabled}
+                disabled={disabled || isParsing}
                 title={t.attach}
                 aria-label={t.attach}
                 className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
@@ -182,11 +228,20 @@ export default function MessageInput({
               ) : (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleSend() }}
-                  disabled={!text.trim()}
+                  disabled={sendDisabled}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  {t.send}
+                  {isParsing ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      {t.parsing}
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      {t.send}
+                    </>
+                  )}
                 </button>
               )}
             </div>

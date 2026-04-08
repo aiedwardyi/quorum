@@ -62,6 +62,11 @@ export function getApiMessages(messages: Message[]): Message[] {
   return messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
 }
 
+/** Like getApiMessages but keeps verdict messages for consensus context */
+export function getConsensusMessages(messages: Message[]): Message[] {
+  return messages.filter((m) => m.sender !== "system")
+}
+
 export function getAIMessageCount(messages: Message[]): number {
   return messages.filter(
     (m) => m.sender !== "user" && m.sender !== "system" && m.sender !== "verdict"
@@ -367,7 +372,7 @@ export function useDebateEngine(config: {
           const res = await fetch("/api/consensus", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: getApiMessages(msgs), locale }),
+            body: JSON.stringify({ messages: getConsensusMessages(msgs), locale }),
           })
           if (res.ok && sessionIdRef.current === sessionId) {
             const result: VerdictResult = await res.json()
@@ -465,7 +470,7 @@ export function useDebateEngine(config: {
               const res = await fetch("/api/consensus", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: getApiMessages(msgs), locale }),
+                body: JSON.stringify({ messages: getConsensusMessages(msgs), locale }),
               })
 
               if (res.ok && sessionIdRef.current === thisSession) {
@@ -553,7 +558,7 @@ export function useDebateEngine(config: {
       fetch("/api/consensus", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: getApiMessages(currentMessages), locale }),
+        body: JSON.stringify({ messages: getConsensusMessages(currentMessages), locale }),
       })
         .then(async (res) => {
           if (!res.ok) throw new Error(`API error: ${res.status}`)

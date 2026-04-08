@@ -60,7 +60,7 @@ export async function queryGemini(
   return text
 }
 
-const STREAM_CHUNK_TIMEOUT_MS = 15_000
+const STREAM_CHUNK_TIMEOUT_MS = 45_000
 
 async function* withTimeout<T>(
   iterable: AsyncIterable<T>,

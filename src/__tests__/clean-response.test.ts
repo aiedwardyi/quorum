@@ -48,4 +48,30 @@ describe("cleanResponse", () => {
     const input = "Answer.\n\nrEfErEnCeS:\n1. Foo"
     expect(cleanResponse(input)).toBe("Answer.")
   })
+
+  it("decodes HTML entities", () => {
+    expect(cleanResponse("a &lt; b &amp; c &gt; d")).toBe("a < b & c > d")
+    expect(cleanResponse("it&#x27;s &quot;quoted&quot;")).toBe("it's \"quoted\"")
+  })
+
+  it("strips leftover HTML tags", () => {
+    expect(cleanResponse("Hello <b>world</b> and <br/> more.")).toBe(
+      "Hello world and more."
+    )
+  })
+
+  it("removes escaped hex control sequences", () => {
+    expect(cleanResponse("Text\\x08end")).toBe("Textend")
+    expect(cleanResponse("Text\\x0Aend")).toBe("Textend")
+  })
+
+  it("removes garbled \\n08lt-style sequences", () => {
+    expect(cleanResponse("Good response\\n08lt")).toBe("Good response")
+    expect(cleanResponse("Result\\n3foo")).toBe("Result")
+  })
+
+  it("removes stray trailing backslash-escaped fragments", () => {
+    expect(cleanResponse("Some text\\nlt")).toBe("Some text")
+    expect(cleanResponse("Answer\\xyz")).toBe("Answer")
+  })
 })
