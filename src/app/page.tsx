@@ -87,6 +87,7 @@ const t = {
     truncated: (name: string) => `"${name}" is too long - only the first ~20 pages were included`,
     empty: (name: string) => `"${name}" appears to be scanned/empty - no text could be extracted`,
     settings: "Settings",
+    signIn: "Sign In",
     signOut: "Sign Out",
     tooltips: {
       gemini: "Google's flagship multimodal AI model",
@@ -123,6 +124,7 @@ const t = {
     truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`,
     empty: (name: string) => `"${name}" 파일에서 텍스트를 추출할 수 없습니다 (스캔 문서일 수 있음)`,
     settings: "설정",
+    signIn: "로그인",
     signOut: "로그아웃",
     tooltips: {
       gemini: "Google의 최신 멀티모달 AI 모델",
@@ -581,7 +583,7 @@ export default function Home() {
                 className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline text-xs font-bold">Sign In</span>
+                <span className="hidden sm:inline text-xs font-bold">{t[locale].signIn}</span>
               </motion.button>
             </div>
           )}
