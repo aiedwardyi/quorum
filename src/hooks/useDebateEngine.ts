@@ -39,6 +39,22 @@ const SYSTEM_MESSAGES = {
       : "Could not complete analysis. Send a new message to continue.",
 }
 
+/* ---- Client-side verdict validation ---- */
+
+function isValidVerdict(v: unknown): v is VerdictResult {
+  if (!v || typeof v !== "object") return false
+  const obj = v as Record<string, unknown>
+  return (
+    typeof obj.recommendedAnswer === "string" &&
+    typeof obj.voteSplit === "string" &&
+    typeof obj.confidence === "number" &&
+    Number.isFinite(obj.confidence) &&
+    Array.isArray(obj.reasons) &&
+    typeof obj.minorityView === "string" &&
+    typeof obj.oppositeCase === "string"
+  )
+}
+
 /* ---- Helpers (exported for testing) ---- */
 
 export function createMessageId(prefix: string): string {
@@ -375,8 +391,10 @@ export function useDebateEngine(config: {
             body: JSON.stringify({ messages: getConsensusMessages(msgs), locale }),
           })
           if (res.ok && sessionIdRef.current === sessionId) {
-            const result: VerdictResult = await res.json()
-            dispatch({ type: "SET_VERDICT", result })
+            const result = await res.json()
+            if (isValidVerdict(result)) {
+              dispatch({ type: "SET_VERDICT", result })
+            }
           }
         } catch (err) {
           console.error("Verdict check failed:", err)
@@ -474,20 +492,29 @@ export function useDebateEngine(config: {
               })
 
               if (res.ok && sessionIdRef.current === thisSession) {
-                const result: VerdictResult = await res.json()
+                const result = await res.json()
 
-                // Add verdict as inline message
-                const verdictMsg: Message = {
-                  id: createMessageId("verdict"),
-                  sender: "verdict",
-                  displayName: "Verdict",
-                  content: result.recommendedAnswer,
-                  timestamp: new Date(),
-                  verdictData: result,
+                if (!isValidVerdict(result)) {
+                  logDebate("verdict:invalid", { keys: Object.keys(result) })
+                  dispatch({
+                    type: "UPDATE_MESSAGE",
+                    id: analyzingMsg.id,
+                    content: SYSTEM_MESSAGES.analysisFailed(locale),
+                  })
+                } else {
+                  // Add verdict as inline message
+                  const verdictMsg: Message = {
+                    id: createMessageId("verdict"),
+                    sender: "verdict",
+                    displayName: "Verdict",
+                    content: result.recommendedAnswer,
+                    timestamp: new Date(),
+                    verdictData: result,
+                  }
+                  dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
+                  dispatch({ type: "SET_VERDICT", result })
+                  dispatch({ type: "SHOW_SUMMARY" })
                 }
-                dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
-                dispatch({ type: "SET_VERDICT", result })
-                dispatch({ type: "SHOW_SUMMARY" })
               } else if (!res.ok) {
                 dispatch({
                   type: "UPDATE_MESSAGE",
@@ -564,20 +591,23 @@ export function useDebateEngine(config: {
           if (!res.ok) throw new Error(`API error: ${res.status}`)
           return res.json()
         })
-        .then((result: VerdictResult) => {
-          if (sessionIdRef.current === stoppedSession) {
-            const verdictMsg: Message = {
-              id: createMessageId("verdict"),
-              sender: "verdict",
-              displayName: "Verdict",
-              content: result.recommendedAnswer,
-              timestamp: new Date(),
-              verdictData: result,
-            }
-            dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
-            dispatch({ type: "SET_VERDICT", result })
-            dispatch({ type: "SHOW_SUMMARY" })
+        .then((result: unknown) => {
+          if (sessionIdRef.current !== stoppedSession) return
+          if (!isValidVerdict(result)) {
+            logDebate("stop-verdict:invalid", {})
+            throw new Error("Invalid verdict data")
           }
+          const verdictMsg: Message = {
+            id: createMessageId("verdict"),
+            sender: "verdict",
+            displayName: "Verdict",
+            content: result.recommendedAnswer,
+            timestamp: new Date(),
+            verdictData: result,
+          }
+          dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
+          dispatch({ type: "SET_VERDICT", result })
+          dispatch({ type: "SHOW_SUMMARY" })
         })
         .catch((err) => {
           console.error("Stop verdict failed:", err)

@@ -130,7 +130,7 @@ export default function MessageInput({
   // Auto-dismiss file error
   useEffect(() => {
     if (!fileError) return
-    const timer = setTimeout(() => setFileError(null), 5000)
+    const timer = setTimeout(() => setFileError(null), 8000)
     return () => clearTimeout(timer)
   }, [fileError])
 

@@ -4,6 +4,7 @@
  */
 
 const MAX_FILE_CHARS = 50000
+const MAX_PDF_PAGES = 20
 
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
@@ -48,7 +49,8 @@ async function parsePDF(file: File): Promise<string> {
 
   const pages: string[] = []
   let totalLength = 0
-  for (let i = 1; i <= pdf.numPages; i++) {
+  const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES)
+  for (let i = 1; i <= pageLimit; i++) {
     const page = await pdf.getPage(i)
     const content = await page.getTextContent()
     const text = content.items
