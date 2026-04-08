@@ -154,11 +154,24 @@ function timeAgo(date: string, locale: Locale): string {
 export default function Home() {
   const router = useRouter()
   const [theme, setTheme] = useState<Theme>("dark")
-  const [locale, setLocale] = useState<Locale>("ko")
+  const [locale, setLocale] = useState<Locale>(() => {
+    if (typeof window === "undefined") return "ko"
+    const saved = localStorage.getItem("quorum_locale")
+    return saved === "en" || saved === "ko" ? saved : "ko"
+  })
   const [prompt, setPrompt] = useState("")
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
-  const [responseLength, setResponseLength] = useState<ResponseLength>("short")
-  const [rounds, setRounds] = useState<number>(1)
+  const [responseLength, setResponseLength] = useState<ResponseLength>(() => {
+    if (typeof window === "undefined") return "short"
+    const saved = localStorage.getItem("quorum_responseLength")
+    return saved === "short" || saved === "medium" || saved === "long" ? saved : "short"
+  })
+  const [rounds, setRounds] = useState<number>(() => {
+    if (typeof window === "undefined") return 1
+    const saved = localStorage.getItem("quorum_rounds")
+    if (saved) { const n = parseInt(saved, 10); if ([1, 2, 3, 5].includes(n)) return n }
+    return 1
+  })
   const [isFocused, setIsFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -223,22 +236,6 @@ export default function Home() {
       }
     }
     applyTheme()
-
-    const savedLocale = localStorage.getItem("quorum_locale") as string | null
-    if (savedLocale === "en" || savedLocale === "ko") {
-      setLocale(savedLocale)
-    }
-
-    const savedLength = localStorage.getItem("quorum_responseLength") as string | null
-    if (savedLength === "short" || savedLength === "medium" || savedLength === "long") {
-      setResponseLength(savedLength)
-    }
-
-    const savedRounds = localStorage.getItem("quorum_rounds")
-    if (savedRounds) {
-      const n = parseInt(savedRounds, 10)
-      if ([1, 2, 3, 5].includes(n)) setRounds(n)
-    }
 
     // BUG-015: Re-apply theme when page becomes visible again
     // (handles both bfcache restore and Next.js client-side back/forward)
