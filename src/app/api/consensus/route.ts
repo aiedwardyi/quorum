@@ -27,9 +27,9 @@ const MAX_MESSAGE_CHARS = 2000
 function stripFileContent(content: string): string {
   const fileMarker = "--- File:"
   const idx = content.indexOf(fileMarker)
-  if (idx > 0) {
+  if (idx >= 0) {
     const question = content.slice(0, idx).trim()
-    return question || content.slice(0, MAX_MESSAGE_CHARS) + "\n[...file content omitted]"
+    return question || "[File uploaded without question]"
   }
   if (content.length > MAX_MESSAGE_CHARS) {
     return content.slice(0, MAX_MESSAGE_CHARS) + "\n[...truncated]"

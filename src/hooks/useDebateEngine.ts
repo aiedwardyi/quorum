@@ -50,6 +50,7 @@ function isValidVerdict(v: unknown): v is VerdictResult {
     typeof obj.confidence === "number" &&
     Number.isFinite(obj.confidence) &&
     Array.isArray(obj.reasons) &&
+    obj.reasons.every((r: unknown) => typeof r === "string") &&
     typeof obj.minorityView === "string" &&
     typeof obj.oppositeCase === "string"
   )
@@ -495,7 +496,7 @@ export function useDebateEngine(config: {
                 const result = await res.json()
 
                 if (!isValidVerdict(result)) {
-                  logDebate("verdict:invalid", { keys: Object.keys(result) })
+                  logDebate("verdict:invalid", { type: typeof result })
                   dispatch({
                     type: "UPDATE_MESSAGE",
                     id: analyzingMsg.id,
