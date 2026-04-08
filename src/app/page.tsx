@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
 import LoginGateModal from "@/components/LoginGate"
+import { timeAgo } from "@/lib/time"
 
 /* ─── Model SVG Icons ─── */
 
@@ -134,10 +135,6 @@ function modelDisplayName(id: Provider): string {
   if (id === "gpt") return "GPT"
   return id.charAt(0).toUpperCase() + id.slice(1)
 }
-
-/* ─── Time helper ─── */
-
-import { timeAgo } from "@/lib/time"
 
 /* ─── Component ─── */
 
