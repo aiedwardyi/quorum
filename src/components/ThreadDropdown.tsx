@@ -23,7 +23,6 @@ const t = {
   },
 }
 
-
 export default function ThreadDropdown({
   currentThreadId,
   currentTitle,
@@ -43,6 +42,8 @@ export default function ThreadDropdown({
   const [loading, setLoading] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const isNavigatingRef = useRef(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const labels = t[locale]
 
@@ -76,13 +77,23 @@ export default function ThreadDropdown({
     }
   }, [])
 
+  // Fetch on open, reset search
   useEffect(() => {
-    if (isOpen) fetchThreads()
+    if (isOpen) {
+      setSearch("")
+      setConfirmDeleteId(null)
+      fetchThreads()
+      // Focus search input after render
+      requestAnimationFrame(() => searchInputRef.current?.focus())
+    }
   }, [isOpen, fetchThreads])
 
-  // Debounced search
+  // Debounced search (only when user types, not on open)
+  const isFirstRender = useRef(true)
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen) { isFirstRender.current = true; return }
+    // Skip the first render (handled by the open effect above)
+    if (isFirstRender.current) { isFirstRender.current = false; return }
     const timer = setTimeout(() => fetchThreads(search || undefined), 300)
     return () => clearTimeout(timer)
   }, [search, isOpen, fetchThreads])
@@ -95,12 +106,22 @@ export default function ThreadDropdown({
   }, [confirmDeleteId])
 
   const handleSelect = (threadId: string) => {
+    if (threadId === currentThreadId) {
+      // Already viewing this thread, just close
+      setIsOpen(false)
+      return
+    }
+    // Close immediately without animation to prevent flash during navigation
+    isNavigatingRef.current = true
     setIsOpen(false)
     router.push(`/chat?thread=${threadId}`)
+    // Reset navigation flag after transition
+    setTimeout(() => { isNavigatingRef.current = false }, 500)
   }
 
   const handleDelete = async (e: React.MouseEvent, threadId: string) => {
     e.stopPropagation()
+    e.preventDefault()
     if (confirmDeleteId === threadId) {
       try {
         const res = await fetch(`/api/threads/${threadId}`, { method: "DELETE" })
@@ -119,12 +140,17 @@ export default function ThreadDropdown({
     }
   }
 
+  const handleToggle = () => {
+    if (isNavigatingRef.current) return
+    setIsOpen((prev) => !prev)
+  }
+
   const displayTitle = currentTitle || "Quorum"
 
   return (
     <div ref={dropdownRef} className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className="flex items-center gap-1.5 text-sm font-semibold text-[var(--foreground)] hover:text-[var(--foreground)]/80 transition-colors max-w-[200px] sm:max-w-[300px]"
@@ -133,13 +159,14 @@ export default function ThreadDropdown({
         <ChevronDown className={cn("w-3.5 h-3.5 shrink-0 transition-transform", isOpen && "rotate-180")} />
       </button>
 
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {isOpen && (
           <motion.div
+            key="thread-dropdown"
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.12 }}
             className="absolute top-full left-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl z-50 overflow-hidden"
           >
             {/* Search */}
@@ -147,12 +174,12 @@ export default function ThreadDropdown({
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--muted-foreground)]" />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={labels.search}
                   className="w-full pl-8 pr-3 py-2 sm:py-1.5 text-sm bg-transparent text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
-                  autoFocus
                 />
               </div>
             </div>
