@@ -365,6 +365,11 @@ function ChatPageContent() {
       dispatch({ type: "SET_THREAD_ID", id: thread.id })
       prevMessageCount.current = messages.length
       setTimeout(() => { isHydratingRef.current = false; setIsLoadingThread(false) }, 0)
+    }).catch((err) => {
+      console.error("[thread] Failed to load thread:", err)
+      isHydratingRef.current = false
+      threadLoaded.current = null
+      setIsLoadingThread(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadParam, persistence.isLoggedIn, handleReset])

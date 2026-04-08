@@ -34,6 +34,7 @@ async function parsePDF(file: File): Promise<string> {
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
 
   const pages: string[] = []
+  let totalLength = 0
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i)
     const content = await page.getTextContent()
@@ -41,7 +42,11 @@ async function parsePDF(file: File): Promise<string> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((item: any) => item.str ?? '')
       .join(' ')
-    if (text.trim()) pages.push(text.trim())
+    if (text.trim()) {
+      pages.push(text.trim())
+      totalLength += text.trim().length
+      if (totalLength >= MAX_FILE_CHARS) break
+    }
   }
 
   return pages.join('\n\n')
@@ -60,11 +65,14 @@ async function parseExcel(file: File): Promise<string> {
   const workbook = XLSX.read(arrayBuffer, { type: 'array' })
 
   const sheets: string[] = []
+  let totalLength = 0
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName]
     const csv = XLSX.utils.sheet_to_csv(sheet)
     if (csv.trim()) {
       sheets.push(`[Sheet: ${sheetName}]\n${csv}`)
+      totalLength += csv.length
+      if (totalLength >= MAX_FILE_CHARS) break
     }
   }
 
