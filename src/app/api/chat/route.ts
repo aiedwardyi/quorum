@@ -56,9 +56,6 @@ function clampToWordLimit(text: string, wordLimit: number): { text: string; trun
   return { text, truncated: false }
 }
 
-function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length
-}
 
 function stripUnmatchedPair(text: string, token: string): string {
   const count = text.split(token).length - 1
@@ -73,9 +70,13 @@ function stripUnmatchedPair(text: string, token: string): string {
 function polishTruncatedShortResponse(text: string, wordLimit: number): string {
   let result = text.trimEnd()
 
-  // Already ends cleanly - just enforce word limit
+  // Already ends cleanly - enforce word limit, but re-check if clamping broke the ending
   if (/[.!?。！？]$/u.test(result)) {
-    return clampToWordLimit(result, wordLimit).text
+    const clamped = clampToWordLimit(result, wordLimit)
+    if (!clamped.truncated || /[.!?。！？]$/u.test(clamped.text)) {
+      return clamped.text
+    }
+    result = clamped.text
   }
 
   // Try to truncate at the last complete sentence
