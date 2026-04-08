@@ -29,8 +29,8 @@ export default function ChatPage() {
 function ChatPageContent() {
   // Config loaded from sessionStorage (set by homepage)
   const [locale, setLocale] = useState<Locale>("ko")
-  const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
-  const [maxRounds, setMaxRounds] = useState(3)
+  const [responseLength, setResponseLength] = useState<ResponseLength>("short")
+  const [maxRounds, setMaxRounds] = useState(1)
   const [theme, setTheme] = useState<Theme>("dark")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingThread, setIsLoadingThread] = useState(false)
@@ -106,6 +106,17 @@ function ChatPageContent() {
     const savedLocale = localStorage.getItem("quorum_locale") as string | null
     if (savedLocale === "en" || savedLocale === "ko") {
       setLocale(savedLocale)
+    }
+
+    const savedLength = localStorage.getItem("quorum_responseLength") as string | null
+    if (savedLength === "short" || savedLength === "medium" || savedLength === "long") {
+      setResponseLength(savedLength)
+    }
+
+    const savedRounds = localStorage.getItem("quorum_rounds")
+    if (savedRounds) {
+      const n = parseInt(savedRounds, 10)
+      if ([1, 2, 3, 5].includes(n)) setMaxRounds(n)
     }
 
     const raw = sessionStorage.getItem("quorum_config")
@@ -378,7 +389,7 @@ function ChatPageContent() {
         currentRound={state.currentRound}
         maxRounds={maxRounds}
         responseLength={responseLength}
-        onChangeResponseLength={setResponseLength}
+        onChangeResponseLength={(len) => { setResponseLength(len); localStorage.setItem("quorum_responseLength", len) }}
         locale={locale}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -402,7 +413,7 @@ function ChatPageContent() {
         activeModels={state.activeModels}
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         maxRounds={maxRounds}
-        onChangeRounds={setMaxRounds}
+        onChangeRounds={(r) => { setMaxRounds(r); localStorage.setItem("quorum_rounds", String(r)) }}
         isDebating={state.isDebating}
         theme={theme}
         onChangeTheme={changeTheme}

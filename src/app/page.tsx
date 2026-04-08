@@ -157,8 +157,8 @@ export default function Home() {
   const [locale, setLocale] = useState<Locale>("ko")
   const [prompt, setPrompt] = useState("")
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
-  const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
-  const [rounds, setRounds] = useState<number>(3)
+  const [responseLength, setResponseLength] = useState<ResponseLength>("short")
+  const [rounds, setRounds] = useState<number>(1)
   const [isFocused, setIsFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -227,6 +227,17 @@ export default function Home() {
     const savedLocale = localStorage.getItem("quorum_locale") as string | null
     if (savedLocale === "en" || savedLocale === "ko") {
       setLocale(savedLocale)
+    }
+
+    const savedLength = localStorage.getItem("quorum_responseLength") as string | null
+    if (savedLength === "short" || savedLength === "medium" || savedLength === "long") {
+      setResponseLength(savedLength)
+    }
+
+    const savedRounds = localStorage.getItem("quorum_rounds")
+    if (savedRounds) {
+      const n = parseInt(savedRounds, 10)
+      if ([1, 2, 3, 5].includes(n)) setRounds(n)
     }
 
     // BUG-015: Re-apply theme when page becomes visible again
@@ -656,7 +667,7 @@ export default function Home() {
                       <motion.button
                         key={len}
                         whileTap={{ scale: 0.97 }}
-                        onClick={() => setResponseLength(len)}
+                        onClick={() => { setResponseLength(len); localStorage.setItem("quorum_responseLength", len) }}
                         className={`group/len relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                           responseLength === len
                             ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
@@ -688,7 +699,7 @@ export default function Home() {
                       <motion.button
                         key={r.val}
                         whileTap={{ scale: 0.97 }}
-                        onClick={() => setRounds(r.val)}
+                        onClick={() => { setRounds(r.val); localStorage.setItem("quorum_rounds", String(r.val)) }}
                         className={`group/round relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-6 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                           rounds === r.val
                             ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
