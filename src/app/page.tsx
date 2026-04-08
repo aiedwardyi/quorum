@@ -12,7 +12,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
 import LoginGateModal from "@/components/LoginGate"
 import { timeAgo } from "@/lib/time"
-import { parseFile } from "@/lib/file-parser"
+import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
 
 /* ─── Model SVG Icons ─── */
 
@@ -60,8 +60,6 @@ const MODELS: { id: Provider; color: string; icon: React.ElementType }[] = [
   { id: "claude", color: "#F97316", icon: ClaudeIcon },
   { id: "gpt", color: "#10B981", icon: GPTIcon },
 ]
-
-const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
 /* ─── Translations ─── */
 
@@ -321,54 +319,60 @@ export default function Home() {
     return () => clearTimeout(timer)
   }, [fileError])
 
+  const buildPromptWithFiles = async (): Promise<string | null> => {
+    let messageText = prompt.trim()
+
+    if (files.length > 0) {
+      const results = await Promise.allSettled(
+        files.map(async (af) => {
+          const content = await parseFile(af.file)
+          if (content && !content.startsWith("[Unsupported")) {
+            return `--- File: ${af.file.name} ---\n${content}`
+          }
+          return null
+        })
+      )
+
+      const fileContents = results
+        .map((r, i) => {
+          if (r.status === "fulfilled" && r.value) return r.value
+          if (r.status === "rejected") {
+            console.error(`Failed to parse ${files[i].file.name}:`, r.reason)
+            return `--- File: ${files[i].file.name} ---\n[Error: Could not read file]`
+          }
+          return null
+        })
+        .filter(Boolean) as string[]
+
+      if (fileContents.length > 0) {
+        messageText = messageText
+          ? `${messageText}\n\n${fileContents.join("\n\n")}`
+          : fileContents.join("\n\n")
+      }
+    }
+
+    return messageText || null
+  }
+
   const handleSubmit = async () => {
     if (isParsing || (!prompt.trim() && files.length === 0)) return
-    if (shouldShowLoginGate(!!session?.user)) {
-      savePendingDebate({
-        prompt: prompt.trim(),
-        models: selectedModels,
-        responseLength,
-        rounds,
-        locale,
-      })
-      setShowGate(true)
-      return
-    }
 
     setIsParsing(true)
     try {
-      let messageText = prompt.trim()
-
-      if (files.length > 0) {
-        const results = await Promise.allSettled(
-          files.map(async (af) => {
-            const content = await parseFile(af.file)
-            if (content && !content.startsWith("[Unsupported")) {
-              return `--- File: ${af.file.name} ---\n${content}`
-            }
-            return null
-          })
-        )
-
-        const fileContents = results
-          .map((r, i) => {
-            if (r.status === "fulfilled" && r.value) return r.value
-            if (r.status === "rejected") {
-              console.error(`Failed to parse ${files[i].file.name}:`, r.reason)
-              return `--- File: ${files[i].file.name} ---\n[Error: Could not read file]`
-            }
-            return null
-          })
-          .filter(Boolean) as string[]
-
-        if (fileContents.length > 0) {
-          messageText = messageText
-            ? `${messageText}\n\n${fileContents.join("\n\n")}`
-            : fileContents.join("\n\n")
-        }
-      }
-
+      const messageText = await buildPromptWithFiles()
       if (!messageText) return
+
+      if (shouldShowLoginGate(!!session?.user)) {
+        savePendingDebate({
+          prompt: messageText,
+          models: selectedModels,
+          responseLength,
+          rounds,
+          locale,
+        })
+        setShowGate(true)
+        return
+      }
 
       const config = {
         prompt: messageText,
@@ -563,12 +567,12 @@ export default function Home() {
           {/* Textarea */}
           <motion.div
             className={`relative group rounded-3xl p-[2px] overflow-hidden -mx-4 sm:-mx-6 ${isDragging ? "ring-4 ring-purple-500" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+            onDragOver={(e) => { e.preventDefault(); if (!isParsing) setIsDragging(true) }}
             onDragLeave={(e) => { e.preventDefault(); setIsDragging(false) }}
             onDrop={(e) => {
               e.preventDefault()
               setIsDragging(false)
-              if (e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files))
+              if (!isParsing && e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files))
             }}
             initial={false}
             animate={{ scale: isFocused ? 1.02 : 1 }}

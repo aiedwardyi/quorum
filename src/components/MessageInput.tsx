@@ -5,9 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Provider, Locale } from "@/types"
 import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { parseFile } from "@/lib/file-parser"
-
-const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
+import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
 
 const translations = {
   en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files" },

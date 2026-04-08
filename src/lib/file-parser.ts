@@ -5,6 +5,8 @@
 
 const MAX_FILE_CHARS = 50000
 
+export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
+
 export async function parseFile(file: File): Promise<string> {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
 
