@@ -84,6 +84,8 @@ const t = {
     attach: "Attach file",
     parsing: "Reading files...",
     unsupported: "Supported: PDF, DOCX, Excel, and text files",
+    truncated: (name: string) => `"${name}" is too long - only the first ~20 pages were included`,
+    empty: (name: string) => `"${name}" appears to be scanned/empty - no text could be extracted`,
     settings: "Settings",
     signOut: "Sign Out",
     tooltips: {
@@ -118,6 +120,8 @@ const t = {
     attach: "파일 첨부",
     parsing: "파일 읽는 중...",
     unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일",
+    truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`,
+    empty: (name: string) => `"${name}" 파일에서 텍스트를 추출할 수 없습니다 (스캔 문서일 수 있음)`,
     settings: "설정",
     signOut: "로그아웃",
     tooltips: {
@@ -315,19 +319,27 @@ export default function Home() {
   // Auto-dismiss file error
   useEffect(() => {
     if (!fileError) return
-    const timer = setTimeout(() => setFileError(null), 3000)
+    const timer = setTimeout(() => setFileError(null), 5000)
     return () => clearTimeout(timer)
   }, [fileError])
 
-  const buildPromptWithFiles = async (): Promise<string | null> => {
+  const buildPromptWithFiles = async (): Promise<{ text: string | null; fileWarnings: string[] }> => {
     let messageText = prompt.trim()
+    const fileWarnings: string[] = []
 
     if (files.length > 0) {
       const results = await Promise.allSettled(
         files.map(async (af) => {
-          const content = await parseFile(af.file)
-          if (content && !content.startsWith("[Unsupported")) {
-            return `--- File: ${af.file.name} ---\n${content}`
+          const parsed = await parseFile(af.file)
+          if (parsed.warning === "empty") {
+            fileWarnings.push(t[locale].empty(af.file.name))
+            return null
+          }
+          if (parsed.warning === "truncated") {
+            fileWarnings.push(t[locale].truncated(af.file.name))
+          }
+          if (parsed.text && !parsed.text.startsWith("[Unsupported")) {
+            return `--- File: ${af.file.name} ---\n${parsed.text}`
           }
           return null
         })
@@ -351,7 +363,7 @@ export default function Home() {
       }
     }
 
-    return messageText || null
+    return { text: messageText || null, fileWarnings }
   }
 
   const handleSubmit = async () => {
@@ -359,7 +371,7 @@ export default function Home() {
 
     setIsParsing(true)
     try {
-      const messageText = await buildPromptWithFiles()
+      const { text: messageText, fileWarnings } = await buildPromptWithFiles()
       if (!messageText) return
 
       if (shouldShowLoginGate(!!session?.user)) {
@@ -382,6 +394,9 @@ export default function Home() {
         locale,
       }
       sessionStorage.setItem("quorum_config", JSON.stringify(config))
+      if (fileWarnings.length > 0) {
+        sessionStorage.setItem("quorum_file_warnings", JSON.stringify(fileWarnings))
+      }
       files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
       router.push("/chat")
     } finally {
@@ -503,6 +518,16 @@ export default function Home() {
                 <span className="text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100">1,250</span>
               </motion.div>
 
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={() => setShowSettings(true)}
+                className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
+                aria-label={t[locale].settings}
+              >
+                <Settings2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+              </motion.button>
+
               <div className="relative" data-header-dropdown>
                 <motion.button
                   whileTap={{ scale: 0.95 }}
@@ -522,14 +547,6 @@ export default function Home() {
                       className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
                     >
                       <div className="p-1">
-                        <button
-                          onClick={() => { setShowDropdown(false); setShowSettings(true) }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-                        >
-                          <Settings2 className="w-4 h-4" />
-                          {t[locale].settings}
-                        </button>
-                        <div className="h-px bg-border my-1" />
                         <button
                           onClick={() => { setShowDropdown(false); signOut() }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"

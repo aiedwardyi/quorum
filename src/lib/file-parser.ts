@@ -7,7 +7,14 @@ const MAX_FILE_CHARS = 50000
 
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
-export async function parseFile(file: File): Promise<string> {
+export type ParseWarning = "truncated" | "empty"
+
+export interface ParseResult {
+  text: string
+  warning?: ParseWarning
+}
+
+export async function parseFile(file: File): Promise<ParseResult> {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
 
   let result: string
@@ -15,12 +22,16 @@ export async function parseFile(file: File): Promise<string> {
   else if (ext === 'docx') result = await parseDOCX(file)
   else if (ext === 'xlsx' || ext === 'xls') result = await parseExcel(file)
   else if (ext === 'txt' || ext === 'md' || ext === 'csv') result = await parseText(file)
-  else return `[Unsupported file type: ${file.name}]`
+  else return { text: `[Unsupported file type: ${file.name}]` }
+
+  if (!result.trim()) {
+    return { text: '', warning: 'empty' }
+  }
 
   if (result.length > MAX_FILE_CHARS) {
-    return result.slice(0, MAX_FILE_CHARS) + '\n[...file truncated]'
+    return { text: result.slice(0, MAX_FILE_CHARS) + '\n[...file truncated]', warning: 'truncated' }
   }
-  return result
+  return { text: result }
 }
 
 async function parseText(file: File): Promise<string> {

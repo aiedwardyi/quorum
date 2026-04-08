@@ -6,10 +6,11 @@ import { Provider, Locale } from "@/types"
 import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
+import type { ParseWarning } from "@/lib/file-parser"
 
 const translations = {
-  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files" },
-  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중...", unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일" },
+  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files", truncated: (name: string) => `"${name}" is too long - only the first ~20 pages were included`, empty: (name: string) => `"${name}" appears to be scanned/empty - no text could be extracted` },
+  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중...", unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일", truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`, empty: (name: string) => `"${name}" 파일에서 텍스트를 추출할 수 없습니다 (스캔 문서일 수 있음)` },
 }
 
 interface AttachedFile {
@@ -23,11 +24,13 @@ export default function MessageInput({
   onStop,
   disabled,
   locale,
+  initialFileWarning,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
   disabled: boolean
   locale: Locale
+  initialFileWarning?: string | null
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -66,15 +69,25 @@ export default function MessageInput({
       let messageText = text.trim()
 
       if (attachedFiles.length > 0) {
+        const warnings: string[] = []
         const results = await Promise.allSettled(
           attachedFiles.map(async (af) => {
-            const content = await parseFile(af.file)
-            if (content && !content.startsWith('[Unsupported')) {
-              return `--- File: ${af.file.name} ---\n${content}`
+            const parsed = await parseFile(af.file)
+            if (parsed.warning === 'empty') {
+              warnings.push(t.empty(af.file.name))
+              return null
+            }
+            if (parsed.warning === 'truncated') {
+              warnings.push(t.truncated(af.file.name))
+            }
+            if (parsed.text && !parsed.text.startsWith('[Unsupported')) {
+              return `--- File: ${af.file.name} ---\n${parsed.text}`
             }
             return null
           })
         )
+
+        if (warnings.length > 0) setFileError(warnings.join('\n'))
 
         const fileContents = results.map((r, i) => {
           if (r.status === "fulfilled" && r.value) return r.value
@@ -111,10 +124,15 @@ export default function MessageInput({
     }
   }
 
+  // Show initial file warning passed from homepage
+  useEffect(() => {
+    if (initialFileWarning) setFileError(initialFileWarning)
+  }, [initialFileWarning])
+
   // Auto-dismiss file error
   useEffect(() => {
     if (!fileError) return
-    const timer = setTimeout(() => setFileError(null), 3000)
+    const timer = setTimeout(() => setFileError(null), 5000)
     return () => clearTimeout(timer)
   }, [fileError])
 
