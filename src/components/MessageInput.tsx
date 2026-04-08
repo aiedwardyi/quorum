@@ -1,15 +1,17 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { Provider, Locale } from "@/types"
 import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseFile } from "@/lib/file-parser"
 
+const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
+
 const translations = {
-  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files..." },
-  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중..." },
+  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files" },
+  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중...", unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일" },
 }
 
 interface AttachedFile {
@@ -34,6 +36,7 @@ export default function MessageInput({
   const [isFocused, setIsFocused] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [isParsing, setIsParsing] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>([])
@@ -110,8 +113,29 @@ export default function MessageInput({
     }
   }
 
+  // Auto-dismiss file error
+  useEffect(() => {
+    if (!fileError) return
+    const timer = setTimeout(() => setFileError(null), 3000)
+    return () => clearTimeout(timer)
+  }, [fileError])
+
   const addFiles = (files: File[]) => {
-    const newFiles = files.map((file) => ({
+    const supported: File[] = []
+    let hasUnsupported = false
+    for (const file of files) {
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
+      if (SUPPORTED_EXTENSIONS.has(ext)) {
+        supported.push(file)
+      } else {
+        hasUnsupported = true
+      }
+    }
+    if (hasUnsupported) {
+      setFileError(t.unsupported)
+    }
+    if (supported.length === 0) return
+    const newFiles = supported.map((file) => ({
       id: Math.random().toString(36).substr(2, 9),
       file,
       preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
@@ -161,6 +185,19 @@ export default function MessageInput({
             isDragging ? "ring-4 ring-purple-500/20 dark:ring-purple-500/30" : ""
           )}
         >
+          <AnimatePresence>
+            {fileError && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-4 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/30"
+              >
+                {fileError}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {attachedFiles.length > 0 && (
             <div className="flex flex-wrap gap-2 p-3 border-b border-zinc-100 dark:border-zinc-800">
               {attachedFiles.map((file) => (
