@@ -17,7 +17,7 @@ const translations = {
     long: "Long",
     roundTooltip: "Current discussion round",
     lengthTooltip: "Set response length",
-    login: "Log In",
+    login: "Sign In",
     logout: "Log Out",
     home: "Home",
     settings: "Settings",
