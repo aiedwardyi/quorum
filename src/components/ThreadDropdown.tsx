@@ -117,7 +117,7 @@ export default function ThreadDropdown({
     // Close before navigation to minimize visible flicker during the route change
     isNavigatingRef.current = true
     setIsOpen(false)
-    router.push(`/chat?thread=${threadId}`)
+    router.replace(`/chat?thread=${threadId}`)
   }
 
   const handleDelete = async (e: React.MouseEvent, threadId: string) => {

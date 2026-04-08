@@ -279,7 +279,7 @@ function ChatPageContent() {
     prevMessageCount.current = 0
     persistence.reset()
     handleReset()
-    router.push("/chat")
+    router.replace("/chat")
   }, [persistence, handleReset, router])
 
   // When user continues a completed thread, mark it active again
