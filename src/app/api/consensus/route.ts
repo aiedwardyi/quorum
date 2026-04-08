@@ -140,7 +140,30 @@ export async function POST(req: NextRequest) {
       .replace(/```\s*/g, "")
       .trim()
 
-    const parsed = JSON.parse(cleaned)
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(cleaned)
+    } catch (jsonErr) {
+      // Gemini sometimes returns malformed JSON - retry once with repair prompt
+      console.warn(`[verdict] JSON parse failed, retrying: ${jsonErr instanceof Error ? jsonErr.message : jsonErr}`)
+      const retryResult = await Promise.race([
+        model.generateContent({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}` }],
+            },
+          ],
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("JSON retry timed out")), 15_000)
+        ),
+      ])
+      const retryRaw = retryResult.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+      const retryCleaned = retryRaw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+      parsed = JSON.parse(retryCleaned)
+    }
+
     const verdict = validateVerdictResult(parsed)
 
     const elapsed = Date.now() - startTime
