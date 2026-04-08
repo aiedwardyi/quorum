@@ -292,7 +292,7 @@ function ChatPageContent() {
       }
 
       // Rebuild client messages from DB records
-      const messages: Message[] = thread.messages.map((m: any) => ({
+      const messages: Message[] = thread.messages.map((m: { id: string; sender: string; displayName: string; content: string }) => ({
         id: `db-${m.id}`,
         sender: m.sender as Message["sender"],
         displayName: m.displayName,
@@ -360,7 +360,6 @@ function ChatPageContent() {
     if (!state.showSummary) {
       hasIncrementedRef.current = false
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.showSummary, persistence.isLoggedIn])
 
   /* ---- Render ---- */
