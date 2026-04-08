@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip, Sunrise } from "lucide-react"
+import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Sunrise } from "lucide-react"
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
 import { THEMES } from "@/types"
@@ -161,7 +161,6 @@ export default function Home() {
   })
   const [isFocused, setIsFocused] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Auth & login gate
   const { data: session } = useSession()
@@ -171,8 +170,6 @@ export default function Home() {
   // Header & Settings state
   const [showDropdown, setShowDropdown] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [files, setFiles] = useState<File[]>([])
-  const [isDragging, setIsDragging] = useState(false)
   const [recentThreads, setRecentThreads] = useState<ThreadSummary[]>([])
 
   useEffect(() => {
@@ -305,23 +302,6 @@ export default function Home() {
     }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)])
-    }
-  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground font-[family-name:var(--font-geist-sans)] selection:bg-zinc-200 dark:selection:bg-zinc-800 transition-colors duration-300 flex flex-col">
@@ -492,10 +472,7 @@ export default function Home() {
         >
           {/* Textarea */}
           <motion.div
-            className={`relative group rounded-3xl p-[2px] overflow-hidden -mx-4 sm:-mx-6 ${isDragging ? "ring-4 ring-purple-500" : ""}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            className="relative group rounded-3xl p-[2px] overflow-hidden -mx-4 sm:-mx-6"
             initial={false}
             animate={{ scale: isFocused ? 1.02 : 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
@@ -514,39 +491,6 @@ export default function Home() {
                 className="w-full bg-transparent text-lg min-[375px]:text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium tracking-tight placeholder:text-zinc-400 dark:placeholder:text-zinc-600 resize-none outline-none min-h-[100px] sm:min-h-[120px] leading-[1.15]"
                 autoFocus
               />
-              <div className="flex items-center justify-between mt-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
-                >
-                  <Paperclip size={20} />
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  multiple
-                  accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv"
-                  onChange={(e) => {
-                    if (e.target.files) {
-                      setFiles((prev) => [...prev, ...Array.from(e.target.files!)])
-                    }
-                  }}
-                />
-              </div>
-              {files.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {files.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 bg-zinc-200 dark:bg-zinc-800 px-3 py-1 rounded-full text-sm">
-                      <span className="truncate max-w-[150px]">{file.name}</span>
-                      <button onClick={() => setFiles(files.filter((_, i) => i !== index))} className="hover:text-red-500">
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </motion.div>
 
