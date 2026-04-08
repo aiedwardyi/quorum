@@ -9,10 +9,10 @@ export function cleanResponse(text: string): string {
     .replace(/\n*-{0,3}\s*(Refs?|References|Sources)\s*:[\s\S]*$/i, "")
     // Remove leftover HTML/XML tags
     .replace(/<\/?[a-zA-Z][^>]*>/g, "")
-    // Decode HTML entities that leak through
+    // Decode HTML entities (decode &amp; first to handle double-encoded like &amp;lt;)
+    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
     .replace(/&#x27;/g, "'")
     .replace(/&quot;/g, '"')
     // Strip any tags that were entity-encoded (e.g. &lt;b&gt; -> <b>)
