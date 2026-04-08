@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip, Sunrise } from "lucide-react"
+import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip, Sunrise, FileText, File, Loader2 } from "lucide-react"
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
 import { THEMES } from "@/types"
@@ -12,6 +12,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
 import LoginGateModal from "@/components/LoginGate"
 import { timeAgo } from "@/lib/time"
+import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
 
 /* ─── Model SVG Icons ─── */
 
@@ -80,6 +81,9 @@ const t = {
     roundsCount: "Rounds",
     models: "Participants",
     keyboardHint: "to submit",
+    attach: "Attach file",
+    parsing: "Reading files...",
+    unsupported: "Supported: PDF, DOCX, Excel, and text files",
     settings: "Settings",
     signOut: "Sign Out",
     tooltips: {
@@ -111,6 +115,9 @@ const t = {
     roundsCount: "라운드 수",
     models: "참여 모델",
     keyboardHint: "눌러서 시작",
+    attach: "파일 첨부",
+    parsing: "파일 읽는 중...",
+    unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일",
     settings: "설정",
     signOut: "로그아웃",
     tooltips: {
@@ -141,25 +148,26 @@ function modelDisplayName(id: Provider): string {
 export default function Home() {
   const router = useRouter()
   const [theme, setTheme] = useState<Theme>("dark")
-  const [locale, setLocale] = useState<Locale>(() => {
-    if (typeof window === "undefined") return "ko"
-    const saved = localStorage.getItem("quorum_locale")
-    return saved === "en" || saved === "ko" ? saved : "ko"
-  })
+  const [locale, setLocale] = useState<Locale>("ko")
   const [prompt, setPrompt] = useState("")
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
-  const [responseLength, setResponseLength] = useState<ResponseLength>(() => {
-    if (typeof window === "undefined") return "short"
-    const saved = localStorage.getItem("quorum_responseLength")
-    return saved === "short" || saved === "medium" || saved === "long" ? saved : "short"
-  })
-  const [rounds, setRounds] = useState<number>(() => {
-    if (typeof window === "undefined") return 1
-    const saved = localStorage.getItem("quorum_rounds")
-    if (saved) { const n = parseInt(saved, 10); if ([1, 2, 3, 5].includes(n)) return n }
-    return 1
-  })
+  const [responseLength, setResponseLength] = useState<ResponseLength>("short")
+  const [rounds, setRounds] = useState<number>(1)
+
+  // Hydrate persisted settings from localStorage after mount
+  useEffect(() => {
+    const savedLocale = localStorage.getItem("quorum_locale")
+    if (savedLocale === "en" || savedLocale === "ko") setLocale(savedLocale)
+    const savedLength = localStorage.getItem("quorum_responseLength")
+    if (savedLength === "short" || savedLength === "medium" || savedLength === "long") setResponseLength(savedLength)
+    const savedRounds = localStorage.getItem("quorum_rounds")
+    if (savedRounds) { const n = parseInt(savedRounds, 10); if ([1, 2, 3, 5].includes(n)) setRounds(n) }
+  }, [])
   const [isFocused, setIsFocused] = useState(false)
+  const [files, setFiles] = useState<{ id: string; file: File; preview?: string }[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [isParsing, setIsParsing] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -171,8 +179,6 @@ export default function Home() {
   // Header & Settings state
   const [showDropdown, setShowDropdown] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [files, setFiles] = useState<File[]>([])
-  const [isDragging, setIsDragging] = useState(false)
   const [recentThreads, setRecentThreads] = useState<ThreadSummary[]>([])
 
   useEffect(() => {
@@ -274,28 +280,113 @@ export default function Home() {
     }
   }
 
-  const handleSubmit = () => {
-    if (!prompt.trim()) return
-    if (shouldShowLoginGate(!!session?.user)) {
-      savePendingDebate({
-        prompt: prompt.trim(),
+  // File helpers
+  const addFiles = (incoming: File[]) => {
+    const supported: File[] = []
+    let hasUnsupported = false
+    for (const file of incoming) {
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
+      if (SUPPORTED_EXTENSIONS.has(ext)) {
+        supported.push(file)
+      } else {
+        hasUnsupported = true
+      }
+    }
+    if (hasUnsupported) setFileError(t[locale].unsupported)
+    if (supported.length === 0) return
+    setFiles((prev) => [
+      ...prev,
+      ...supported.map((file) => ({
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+      })),
+    ])
+  }
+
+  const removeFile = (id: string) => {
+    setFiles((prev) => {
+      const removed = prev.find((f) => f.id === id)
+      if (removed?.preview) URL.revokeObjectURL(removed.preview)
+      return prev.filter((f) => f.id !== id)
+    })
+  }
+
+  // Auto-dismiss file error
+  useEffect(() => {
+    if (!fileError) return
+    const timer = setTimeout(() => setFileError(null), 3000)
+    return () => clearTimeout(timer)
+  }, [fileError])
+
+  const buildPromptWithFiles = async (): Promise<string | null> => {
+    let messageText = prompt.trim()
+
+    if (files.length > 0) {
+      const results = await Promise.allSettled(
+        files.map(async (af) => {
+          const content = await parseFile(af.file)
+          if (content && !content.startsWith("[Unsupported")) {
+            return `--- File: ${af.file.name} ---\n${content}`
+          }
+          return null
+        })
+      )
+
+      const fileContents = results
+        .map((r, i) => {
+          if (r.status === "fulfilled" && r.value) return r.value
+          if (r.status === "rejected") {
+            console.error(`Failed to parse ${files[i].file.name}:`, r.reason)
+            return `--- File: ${files[i].file.name} ---\n[Error: Could not read file]`
+          }
+          return null
+        })
+        .filter(Boolean) as string[]
+
+      if (fileContents.length > 0) {
+        messageText = messageText
+          ? `${messageText}\n\n${fileContents.join("\n\n")}`
+          : fileContents.join("\n\n")
+      }
+    }
+
+    return messageText || null
+  }
+
+  const handleSubmit = async () => {
+    if (isParsing || (!prompt.trim() && files.length === 0)) return
+
+    setIsParsing(true)
+    try {
+      const messageText = await buildPromptWithFiles()
+      if (!messageText) return
+
+      if (shouldShowLoginGate(!!session?.user)) {
+        savePendingDebate({
+          prompt: messageText,
+          models: selectedModels,
+          responseLength,
+          rounds,
+          locale,
+        })
+        setShowGate(true)
+        return
+      }
+
+      const config = {
+        prompt: messageText,
         models: selectedModels,
         responseLength,
         rounds,
         locale,
-      })
-      setShowGate(true)
-      return
+      }
+      sessionStorage.setItem("quorum_config", JSON.stringify(config))
+      files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
+      router.push("/chat")
+    } finally {
+      setIsParsing(false)
     }
-    const config = {
-      prompt: prompt.trim(),
-      models: selectedModels,
-      responseLength,
-      rounds,
-      locale,
-    }
-    sessionStorage.setItem("quorum_config", JSON.stringify(config))
-    router.push("/chat")
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -305,23 +396,6 @@ export default function Home() {
     }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)])
-    }
-  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground font-[family-name:var(--font-geist-sans)] selection:bg-zinc-200 dark:selection:bg-zinc-800 transition-colors duration-300 flex flex-col">
@@ -493,9 +567,13 @@ export default function Home() {
           {/* Textarea */}
           <motion.div
             className={`relative group rounded-3xl p-[2px] overflow-hidden -mx-4 sm:-mx-6 ${isDragging ? "ring-4 ring-purple-500" : ""}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            onDragOver={(e) => { e.preventDefault(); if (!isParsing) setIsDragging(true) }}
+            onDragLeave={(e) => { e.preventDefault(); setIsDragging(false) }}
+            onDrop={(e) => {
+              e.preventDefault()
+              setIsDragging(false)
+              if (!isParsing && e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files))
+            }}
             initial={false}
             animate={{ scale: isFocused ? 1.02 : 1 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
@@ -503,6 +581,18 @@ export default function Home() {
             <div className={`absolute inset-0 bg-[conic-gradient(from_0deg,red,purple,blue,red)] animate-rotate-border ${isFocused ? "opacity-100" : "opacity-50"}`} />
 
             <div className="relative bg-background rounded-[22px] p-4 sm:p-6">
+              <AnimatePresence>
+                {fileError && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-3 px-3 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-xl"
+                  >
+                    {fileError}
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <textarea
                 ref={textareaRef}
                 value={prompt}
@@ -514,13 +604,36 @@ export default function Home() {
                 className="w-full bg-transparent text-lg min-[375px]:text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium tracking-tight placeholder:text-zinc-400 dark:placeholder:text-zinc-600 resize-none outline-none min-h-[100px] sm:min-h-[120px] leading-[1.15]"
                 autoFocus
               />
-              <div className="flex items-center justify-between mt-2">
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {files.map((af) => (
+                    <div
+                      key={af.id}
+                      className="group/file flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-sm"
+                    >
+                      {af.file.type.includes("pdf") ? (
+                        <FileText className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                      ) : (
+                        <File className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
+                      )}
+                      <span className="truncate max-w-[150px] text-zinc-700 dark:text-zinc-300">{af.file.name}</span>
+                      <button onClick={() => removeFile(af.id)} className="hover:text-red-500 transition-colors">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-3">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+                  disabled={isParsing}
+                  title={t[locale].attach}
+                  aria-label={t[locale].attach}
+                  className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
                 >
-                  <Paperclip size={20} />
+                  <Paperclip className="w-5 h-5" />
                 </button>
                 <input
                   type="file"
@@ -529,24 +642,11 @@ export default function Home() {
                   multiple
                   accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv"
                   onChange={(e) => {
-                    if (e.target.files) {
-                      setFiles((prev) => [...prev, ...Array.from(e.target.files!)])
-                    }
+                    if (e.target.files) addFiles(Array.from(e.target.files))
+                    e.target.value = ""
                   }}
                 />
               </div>
-              {files.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {files.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 bg-zinc-200 dark:bg-zinc-800 px-3 py-1 rounded-full text-sm">
-                      <span className="truncate max-w-[150px]">{file.name}</span>
-                      <button onClick={() => setFiles(files.filter((_, i) => i !== index))} className="hover:text-red-500">
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </motion.div>
 
@@ -704,11 +804,20 @@ export default function Home() {
               {/* Submit Button */}
               <button
                 onClick={handleSubmit}
-                disabled={!prompt.trim()}
+                disabled={isParsing || (!prompt.trim() && files.length === 0)}
                 className="cursor-pointer w-full lg:w-auto group relative flex items-center justify-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-6 py-4 sm:py-3.5 rounded-2xl text-sm font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-zinc-900/10 dark:shadow-zinc-100/10 mt-2 lg:mt-0"
               >
-                <Send size={16} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                {t[locale].start}
+                {isParsing ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    {t[locale].parsing}
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                    {t[locale].start}
+                  </>
+                )}
               </button>
             </div>
           </div>

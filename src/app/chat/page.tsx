@@ -301,6 +301,9 @@ function ChatPageContent() {
     prevMessageCount.current = 0
     setIsLoadingThread(true)
     handleReset()
+    // Prevent the continue-thread effect from misinterpreting this reset
+    // as the user continuing a completed thread
+    prevShowSummary.current = false
 
     persistence.loadThread(threadParam).then((thread) => {
       if (!thread) {
