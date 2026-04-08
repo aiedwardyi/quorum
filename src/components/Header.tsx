@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { Locale, ResponseLength, Theme } from "@/types"
 import ThreadDropdown from "@/components/ThreadDropdown"
-import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, User, Settings2, Sparkles, LogIn, LogOut, Sunrise } from "lucide-react"
+import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, User, Settings2, Sparkles, LogIn, LogOut, Sunrise, Home } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -16,8 +17,9 @@ const translations = {
     long: "Long",
     roundTooltip: "Current discussion round",
     lengthTooltip: "Set response length",
-    login: "Log In",
+    login: "Sign In",
     logout: "Log Out",
+    home: "Home",
     settings: "Settings",
   },
   ko: {
@@ -29,6 +31,7 @@ const translations = {
     lengthTooltip: "답변 길이 설정",
     login: "로그인",
     logout: "로그아웃",
+    home: "홈",
     settings: "설정",
   },
 }
@@ -63,6 +66,7 @@ export default function ChatHeader({
   onDeleteCurrent?: () => void
 }) {
   const { data: session } = useSession()
+  const router = useRouter()
   const isLoggedIn = !!session?.user
   const t = translations[locale]
   const [showLengthDropdown, setShowLengthDropdown] = useState(false)
@@ -291,6 +295,13 @@ export default function ChatHeader({
                   className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
                 >
                   <div className="p-1">
+                    <button
+                      onClick={() => { setShowUserMenu(false); router.push("/") }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                    >
+                      <Home className="w-4 h-4" />
+                      {t.home}
+                    </button>
                     <button
                       onClick={() => { setShowUserMenu(false); signOut() }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"

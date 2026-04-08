@@ -6,7 +6,6 @@ import { Provider, Locale } from "@/types"
 import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
-import type { ParseWarning } from "@/lib/file-parser"
 
 const translations = {
   en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files", truncated: (name: string) => `"${name}" is too long - only the first ~20 pages were included`, empty: (name: string) => `"${name}" appears to be scanned/empty - no text could be extracted` },
@@ -69,28 +68,27 @@ export default function MessageInput({
       let messageText = text.trim()
 
       if (attachedFiles.length > 0) {
-        const warnings: string[] = []
         const results = await Promise.allSettled(
           attachedFiles.map(async (af) => {
             const parsed = await parseFile(af.file)
             if (parsed.warning === 'empty') {
-              warnings.push(t.empty(af.file.name))
-              return null
+              return { content: null, warning: t.empty(af.file.name) }
             }
-            if (parsed.warning === 'truncated') {
-              warnings.push(t.truncated(af.file.name))
-            }
+            const warning = parsed.warning === 'truncated' ? t.truncated(af.file.name) : null
             if (parsed.text && !parsed.text.startsWith('[Unsupported')) {
-              return `--- File: ${af.file.name} ---\n${parsed.text}`
+              return { content: `--- File: ${af.file.name} ---\n${parsed.text}`, warning }
             }
-            return null
+            return { content: null, warning }
           })
         )
 
+        const warnings = results
+          .map(r => r.status === 'fulfilled' ? r.value.warning : null)
+          .filter(Boolean) as string[]
         if (warnings.length > 0) setFileError(warnings.join('\n'))
 
         const fileContents = results.map((r, i) => {
-          if (r.status === "fulfilled" && r.value) return r.value
+          if (r.status === "fulfilled" && r.value.content) return r.value.content
           if (r.status === "rejected") {
             console.error(`Failed to parse ${attachedFiles[i].file.name}:`, r.reason)
             return `--- File: ${attachedFiles[i].file.name} ---\n[Error: Could not read file]`
@@ -207,7 +205,7 @@ export default function MessageInput({
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="px-4 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/30"
+                className="px-4 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/30 whitespace-pre-line"
               >
                 {fileError}
               </motion.div>
