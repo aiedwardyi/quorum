@@ -33,6 +33,7 @@ function ChatPageContent() {
   const [maxRounds, setMaxRounds] = useState(3)
   const [theme, setTheme] = useState<Theme>("dark")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isLoadingThread, setIsLoadingThread] = useState(false)
 
   const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
     useDebateEngine({ locale, responseLength, maxRounds })
@@ -287,12 +288,14 @@ function ChatPageContent() {
     creatingThreadRef.current = false
     isHydratingRef.current = true
     prevMessageCount.current = 0
+    setIsLoadingThread(true)
     handleReset()
 
     persistence.loadThread(threadParam).then((thread) => {
       if (!thread) {
         isHydratingRef.current = false
         threadLoaded.current = null
+        setIsLoadingThread(false)
         return
       }
 
@@ -350,7 +353,7 @@ function ChatPageContent() {
       })
       dispatch({ type: "SET_THREAD_ID", id: thread.id })
       prevMessageCount.current = messages.length
-      setTimeout(() => { isHydratingRef.current = false }, 0)
+      setTimeout(() => { isHydratingRef.current = false; setIsLoadingThread(false) }, 0)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadParam, persistence.isLoggedIn, handleReset])
@@ -416,14 +419,25 @@ function ChatPageContent() {
           setShowScrollDown(distFromBottom > 200)
         }}
       >
-        <ChatThread
-          messages={state.messages}
-          typingModel={state.typingModel}
-          locale={locale}
-          activeModels={state.activeModels}
-          onSendMessage={(text) => handleSend(text, "all")}
-          onNewDiscussion={handleNewDebate}
-        />
+        {isLoadingThread ? (
+          <div className="flex-1 flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-5 h-5 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
+              <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                {locale === "ko" ? "불러오는 중..." : "Loading..."}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <ChatThread
+            messages={state.messages}
+            typingModel={state.typingModel}
+            locale={locale}
+            activeModels={state.activeModels}
+            onSendMessage={(text) => handleSend(text, "all")}
+            onNewDiscussion={handleNewDebate}
+          />
+        )}
       </main>
 
       <AnimatePresence>
