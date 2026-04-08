@@ -84,6 +84,8 @@ const t = {
     attach: "Attach file",
     parsing: "Reading files...",
     unsupported: "Supported: PDF, DOCX, Excel, and text files",
+    truncated: (name: string) => `"${name}" is too long - only the first ~20 pages were included`,
+    empty: (name: string) => `"${name}" appears to be scanned/empty - no text could be extracted`,
     settings: "Settings",
     signOut: "Sign Out",
     tooltips: {
@@ -118,6 +120,8 @@ const t = {
     attach: "파일 첨부",
     parsing: "파일 읽는 중...",
     unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일",
+    truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`,
+    empty: (name: string) => `"${name}" 파일에서 텍스트를 추출할 수 없습니다 (스캔 문서일 수 있음)`,
     settings: "설정",
     signOut: "로그아웃",
     tooltips: {
@@ -315,19 +319,27 @@ export default function Home() {
   // Auto-dismiss file error
   useEffect(() => {
     if (!fileError) return
-    const timer = setTimeout(() => setFileError(null), 3000)
+    const timer = setTimeout(() => setFileError(null), 5000)
     return () => clearTimeout(timer)
   }, [fileError])
 
-  const buildPromptWithFiles = async (): Promise<string | null> => {
+  const buildPromptWithFiles = async (): Promise<{ text: string | null; fileWarnings: string[] }> => {
     let messageText = prompt.trim()
+    const fileWarnings: string[] = []
 
     if (files.length > 0) {
       const results = await Promise.allSettled(
         files.map(async (af) => {
-          const content = await parseFile(af.file)
-          if (content && !content.startsWith("[Unsupported")) {
-            return `--- File: ${af.file.name} ---\n${content}`
+          const parsed = await parseFile(af.file)
+          if (parsed.warning === "empty") {
+            fileWarnings.push(t[locale].empty(af.file.name))
+            return null
+          }
+          if (parsed.warning === "truncated") {
+            fileWarnings.push(t[locale].truncated(af.file.name))
+          }
+          if (parsed.text && !parsed.text.startsWith("[Unsupported")) {
+            return `--- File: ${af.file.name} ---\n${parsed.text}`
           }
           return null
         })
@@ -351,7 +363,7 @@ export default function Home() {
       }
     }
 
-    return messageText || null
+    return { text: messageText || null, fileWarnings }
   }
 
   const handleSubmit = async () => {
@@ -359,7 +371,7 @@ export default function Home() {
 
     setIsParsing(true)
     try {
-      const messageText = await buildPromptWithFiles()
+      const { text: messageText, fileWarnings } = await buildPromptWithFiles()
       if (!messageText) return
 
       if (shouldShowLoginGate(!!session?.user)) {
@@ -382,6 +394,9 @@ export default function Home() {
         locale,
       }
       sessionStorage.setItem("quorum_config", JSON.stringify(config))
+      if (fileWarnings.length > 0) {
+        sessionStorage.setItem("quorum_file_warnings", JSON.stringify(fileWarnings))
+      }
       files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
       router.push("/chat")
     } finally {

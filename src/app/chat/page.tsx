@@ -34,6 +34,7 @@ function ChatPageContent() {
   const [theme, setTheme] = useState<Theme>("dark")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingThread, setIsLoadingThread] = useState(false)
+  const [fileWarning, setFileWarning] = useState<string | null>(null)
 
   const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
     useDebateEngine({ locale, responseLength, maxRounds })
@@ -135,6 +136,12 @@ function ChatPageContent() {
       }
 
       sessionStorage.removeItem("quorum_config")
+
+      const warningsRaw = sessionStorage.getItem("quorum_file_warnings")
+      if (warningsRaw) {
+        sessionStorage.removeItem("quorum_file_warnings")
+        try { setFileWarning(JSON.parse(warningsRaw).join("\n")) } catch { /* ignore */ }
+      }
 
       if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
       if (config.responseLength) setResponseLength(config.responseLength)
@@ -490,6 +497,7 @@ function ChatPageContent() {
           onStop={handleStop}
           disabled={state.isDebating}
           locale={locale}
+          initialFileWarning={fileWarning}
         />
       </div>
     </div>
