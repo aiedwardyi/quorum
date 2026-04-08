@@ -27,7 +27,7 @@ function getResponseLengthInstruction(length: ResponseLength): string {
 function getMaxTokens(length: ResponseLength): number {
   switch (length) {
     case "short":
-      return 200
+      return 350
     case "long":
       return 1024
     default:
@@ -56,9 +56,6 @@ function clampToWordLimit(text: string, wordLimit: number): { text: string; trun
   return { text, truncated: false }
 }
 
-function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length
-}
 
 function stripUnmatchedPair(text: string, token: string): string {
   const count = text.split(token).length - 1
@@ -72,12 +69,23 @@ function stripUnmatchedPair(text: string, token: string): string {
 
 function polishTruncatedShortResponse(text: string, wordLimit: number): string {
   let result = text.trimEnd()
-  const sentenceMatches = [...result.matchAll(/[.!?。！？](?=\s|$)/g)]
 
+  // Already ends cleanly - enforce word limit, but re-check if clamping broke the ending
+  if (/[.!?。！？]$/u.test(result)) {
+    const clamped = clampToWordLimit(result, wordLimit)
+    if (!clamped.truncated || /[.!?。！？]$/u.test(clamped.text)) {
+      return clamped.text
+    }
+    result = clamped.text
+  }
+
+  // Try to truncate at the last complete sentence
+  const sentenceMatches = [...result.matchAll(/[.!?。！？](?=\s|$)/g)]
   if (sentenceMatches.length > 0) {
     const lastSentence = sentenceMatches[sentenceMatches.length - 1]
     const sentenceSafe = result.slice(0, (lastSentence.index ?? 0) + lastSentence[0].length).trimEnd()
-    if (countWords(sentenceSafe) >= Math.min(40, wordLimit)) {
+    // Accept if we keep at least 30% of the content (works for both EN and KO)
+    if (sentenceSafe.length >= result.length * 0.3) {
       result = sentenceSafe
     }
   }
@@ -227,7 +235,7 @@ export async function POST(request: Request) {
           }
 
           if (!request.signal?.aborted) {
-            if (wordLimit && truncatedShortResponse) {
+            if (wordLimit) {
               fullContent = polishTruncatedShortResponse(fullContent, wordLimit)
             }
 
