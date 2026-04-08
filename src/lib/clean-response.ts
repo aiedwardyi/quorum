@@ -7,14 +7,14 @@ export function cleanResponse(text: string): string {
     .replace(/\[\d+\](\[\d+\])*/g, "")
     // Remove trailing "Refs:", "References:", "Sources:" blocks and everything after
     .replace(/\n*-{0,3}\s*(Refs?|References|Sources)\s*:[\s\S]*$/i, "")
-    // Strip HTML entities that leak through
+    // Remove leftover HTML/XML tags (before decoding entities to avoid creating new tags)
+    .replace(/<\/?[a-zA-Z][^>]*>/g, "")
+    // Decode HTML entities that leak through
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&")
     .replace(/&#x27;/g, "'")
     .replace(/&quot;/g, '"')
-    // Remove leftover HTML/XML tags
-    .replace(/<\/?[a-zA-Z][^>]*>/g, "")
     // Remove escaped control sequences like \x08, \n08lt, etc.
     .replace(/\\[xX][0-9a-fA-F]{2}/g, "")
     .replace(/\\n[0-9]+[a-zA-Z]*/g, "")

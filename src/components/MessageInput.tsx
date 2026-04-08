@@ -33,6 +33,7 @@ export default function MessageInput({
   const [isDragging, setIsDragging] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [isParsing, setIsParsing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const t = translations[locale]
@@ -51,7 +52,8 @@ export default function MessageInput({
   }, [attachedFiles])
 
   const handleSend = async () => {
-    if ((!text.trim() && attachedFiles.length === 0) || disabled) return
+    if (isParsing || (!text.trim() && attachedFiles.length === 0) || disabled) return
+    setIsParsing(true)
 
     let messageText = text.trim()
 
@@ -75,13 +77,14 @@ export default function MessageInput({
       }
     }
 
-    if (!messageText) return
+    if (!messageText) { setIsParsing(false); return }
 
     onSend(messageText, "all")
     setText("")
     attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
     setAttachedFiles([])
     if (textareaRef.current) textareaRef.current.style.height = "auto"
+    setIsParsing(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

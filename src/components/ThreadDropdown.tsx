@@ -12,14 +12,12 @@ const t = {
     search: "Search threads...",
     newDebate: "New Debate",
     noThreads: "No past debates",
-    deleteConfirm: "Delete this thread?",
     active: "Active",
   },
   ko: {
     search: "토론 검색...",
     newDebate: "새 토론",
     noThreads: "이전 토론이 없습니다",
-    deleteConfirm: "이 토론을 삭제하시겠습니까?",
     active: "진행 중",
   },
 }
