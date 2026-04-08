@@ -65,10 +65,9 @@ Make the ending state decisive and make debates reusable.
 - [x] Continue discussion from completed verdict (follow-up in same thread)
 - [x] Session persistence foundation
 - [x] Chat history page
-- [ ] **BUG-013**: Round selection display — picking 3 rounds still shows "5/3" in header
-- [ ] **BUG-014**: AI models fake-read pasted URLs/GitHub links — need actual URL fetching or honest refusal
-- [ ] **BUG-015**: Document upload UI attaches files but content not sent to AI models — fix API payload
-- [ ] Document/media upload (PDF analysis use case)
+- [x] **BUG-015**: Document upload — files now parsed client-side and content sent to AI models
+- [x] Document/media upload (PDF, DOCX, Excel, text) — parse-before-navigate on homepage, inline on chat
+- [x] File upload warnings — users warned when files are truncated (>50k chars) or empty (scanned PDFs)
 - [ ] Share verdict via link (public read-only snapshot page, no full transcript)
 - [ ] Export conversation as markdown/PDF
 
@@ -88,17 +87,24 @@ Make saved work, identity, and recommendation UX feel complete.
 - [ ] Token/credit tracking system (foundation for payment)
 - [ ] Credits button on chat header — functional (currently cosmetic)
 - [x] Default to dark mode
-- [x] Theme system — 7 themes (Light/Dark/Tokyo Night/Lovelace/Gruvbox/Catppuccin/Nord) with icon grid picker in Settings
+- [x] Theme system — 9 themes (Light/Dark/Tokyo Night/Lovelace/Gruvbox/Catppuccin/Nord/Solarized/Rose Pine) with icon grid picker in Settings
 - [x] Theme-aware semantic color tokens (success/warning/danger) — ConsensusMeter + SummaryCard respond to active theme
 - [ ] Additional custom themes (accent colors, more palettes)
-- [ ] Settings page - exists with Account + Preferences tabs
+- [x] Settings page - Account + Preferences tabs
+- [ ] Fix settings modal tab scroll position (BUG-039)
 - [ ] Voice input (Watson STT)
 - [x] Homepage chat history section (logged-in users can access past debates from homepage)
 - [x] Mobile-friendly chat history (responsive history browsing on chat page)
 - [x] Persistent locale in localStorage
+- [x] Settings icon visible for logged-out users on homepage
+- [x] Home navigation from chat page (avatar dropdown)
+- [x] Consistent "Sign In" / localized labels across pages
 - [x] **BUG-016**: Gemini streaming cut-off (increased chunk timeout for thinking models)
 - [x] **BUG-017**: Perplexity garbled characters (HTML entity and citation artifact cleanup)
 - [x] **BUG-018**: Contradicting verdicts across rounds (prior verdict context in consensus prompt)
+- [x] **BUG-032**: History dropdown navigation fixed
+- [x] **BUG-033**: Thread dropdown flicker fixed
+- [x] **BUG-037**: Allow typing during debate (only block sending)
 
 ---
 
@@ -117,6 +123,8 @@ Differentiate beyond generic multi-model chat.
 - [ ] Share full sessions via link
 - [ ] Analytics dashboard (signups, active users, debates, model usage, language distribution)
 - [x] File reading support (PDF, DOCX, Excel) - parse and send as context to AI models
+- [ ] Move settings into avatar dropdown (pending user test feedback)
+- [ ] Rounds selector in chat header (pending user test feedback)
 
 ---
 
@@ -128,7 +136,7 @@ Differentiate beyond generic multi-model chat.
 | API key storage | Before v3 | Browser-only vs encrypted DB vs hybrid |
 | Auth system | ✅ Decided | NextAuth v5 + Google OAuth |
 | Payment system | Before v4 | Stripe vs custom token system |
-| Deployment | After v2 stable | Vercel vs self-hosted vs Docker |
+| Deployment | ✅ Decided | AWS Amplify (Seoul, ap-northeast-2) |
 
 ---
 
