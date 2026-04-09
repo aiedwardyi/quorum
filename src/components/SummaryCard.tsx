@@ -20,6 +20,9 @@ const translations = {
     strongRec: "Strong Recommendation",
     recommended: "Recommended",
     narrowEdge: "Narrow Edge",
+    analysis: "Analysis",
+    keyTakeaways: "Key Takeaways",
+    actionItems: "Next Steps",
   },
   ko: {
     verdict: "최종 판결",
@@ -35,6 +38,9 @@ const translations = {
     strongRec: "강력 추천",
     recommended: "추천",
     narrowEdge: "근소한 차이",
+    analysis: "분석",
+    keyTakeaways: "핵심 요약",
+    actionItems: "다음 단계",
   },
 }
 
@@ -66,20 +72,25 @@ export default function SummaryCard({
   }
 
   const handleCopy = () => {
-    const text = [
+    const lines = [
       t.recommendation,
       result.recommendedAnswer,
       "",
       `${t.voteSplit}: ${result.voteSplit}`,
       `${t.confidence}: ${result.confidence}%`,
-      "",
-      `${t.reasons}:`,
-      ...result.reasons.map((r) => `  - ${r}`),
-      "",
-      `${t.minorityView}: ${result.minorityView}`,
-      `${t.oppositeCase}: ${result.oppositeCase}`,
-    ].join("\n")
-    navigator.clipboard.writeText(text).then(() => {
+    ]
+    if (result.analysis) {
+      lines.push("", `${t.analysis}:`, result.analysis)
+    }
+    lines.push("", `${t.reasons}:`, ...result.reasons.map((r) => `  - ${r}`))
+    if (result.keyTakeaways && result.keyTakeaways.length > 0) {
+      lines.push("", `${t.keyTakeaways}:`, ...result.keyTakeaways.map((r) => `  - ${r}`))
+    }
+    if (result.actionItems && result.actionItems.length > 0) {
+      lines.push("", `${t.actionItems}:`, ...result.actionItems.map((r, i) => `  ${i + 1}. ${r}`))
+    }
+    lines.push("", `${t.minorityView}: ${result.minorityView}`, `${t.oppositeCase}: ${result.oppositeCase}`)
+    navigator.clipboard.writeText(lines.join("\n")).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }).catch(() => {})
@@ -127,6 +138,19 @@ export default function SummaryCard({
           </p>
         </div>
 
+        {/* Analysis */}
+        {result.analysis && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-theme-accent flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5" />
+              {t.analysis}
+            </h3>
+            <p className="px-3.5 py-2 text-sm leading-relaxed" style={{ color: 'var(--summary-secondary-text)' }}>
+              {result.analysis}
+            </p>
+          </div>
+        )}
+
         {/* Key Reasons */}
         {result.reasons.length > 0 && (
           <div className="space-y-2">
@@ -145,6 +169,35 @@ export default function SummaryCard({
           </div>
         )}
 
+        {/* Key Takeaways */}
+        {result.keyTakeaways && result.keyTakeaways.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-theme-accent flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {t.keyTakeaways}
+            </h3>
+            <div className="space-y-1">
+              {result.keyTakeaways.map((item, i) => {
+                const dashIdx = item.indexOf(" - ")
+                const hasLabel = dashIdx > 0 && dashIdx < 40
+                return (
+                  <div key={i} className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
+                    <span className="text-theme-accent mt-0.5 text-sm leading-none shrink-0">•</span>
+                    <span>
+                      {hasLabel ? (
+                        <>
+                          <strong style={{ color: 'var(--summary-main-text)' }}>{item.slice(0, dashIdx)}</strong>
+                          {item.slice(dashIdx)}
+                        </>
+                      ) : item}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Minority View */}
         {result.minorityView && (
           <div className="space-y-2">
@@ -155,6 +208,24 @@ export default function SummaryCard({
             <div className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
               <span className="mt-0.5 text-sm leading-none shrink-0" style={{ color: 'var(--summary-muted-text)' }}>•</span>
               <span>{result.minorityView}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Action Items */}
+        {result.actionItems && result.actionItems.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-theme-accent flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {t.actionItems}
+            </h3>
+            <div className="space-y-1">
+              {result.actionItems.map((item, i) => (
+                <div key={i} className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
+                  <span className="text-theme-accent mt-0.5 text-xs font-bold leading-none shrink-0">{i + 1}.</span>
+                  <span>{item}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}
