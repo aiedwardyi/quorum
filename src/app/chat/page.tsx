@@ -468,6 +468,10 @@ function ChatPageContent() {
         maxRounds={maxRounds}
         responseLength={responseLength}
         onChangeResponseLength={(len) => { setResponseLength(len); localStorage.setItem("quorum_responseLength", len) }}
+        onChangeRounds={(rounds: number) => {
+          setMaxRounds(rounds)
+          localStorage.setItem("quorum_rounds", String(rounds))
+        }}
         locale={locale}
         theme={theme}
         onToggleTheme={toggleTheme}
