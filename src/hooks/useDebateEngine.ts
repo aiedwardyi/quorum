@@ -413,6 +413,7 @@ export function useDebateEngine(config: {
     async (text: string, target: Provider | "all", models: Provider[]) => {
       // Claim a new session - any in-flight debate with old ID will bail
       const thisSession = ++sessionIdRef.current
+      try {
       logDebate("debate:start", { session: thisSession, models, maxRounds: maxRoundsRef.current })
 
       // Abort any in-flight request from the previous session
@@ -539,6 +540,11 @@ export function useDebateEngine(config: {
 
       if (sessionIdRef.current === thisSession) {
         dispatch({ type: "SET_DEBATING", value: false })
+      }
+      } catch (err) {
+        console.error("[debate] Unhandled debate error:", err)
+        dispatch({ type: "SET_DEBATING", value: false })
+        dispatch({ type: "SET_TYPING", model: null })
       }
     },
     [state.showSummary, maxRounds, callModel, runRound, locale]

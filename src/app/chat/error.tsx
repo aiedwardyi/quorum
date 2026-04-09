@@ -12,9 +12,7 @@ export default function ChatError({
   reset: () => void
 }) {
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.error("Chat error boundary caught:", error)
-    }
+    console.error("Chat error boundary caught:", error)
   }, [error])
 
   return (
