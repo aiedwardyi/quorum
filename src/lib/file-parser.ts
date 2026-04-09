@@ -21,7 +21,9 @@ export interface ParseResult {
 }
 
 export interface ParseOptions {
-  onProgress?: (status: string) => void
+  /** @param status - Human-readable status text
+   *  @param progress - 0-100 percentage */
+  onProgress?: (status: string, progress?: number) => void
 }
 
 export async function parseFile(file: File, options?: ParseOptions): Promise<ParseResult> {
@@ -111,40 +113,87 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     return { text: pages.join('\n\n'), usedOCR: false }
   }
 
-  // OCR the empty pages (scanned images)
-  options?.onProgress?.('Loading OCR engine...')
+  // OCR the empty pages (scanned images) via server-side Gemini Vision
+  const ocrLimit = Math.min(emptyPageIndices.length, MAX_OCR_PAGES)
+  options?.onProgress?.('Scanning document...', 10)
 
-  const { createWorker } = await import('tesseract.js')
-  const worker = await createWorker('kor+eng')
+  // Render all pages to images first
+  const base64Images: string[] = []
+  for (let idx = 0; idx < ocrLimit; idx++) {
+    const pct = Math.round(10 + (idx / ocrLimit) * 40)
+    options?.onProgress?.(`Rendering page ${idx + 1}/${ocrLimit}...`, pct)
+
+    const page = await pdf.getPage(emptyPageIndices[idx])
+    const viewport = page.getViewport({ scale: OCR_RENDER_SCALE })
+    const canvas = document.createElement('canvas')
+    canvas.width = viewport.width
+    canvas.height = viewport.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) continue
+
+    await page.render({ canvas, viewport }).promise
+    const dataUrl = canvas.toDataURL('image/png')
+    base64Images.push(dataUrl.split(',')[1])
+  }
+
+  if (base64Images.length === 0) {
+    return { text: pages.join('\n\n'), usedOCR: false }
+  }
+
+  // Send to server for Gemini Vision OCR
+  options?.onProgress?.('Extracting text...', 60)
 
   try {
-    const ocrLimit = Math.min(emptyPageIndices.length, MAX_OCR_PAGES)
+    const res = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: base64Images }),
+    })
 
-    for (let idx = 0; idx < ocrLimit; idx++) {
-      const pageNum = emptyPageIndices[idx]
-      options?.onProgress?.(`OCR page ${idx + 1}/${ocrLimit}...`)
+    if (!res.ok) throw new Error(`OCR API error: ${res.status}`)
+    const { text: ocrText } = await res.json()
+    const trimmed = (ocrText ?? '').trim()
 
-      const page = await pdf.getPage(pageNum)
-      const viewport = page.getViewport({ scale: OCR_RENDER_SCALE })
-      const canvas = document.createElement('canvas')
-      canvas.width = viewport.width
-      canvas.height = viewport.height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) continue
+    options?.onProgress?.('Done', 100)
 
-      await page.render({ canvas, viewport }).promise
-      const { data: { text } } = await worker.recognize(canvas)
-      const trimmed = text.trim()
-      if (trimmed) {
-        pages.push(trimmed)
-        totalLength += trimmed.length
-        if (totalLength >= MAX_FILE_CHARS) break
-      }
+    if (trimmed) {
+      pages.push(trimmed)
     }
 
-    return { text: pages.join('\n\n'), usedOCR: emptyPageIndices.length > 0 }
-  } finally {
-    await worker.terminate()
+    return { text: pages.join('\n\n'), usedOCR: true }
+  } catch (err) {
+    console.error('[file-parser] Gemini OCR failed, falling back to Tesseract:', err)
+    options?.onProgress?.('Fallback OCR...', 70)
+
+    // Fallback: client-side Tesseract OCR
+    const { createWorker } = await import('tesseract.js')
+    const worker = await createWorker('kor+eng')
+    try {
+      for (let idx = 0; idx < ocrLimit; idx++) {
+        const pct = Math.round(70 + (idx / ocrLimit) * 25)
+        options?.onProgress?.(`OCR page ${idx + 1}/${ocrLimit}...`, pct)
+
+        const page = await pdf.getPage(emptyPageIndices[idx])
+        const viewport = page.getViewport({ scale: OCR_RENDER_SCALE })
+        const canvas = document.createElement('canvas')
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) continue
+
+        await page.render({ canvas, viewport }).promise
+        const { data: { text } } = await worker.recognize(canvas)
+        const trimmed = text.trim()
+        if (trimmed) {
+          pages.push(trimmed)
+          totalLength += trimmed.length
+          if (totalLength >= MAX_FILE_CHARS) break
+        }
+      }
+      return { text: pages.join('\n\n'), usedOCR: true }
+    } finally {
+      await worker.terminate()
+    }
   }
 }
 
