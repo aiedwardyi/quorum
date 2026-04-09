@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { Locale, ResponseLength, Theme } from "@/types"
 import ThreadDropdown from "@/components/ThreadDropdown"
+import ConfirmDialog from "@/components/ConfirmDialog"
 import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, User, Settings2, Sparkles, LogIn, LogOut, Sunrise } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -20,7 +21,10 @@ const translations = {
     login: "Sign In",
     logout: "Log Out",
     settings: "Settings",
-    leaveConfirm: "A debate is still running. Leaving will stop it.",
+    leaveTitle: "Leave debate?",
+    leaveDesc: "A debate is still running. Leaving this page will stop it.",
+    leaveConfirm: "Leave",
+    leaveCancel: "Stay",
   },
   ko: {
     round: "라운드",
@@ -32,7 +36,10 @@ const translations = {
     login: "로그인",
     logout: "로그아웃",
     settings: "설정",
-    leaveConfirm: "토론이 진행 중입니다. 나가면 중단됩니다.",
+    leaveTitle: "토론을 나가시겠습니까?",
+    leaveDesc: "토론이 진행 중입니다. 이 페이지를 나가면 중단됩니다.",
+    leaveConfirm: "나가기",
+    leaveCancel: "머무르기",
   },
 }
 
@@ -70,14 +77,29 @@ export default function ChatHeader({
   const isLoggedIn = !!session?.user
   const t = translations[locale]
   const [showLengthDropdown, setShowLengthDropdown] = useState(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+  const pendingAction = useRef<(() => void) | null>(null)
 
-  const confirmIfDebating = (action: () => void) => {
+  const confirmIfDebating = useCallback((action: () => void) => {
     if (isDebating) {
-      if (!window.confirm(t.leaveConfirm)) return
-      onStopDebate?.()
+      pendingAction.current = action
+      setShowLeaveConfirm(true)
+      return
     }
     action()
+  }, [isDebating])
+
+  const handleLeaveConfirm = () => {
+    setShowLeaveConfirm(false)
+    onStopDebate?.()
+    pendingAction.current?.()
+    pendingAction.current = null
   }
+
+  const handleLeaveCancel = useCallback(() => {
+    setShowLeaveConfirm(false)
+    pendingAction.current = null
+  }, [])
   const [showUserMenu, setShowUserMenu] = useState(false)
 
   useEffect(() => {
@@ -101,6 +123,7 @@ export default function ChatHeader({
   }, [])
 
   return (
+    <>
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 sm:px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       {/* Title + Round + Length */}
       <div className="flex items-center gap-2 sm:gap-4">
@@ -323,5 +346,17 @@ export default function ChatHeader({
         </div>
       </div>
     </header>
+
+      <ConfirmDialog
+        isOpen={showLeaveConfirm}
+        title={t.leaveTitle}
+        description={t.leaveDesc}
+        confirmLabel={t.leaveConfirm}
+        cancelLabel={t.leaveCancel}
+        onConfirm={handleLeaveConfirm}
+        onCancel={handleLeaveCancel}
+        destructive
+      />
+    </>
   )
 }
