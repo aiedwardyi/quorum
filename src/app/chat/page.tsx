@@ -9,6 +9,7 @@ import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
 import ConsensusMeter from "@/components/ConsensusMeter"
 import ChatHeader from "@/components/Header"
+import ConfirmDialog from "@/components/ConfirmDialog"
 import dynamic from "next/dynamic"
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
 import { ChevronDown } from "lucide-react"
@@ -51,13 +52,33 @@ function ChatPageContent() {
   const [mountKey, setMountKey] = useState(0)
 
   // Warn before browser back/refresh/tab close during active debate
+  const [showBackConfirm, setShowBackConfirm] = useState(false)
+  const isDebatingRef = useRef(state.isDebating)
+  isDebatingRef.current = state.isDebating
+
   useEffect(() => {
     if (!state.isDebating) return
+
+    // Push a guard entry so we can intercept back navigation
+    history.pushState({ debateGuard: true }, "")
+
+    const handlePopState = () => {
+      if (isDebatingRef.current) {
+        // Re-push to stay on the page, show confirm
+        history.pushState({ debateGuard: true }, "")
+        setShowBackConfirm(true)
+      }
+    }
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
     }
+
+    window.addEventListener("popstate", handlePopState)
     window.addEventListener("beforeunload", handleBeforeUnload)
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+    }
   }, [state.isDebating])
 
   // Apply theme classes to <html>
@@ -517,6 +538,21 @@ function ChatPageContent() {
           initialText={prefillText}
         />
       </div>
+
+      <ConfirmDialog
+        isOpen={showBackConfirm}
+        title={locale === "ko" ? "토론을 나가시겠습니까?" : "Leave debate?"}
+        description={locale === "ko" ? "토론이 진행 중입니다. 이 페이지를 나가면 중단됩니다." : "A debate is still running. Leaving this page will stop it."}
+        confirmLabel={locale === "ko" ? "나가기" : "Leave"}
+        cancelLabel={locale === "ko" ? "머무르기" : "Stay"}
+        onConfirm={() => {
+          setShowBackConfirm(false)
+          handleStop()
+          router.back()
+        }}
+        onCancel={() => setShowBackConfirm(false)}
+        destructive
+      />
     </div>
   )
 }
