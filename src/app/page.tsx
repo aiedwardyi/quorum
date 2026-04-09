@@ -163,7 +163,7 @@ export default function Home() {
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
   const [responseLength, setResponseLength] = useState<ResponseLength>("short")
   const [rounds, setRounds] = useState<number>(1)
-  const sendHint = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘+Enter" : "Ctrl+Enter"
+  const sendHint = "Ctrl/⌘+Enter"
 
   // Hydrate persisted settings from localStorage after mount
   useEffect(() => {

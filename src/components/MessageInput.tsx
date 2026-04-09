@@ -42,7 +42,7 @@ export default function MessageInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>([])
   const t = translations[locale]
-  const sendHint = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘+Enter" : "Ctrl+Enter"
+  const sendHint = "Ctrl/⌘+Enter"
 
   useEffect(() => {
     if (textareaRef.current) {
