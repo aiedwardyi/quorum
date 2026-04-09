@@ -523,6 +523,7 @@ function ChatPageContent() {
             typingModel={state.typingModel}
             locale={locale}
             activeModels={state.activeModels}
+            responseLength={responseLength}
             onSendMessage={(text) => handleSend(text, "all")}
             onNewDiscussion={handleNewDebate}
           />

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { Message, Provider, Locale } from "@/types"
+import { Message, Provider, Locale, ResponseLength } from "@/types"
 import ChatBubble from "@/components/ChatBubble"
 import WelcomeHero from "@/components/WelcomeHero"
 
@@ -10,6 +10,7 @@ export default function ChatThread({
   typingModel,
   locale,
   activeModels,
+  responseLength,
   onSendMessage,
   onNewDiscussion,
 }: {
@@ -17,6 +18,7 @@ export default function ChatThread({
   typingModel?: Provider | null
   locale: Locale
   activeModels: Provider[]
+  responseLength?: ResponseLength
   onSendMessage: (text: string) => void
   onNewDiscussion?: () => void
 }) {
@@ -56,7 +58,7 @@ export default function ChatThread({
     <div className="px-4 py-6" role="log">
       <div className="max-w-3xl mx-auto w-full flex flex-col">
         {messages.map((msg) => (
-          <ChatBubble key={msg.id} message={msg} locale={locale} onNewDiscussion={onNewDiscussion} />
+          <ChatBubble key={msg.id} message={msg} locale={locale} responseLength={responseLength} onNewDiscussion={onNewDiscussion} />
         ))}
         <div ref={bottomRef} className="h-4" />
       </div>
