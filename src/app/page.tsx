@@ -790,9 +790,8 @@ export default function Home() {
 
             <div className="h-px w-full bg-zinc-200/60 dark:bg-zinc-800/60" />
 
-            {/* Settings and Submit Row */}
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 lg:gap-8">
-              <div className="flex flex-col sm:flex-row gap-6 sm:gap-12 lg:gap-16">
+            {/* Settings Row */}
+            <div className="flex flex-col sm:flex-row gap-6 sm:gap-12 lg:gap-16">
                 {/* Response Length */}
                 <div className="flex flex-col gap-4 w-full sm:w-auto">
                   <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
@@ -852,26 +851,6 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-
-              {/* Submit Button */}
-              <button
-                onClick={handleSubmit}
-                disabled={anyFileParsing || (!prompt.trim() && files.length === 0)}
-                className="cursor-pointer w-full lg:w-auto group relative flex items-center justify-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-6 py-4 sm:py-3.5 rounded-2xl text-sm font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-zinc-900/10 dark:shadow-zinc-100/10 mt-2 lg:mt-0"
-              >
-                {anyFileParsing ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    {t[locale].parsing}
-                  </>
-                ) : (
-                  <>
-                    <Send size={16} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                    {t[locale].start}
-                  </>
-                )}
-              </button>
-            </div>
           </div>
         </motion.div>
 
