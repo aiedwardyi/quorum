@@ -150,20 +150,21 @@ export default function ChatBubble({
         </div>
 
         {isEmpty ? (
-          <div className={cn(
+          <div key="thinking" className={cn(
             "px-4 py-3 rounded-2xl rounded-tl-sm border shadow-sm flex items-center gap-2",
             modelBorders[message.sender] ?? "border-zinc-200 dark:border-zinc-800",
             modelBackgrounds[message.sender] ?? "bg-zinc-50 dark:bg-zinc-900/50"
           )}>
             <div className="flex gap-1">
-              <motion.div animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0 }} className={cn("w-1.5 h-1.5 rounded-full", dotColors[message.sender] ?? "bg-zinc-400")} />
-              <motion.div animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }} className={cn("w-1.5 h-1.5 rounded-full", dotColors[message.sender] ?? "bg-zinc-400")} />
-              <motion.div animate={{ y: [0, -3, 0] }} transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }} className={cn("w-1.5 h-1.5 rounded-full", dotColors[message.sender] ?? "bg-zinc-400")} />
+              <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", dotColors[message.sender] ?? "bg-zinc-400")} style={{ animationDelay: "0ms" }} />
+              <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", dotColors[message.sender] ?? "bg-zinc-400")} style={{ animationDelay: "150ms" }} />
+              <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", dotColors[message.sender] ?? "bg-zinc-400")} style={{ animationDelay: "300ms" }} />
             </div>
             <span className={cn("text-xs font-medium", modelColors[message.sender] ?? "text-zinc-500")}>{thinkingText[locale]}</span>
           </div>
         ) : (
           <div
+            key="content"
             className={cn(
               "px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm break-words whitespace-pre-wrap transition-all duration-200",
               isUser
@@ -177,12 +178,7 @@ export default function ChatBubble({
           >
             {message.content}
             {isTyping && (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}
-                className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-current"
-              />
+              <span className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-current animate-pulse" />
             )}
           </div>
         )}
