@@ -173,8 +173,8 @@ export default function ChatHeader({
               className="flex items-center gap-1 sm:gap-1.5 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             >
               <RotateCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 dark:text-zinc-500" />
-              <span className="text-[11px] sm:text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                <span className="hidden sm:inline">{t.rounds} </span>{maxRounds}
+              <span className="text-[11px] sm:text-xs font-mono font-bold text-zinc-900 dark:text-zinc-100">
+                {currentRound}/{maxRounds}
               </span>
               <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 dark:text-zinc-500 opacity-50" />
             </motion.button>
@@ -216,11 +216,6 @@ export default function ChatHeader({
               )}
             </AnimatePresence>
           </div>
-
-          {/* Round progress indicator */}
-          <span className="text-[9px] font-mono font-bold text-zinc-400 dark:text-zinc-500">
-            {currentRound}/{maxRounds}
-          </span>
 
           <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-800 shrink-0" />
 
