@@ -405,6 +405,9 @@ function ChatPageContent() {
             reasons: verdict.reasons,
             minorityView: verdict.minorityView,
             oppositeCase: verdict.oppositeCase,
+            ...(verdict.analysis ? { analysis: verdict.analysis } : {}),
+            ...(verdict.keyTakeaways?.length ? { keyTakeaways: verdict.keyTakeaways } : {}),
+            ...(verdict.actionItems?.length ? { actionItems: verdict.actionItems } : {}),
           }
         }
       }
@@ -419,6 +422,9 @@ function ChatPageContent() {
             reasons: lastVerdict.reasons,
             minorityView: lastVerdict.minorityView,
             oppositeCase: lastVerdict.oppositeCase,
+            ...(lastVerdict.analysis ? { analysis: lastVerdict.analysis } : {}),
+            ...(lastVerdict.keyTakeaways?.length ? { keyTakeaways: lastVerdict.keyTakeaways } : {}),
+            ...(lastVerdict.actionItems?.length ? { actionItems: lastVerdict.actionItems } : {}),
           }
         : null
 

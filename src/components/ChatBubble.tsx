@@ -193,7 +193,7 @@ export default function ChatBubble({
                       modelBackgrounds[message.sender] ?? "bg-zinc-50 dark:bg-zinc-900/50"
                     )
               )}
-              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.3s ease" } : isAI && responseLength !== "short" && !isTyping ? { maxHeight: "9999px", transition: "max-height 0.3s ease" } : undefined}
+              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.3s ease" } : isAI && responseLength !== "short" ? { maxHeight: "9999px", transition: isTyping ? "none" : "max-height 0.3s ease" } : undefined}
             >
               {message.content}
               {isTyping && (

@@ -43,6 +43,11 @@ describe("cleanResponse", () => {
     expect(cleanResponse("Hello  world  test")).toBe("Hello world test")
   })
 
+  it("strips markdown horizontal rules", () => {
+    expect(cleanResponse("Some text.\n---\nMore text.")).toBe("Some text.\n\nMore text.")
+    expect(cleanResponse("Above\n  ***  \nBelow")).toBe("Above\n\nBelow")
+  })
+
   it("handles empty string", () => {
     expect(cleanResponse("")).toBe("")
   })

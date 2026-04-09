@@ -106,6 +106,9 @@ model Verdict {
   reasons           String[]
   minorityView      String   @db.Text
   oppositeCase      String   @db.Text
+  analysis          String?  @db.Text
+  keyTakeaways      String[] @default([])
+  actionItems       String[] @default([])
   afterMessageIndex Int
   createdAt         DateTime @default(now())
 

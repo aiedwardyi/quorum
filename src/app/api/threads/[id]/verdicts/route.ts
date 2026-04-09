@@ -22,7 +22,7 @@ export async function POST(
   }
 
   const body = await req.json()
-  const { recommendation, voteSplit, confidence, reasons, minorityView, oppositeCase, afterMessageIndex, expectedVersion } = body
+  const { recommendation, voteSplit, confidence, reasons, minorityView, oppositeCase, analysis, keyTakeaways, actionItems, afterMessageIndex, expectedVersion } = body
 
   if (!recommendation || typeof recommendation !== "string") {
     return NextResponse.json({ error: "recommendation is required" }, { status: 400 })
@@ -45,6 +45,9 @@ export async function POST(
           reasons,
           minorityView,
           oppositeCase,
+          ...(typeof analysis === "string" ? { analysis } : {}),
+          ...(Array.isArray(keyTakeaways) ? { keyTakeaways } : {}),
+          ...(Array.isArray(actionItems) ? { actionItems } : {}),
           afterMessageIndex: afterMessageIndex ?? 0,
         },
       })
