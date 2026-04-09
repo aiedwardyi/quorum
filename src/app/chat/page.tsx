@@ -425,7 +425,6 @@ function ChatPageContent() {
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
         isDebating={state.isDebating}
-        threadTitle={currentTitle}
         threadId={state.threadId}
         onNewDebate={handleNewDebate}
         onDeleteCurrent={handleNewDebate}

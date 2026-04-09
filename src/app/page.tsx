@@ -163,6 +163,7 @@ export default function Home() {
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
   const [responseLength, setResponseLength] = useState<ResponseLength>("short")
   const [rounds, setRounds] = useState<number>(1)
+  const sendHint = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘+Enter" : "Ctrl+Enter"
 
   // Hydrate persisted settings from localStorage after mount
   useEffect(() => {
@@ -703,7 +704,7 @@ export default function Home() {
                 />
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
-                    Ctrl+Enter
+                    {sendHint}
                   </span>
                   <button
                     onClick={handleSubmit}

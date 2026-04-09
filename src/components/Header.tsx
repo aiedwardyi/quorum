@@ -44,7 +44,6 @@ export default function ChatHeader({
   onToggleTheme,
   onOpenSettings,
   isDebating = false,
-  threadTitle,
   threadId,
   onNewDebate,
   onDeleteCurrent,
@@ -58,7 +57,6 @@ export default function ChatHeader({
   onToggleTheme: () => void
   onOpenSettings: () => void
   isDebating?: boolean
-  threadTitle?: string | null
   threadId?: string | null
   onNewDebate?: () => void
   onDeleteCurrent?: () => void
