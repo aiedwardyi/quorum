@@ -24,12 +24,14 @@ export default function MessageInput({
   disabled,
   locale,
   initialFileWarning,
+  initialText,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
   disabled: boolean
   locale: Locale
   initialFileWarning?: string | null
+  initialText?: string | null
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -127,6 +129,16 @@ export default function MessageInput({
       handleSend()
     }
   }
+
+  // Prefill text from pending prompt (e.g., after login redirect) - only once, only if empty
+  const prefilled = useRef(false)
+  useEffect(() => {
+    if (initialText && !prefilled.current && !text) {
+      prefilled.current = true
+      setText(initialText)
+      setTimeout(() => textareaRef.current?.focus(), 0)
+    }
+  }, [initialText]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show initial file warning passed from homepage
   useEffect(() => {

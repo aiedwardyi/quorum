@@ -71,6 +71,8 @@ describe("savePendingDebate / loadPendingDebate", () => {
   it("round-trips pending debate config", () => {
     const config = {
       prompt: "test prompt",
+      originalPrompt: "test prompt",
+      hadFiles: false,
       models: ["gemini", "claude"],
       responseLength: "medium",
       rounds: 5,
@@ -84,7 +86,7 @@ describe("savePendingDebate / loadPendingDebate", () => {
     expect(loadPendingDebate()).toBeNull()
   })
   it("clears pending debate after loading", () => {
-    savePendingDebate({ prompt: "test", models: ["gemini"], responseLength: "short", rounds: 3, locale: "en" })
+    savePendingDebate({ prompt: "test", originalPrompt: "test", hadFiles: false, models: ["gemini"], responseLength: "short", rounds: 3, locale: "en" })
     loadPendingDebate()
     expect(loadPendingDebate()).toBeNull()
   })

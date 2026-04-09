@@ -35,6 +35,7 @@ function ChatPageContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingThread, setIsLoadingThread] = useState(false)
   const [fileWarning, setFileWarning] = useState<string | null>(null)
+  const [prefillText, setPrefillText] = useState<string | null>(null)
 
   const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
     useDebateEngine({ locale, responseLength, maxRounds })
@@ -120,6 +121,33 @@ function ChatPageContent() {
       if ([1, 2, 3, 5].includes(n)) setMaxRounds(n)
     }
 
+    // Check for pending debate from login gate (must be before quorum_config early return)
+    const pending = sessionStorage.getItem("quorum_pending")
+    if (pending) {
+      sessionStorage.removeItem("quorum_pending")
+      // Clear stale quorum_config so it doesn't auto-send over our prefill
+      sessionStorage.removeItem("quorum_config")
+      sessionStorage.removeItem("quorum_file_warnings")
+      try {
+        const config = JSON.parse(pending)
+        if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
+        if (config.responseLength) setResponseLength(config.responseLength)
+        if (config.rounds) setMaxRounds(config.rounds)
+        if (config.locale) setLocale(config.locale)
+        // Prefill the text box with the original prompt instead of auto-sending
+        const textToShow = config.originalPrompt || config.prompt || ""
+        if (textToShow) setPrefillText(textToShow)
+        if (config.hadFiles) {
+          const reattachMsg = config.locale === "ko"
+            ? "로그인 전에 첨부한 파일을 다시 첨부해주세요"
+            : "Please re-attach files from before login"
+          setFileWarning(reattachMsg)
+        }
+      } catch { /* ignore */ }
+      setConfigHydrated(true)
+      return
+    }
+
     const raw = sessionStorage.getItem("quorum_config")
     if (!raw) {
       setConfigHydrated(true)
@@ -164,24 +192,6 @@ function ChatPageContent() {
       // malformed config - ignore
     } finally {
       setConfigHydrated(true)
-    }
-
-    const pending = sessionStorage.getItem("quorum_pending")
-    if (pending) {
-      sessionStorage.removeItem("quorum_pending")
-      try {
-        const config = JSON.parse(pending)
-        if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
-        if (config.responseLength) setResponseLength(config.responseLength)
-        if (config.rounds) setMaxRounds(config.rounds)
-        if (config.locale) setLocale(config.locale)
-        if (config.prompt) {
-          pendingPrompt.current = {
-            prompt: config.prompt,
-            models: config.models ?? DEFAULT_MODELS,
-          }
-        }
-      } catch { /* ignore */ }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -504,6 +514,7 @@ function ChatPageContent() {
           disabled={state.isDebating}
           locale={locale}
           initialFileWarning={fileWarning}
+          initialText={prefillText}
         />
       </div>
     </div>
