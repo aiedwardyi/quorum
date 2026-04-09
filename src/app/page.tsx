@@ -382,6 +382,8 @@ export default function Home() {
       if (shouldShowLoginGate(!!session?.user)) {
         savePendingDebate({
           prompt: messageText,
+          originalPrompt: prompt.trim(),
+          hadFiles: files.length > 0,
           models: selectedModels,
           responseLength,
           rounds,

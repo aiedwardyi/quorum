@@ -28,6 +28,8 @@ export function shouldShowLoginGate(isLoggedIn: boolean): boolean {
 
 type PendingDebate = {
   prompt: string
+  originalPrompt: string
+  hadFiles: boolean
   models: string[]
   responseLength: string
   rounds: number

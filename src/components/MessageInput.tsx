@@ -24,12 +24,14 @@ export default function MessageInput({
   disabled,
   locale,
   initialFileWarning,
+  initialText,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
   disabled: boolean
   locale: Locale
   initialFileWarning?: string | null
+  initialText?: string | null
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -127,6 +129,14 @@ export default function MessageInput({
       handleSend()
     }
   }
+
+  // Prefill text from pending prompt (e.g., after login redirect)
+  useEffect(() => {
+    if (initialText) {
+      setText(initialText)
+      setTimeout(() => textareaRef.current?.focus(), 0)
+    }
+  }, [initialText])
 
   // Show initial file warning passed from homepage
   useEffect(() => {
