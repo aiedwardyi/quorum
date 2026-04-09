@@ -24,6 +24,9 @@ export type VerdictResult = {
   minorityView: string
   oppositeCase: string
   modelAgreement?: number
+  analysis?: string
+  keyTakeaways?: string[]
+  actionItems?: string[]
 }
 
 export type ChatState = {
