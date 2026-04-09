@@ -50,6 +50,16 @@ function ChatPageContent() {
   // Bumped on bfcache restore to force framer-motion remount
   const [mountKey, setMountKey] = useState(0)
 
+  // Warn before browser back/refresh/tab close during active debate
+  useEffect(() => {
+    if (!state.isDebating) return
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [state.isDebating])
+
   // Apply theme classes to <html>
   useEffect(() => {
     const cl = document.documentElement.classList
