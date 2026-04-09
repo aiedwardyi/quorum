@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react"
 import { Message, Provider, Locale, ResponseLength } from "@/types"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => <div className="h-48 w-full max-w-3xl mx-auto mt-8 mb-12 bg-muted rounded-[28px] animate-pulse" />,
 })
@@ -112,7 +114,7 @@ export default function ChatBubble({
       const overflows = el.scrollHeight > el.clientHeight + 4
       el.style.maxHeight = prev
       el.style.overflow = prevOverflow
-      setIsOverflowing(overflows)
+      setIsOverflowing(o => o === overflows ? o : overflows)
     }
   }, [message.content, isAI, responseLength, isTyping])
 
@@ -184,18 +186,22 @@ export default function ChatBubble({
               key="content"
               ref={isAI ? contentRef : undefined}
               className={cn(
-                "px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm break-words whitespace-pre-wrap transition-all duration-200",
+                "px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm break-words transition-all duration-200",
                 isUser
-                  ? "bg-[var(--user-bubble)] text-[var(--user-bubble-foreground)] rounded-tr-sm"
+                  ? "bg-[var(--user-bubble)] text-[var(--user-bubble-foreground)] rounded-tr-sm whitespace-pre-wrap"
                   : cn(
-                      "border rounded-tl-sm text-zinc-800 dark:text-zinc-200",
+                      "border rounded-tl-sm text-zinc-800 dark:text-zinc-200 chat-markdown",
                       modelBorders[message.sender] ?? "border-zinc-200 dark:border-zinc-800",
                       modelBackgrounds[message.sender] ?? "bg-zinc-50 dark:bg-zinc-900/50"
                     )
               )}
               style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.3s ease" } : isAI && responseLength !== "short" ? { maxHeight: "9999px", transition: isTyping ? "none" : "max-height 0.3s ease" } : undefined}
             >
-              {message.content}
+              {isUser ? (
+                message.content
+              ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+              )}
               {isTyping && (
                 <span className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-current animate-pulse" />
               )}
