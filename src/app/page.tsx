@@ -85,7 +85,7 @@ const t = {
     parsing: "Reading files...",
     unsupported: "Supported: PDF, DOCX, Excel, and text files",
     truncated: (name: string) => `"${name}" is too long - only the first ~20 pages were included`,
-    empty: (name: string) => `"${name}" appears to be scanned/empty - no text could be extracted`,
+    empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`,
     too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`,
     parse_error: (name: string) => `"${name}" could not be read - the file may be corrupted or password-protected`,
     settings: "Settings",
@@ -124,7 +124,7 @@ const t = {
     parsing: "파일 읽는 중...",
     unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일",
     truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`,
-    empty: (name: string) => `"${name}" 파일에서 텍스트를 추출할 수 없습니다 (스캔 문서일 수 있음)`,
+    empty: (name: string) => `"${name}" 파일에 읽을 수 있는 텍스트가 없습니다 - 스캔 이미지일 수 있음`,
     too_large: (name: string) => `"${name}" 파일이 50MB 크기 제한을 초과합니다`,
     parse_error: (name: string) => `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)`,
     settings: "설정",
@@ -329,7 +329,7 @@ export default function Home() {
     return () => clearTimeout(timer)
   }, [fileError])
 
-  const buildPromptWithFiles = async (): Promise<{ text: string | null; fileWarnings: string[] }> => {
+  const buildPromptWithFiles = async (): Promise<{ text: string | null; fileWarnings: string[]; allFilesFailed: boolean }> => {
     let messageText = prompt.trim()
 
     if (files.length > 0) {
@@ -374,10 +374,11 @@ export default function Home() {
           : fileContents.join("\n\n")
       }
 
-      return { text: messageText || null, fileWarnings }
+      const allFilesFailed = fileContents.length === 0
+      return { text: messageText || null, fileWarnings, allFilesFailed }
     }
 
-    return { text: messageText || null, fileWarnings: [] }
+    return { text: messageText || null, fileWarnings: [], allFilesFailed: false }
   }
 
   const handleSubmit = async () => {
@@ -385,9 +386,10 @@ export default function Home() {
 
     setIsParsing(true)
     try {
-      const { text: messageText, fileWarnings } = await buildPromptWithFiles()
+      const { text: messageText, fileWarnings, allFilesFailed } = await buildPromptWithFiles()
       if (fileWarnings.length > 0) setFileError(fileWarnings.join("\n"))
       if (!messageText) return
+      if (allFilesFailed) return
 
       if (shouldShowLoginGate(!!session?.user)) {
         savePendingDebate({

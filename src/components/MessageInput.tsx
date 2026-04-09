@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils"
 import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
 
 const translations = {
-  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files", truncated: (name: string) => `"${name}" is too long - only the first part was included`, empty: (name: string) => `"${name}" appears to be scanned/empty - no text could be extracted`, too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`, parse_error: (name: string) => `"${name}" could not be read - the file may be corrupted or password-protected` },
-  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중...", unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일", truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`, empty: (name: string) => `"${name}" 파일에서 텍스트를 추출할 수 없습니다 (스캔 문서일 수 있음)`, too_large: (name: string) => `"${name}" 파일이 50MB 크기 제한을 초과합니다`, parse_error: (name: string) => `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)` },
+  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files", truncated: (name: string) => `"${name}" is too long - only the first part was included`, empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`, too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`, parse_error: (name: string) => `"${name}" could not be read - the file may be corrupted or password-protected` },
+  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중...", unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일", truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`, empty: (name: string) => `"${name}" 파일에 읽을 수 있는 텍스트가 없습니다 - 스캔 이미지일 수 있음`, too_large: (name: string) => `"${name}" 파일이 50MB 크기 제한을 초과합니다`, parse_error: (name: string) => `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)` },
 }
 
 interface AttachedFile {
@@ -107,6 +107,9 @@ export default function MessageInput({
           messageText = messageText
             ? `${messageText}\n\n${fileContents.join('\n\n')}`
             : fileContents.join('\n\n')
+        } else {
+          // All files failed to parse - don't send bare text without the expected file content
+          return
         }
       }
 
