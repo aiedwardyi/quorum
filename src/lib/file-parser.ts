@@ -99,23 +99,23 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     }
   }
 
-  // If we got text from normal extraction, return it
-  if (pages.length > 0) {
+  // If no empty pages, return whatever text we got
+  if (emptyPageIndices.length === 0) {
     return { text: pages.join('\n\n'), usedOCR: false }
   }
 
-  // No text found - attempt OCR on empty pages (likely scanned document)
-  if (emptyPageIndices.length === 0) {
-    return { text: '', usedOCR: false }
+  // If we already hit the char limit from text pages, skip OCR
+  if (totalLength >= MAX_FILE_CHARS) {
+    return { text: pages.join('\n\n'), usedOCR: false }
   }
 
+  // OCR the empty pages (scanned images)
   options?.onProgress?.('Loading OCR engine...')
 
   const { createWorker } = await import('tesseract.js')
   const worker = await createWorker('kor+eng')
 
   try {
-    const ocrPages: string[] = []
     const ocrLimit = Math.min(emptyPageIndices.length, MAX_OCR_PAGES)
 
     for (let idx = 0; idx < ocrLimit; idx++) {
@@ -134,13 +134,13 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
       const { data: { text } } = await worker.recognize(canvas)
       const trimmed = text.trim()
       if (trimmed) {
-        ocrPages.push(trimmed)
+        pages.push(trimmed)
         totalLength += trimmed.length
         if (totalLength >= MAX_FILE_CHARS) break
       }
     }
 
-    return { text: ocrPages.join('\n\n'), usedOCR: true }
+    return { text: pages.join('\n\n'), usedOCR: emptyPageIndices.length > 0 }
   } finally {
     await worker.terminate()
   }
