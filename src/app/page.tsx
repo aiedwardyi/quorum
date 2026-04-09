@@ -179,7 +179,6 @@ export default function Home() {
   const [isFocused, setIsFocused] = useState(false)
   const [files, setFiles] = useState<{ id: string; file: File; preview?: string; parsing?: boolean; parsed?: ParseResult }[]>([])
   const filesRef = useRef(files)
-  useEffect(() => { filesRef.current = files }, [files])
   const [isDragging, setIsDragging] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -305,7 +304,11 @@ export default function Home() {
       preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
       parsing: true,
     }))
-    setFiles((prev) => [...prev, ...newFiles])
+    setFiles((prev) => {
+      const next = [...prev, ...newFiles]
+      filesRef.current = next
+      return next
+    })
 
     newFiles.forEach(async (af) => {
       const parsed = await parseFile(af.file)
@@ -326,7 +329,9 @@ export default function Home() {
     setFiles((prev) => {
       const removed = prev.find((f) => f.id === id)
       if (removed?.preview) URL.revokeObjectURL(removed.preview)
-      return prev.filter((f) => f.id !== id)
+      const next = prev.filter((f) => f.id !== id)
+      filesRef.current = next
+      return next
     })
   }
 

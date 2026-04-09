@@ -60,10 +60,13 @@ function ChatPageContent() {
 
   useEffect(() => {
     if (!state.isDebating) {
-      // Clean up guard entry when debate ends naturally
-      if (guardPushedRef.current) {
+      // Clean up guard entry when debate ends naturally (not during navigation)
+      if (guardPushedRef.current && history.state?.debateGuard) {
         guardPushedRef.current = false
+        allowBackRef.current = true
         history.back()
+      } else {
+        guardPushedRef.current = false
       }
       return
     }
