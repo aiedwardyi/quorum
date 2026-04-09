@@ -416,7 +416,7 @@ export default function Home() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.altKey || e.ctrlKey || e.metaKey)) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault()
       handleSubmit()
     }
@@ -703,7 +703,7 @@ export default function Home() {
                 />
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
-                    Alt+Enter
+                    Ctrl+Enter
                   </span>
                   <button
                     onClick={handleSubmit}
