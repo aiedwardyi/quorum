@@ -8,7 +8,7 @@ import { useDebateEngine } from "@/hooks/useDebateEngine"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
 import ConsensusMeter from "@/components/ConsensusMeter"
-import ChatHeader from "@/components/Header"
+import ChatHeader, { leaveDebateStrings } from "@/components/Header"
 import ConfirmDialog from "@/components/ConfirmDialog"
 import dynamic from "next/dynamic"
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
@@ -555,10 +555,10 @@ function ChatPageContent() {
 
       <ConfirmDialog
         isOpen={showBackConfirm}
-        title={locale === "ko" ? "토론을 나가시겠습니까?" : "Leave debate?"}
-        description={locale === "ko" ? "토론이 진행 중입니다. 이 페이지를 나가면 중단됩니다." : "A debate is still running. Leaving this page will stop it."}
-        confirmLabel={locale === "ko" ? "나가기" : "Leave"}
-        cancelLabel={locale === "ko" ? "머무르기" : "Stay"}
+        title={leaveDebateStrings[locale].leaveTitle}
+        description={leaveDebateStrings[locale].leaveDesc}
+        confirmLabel={leaveDebateStrings[locale].leaveConfirm}
+        cancelLabel={leaveDebateStrings[locale].leaveCancel}
         onConfirm={() => {
           setShowBackConfirm(false)
           handleStop()

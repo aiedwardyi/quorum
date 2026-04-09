@@ -178,6 +178,8 @@ export default function Home() {
   /* eslint-enable react-hooks/set-state-in-effect */
   const [isFocused, setIsFocused] = useState(false)
   const [files, setFiles] = useState<{ id: string; file: File; preview?: string; parsing?: boolean; parsed?: ParseResult }[]>([])
+  const filesRef = useRef(files)
+  useEffect(() => { filesRef.current = files }, [files])
   const [isDragging, setIsDragging] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -307,6 +309,7 @@ export default function Home() {
 
     newFiles.forEach(async (af) => {
       const parsed = await parseFile(af.file)
+      if (!filesRef.current.some((f) => f.id === af.id)) return
       const warningMsg = parsed.warning === "empty" ? t[locale].empty(af.file.name)
         : parsed.warning === "too_large" ? t[locale].too_large(af.file.name)
         : parsed.warning === "parse_error" ? t[locale].parse_error(af.file.name)
@@ -373,7 +376,11 @@ export default function Home() {
       .filter((af) => af.parsed?.warning)
       .map((af) => {
         const w = af.parsed!.warning!
-        return w === "truncated" ? t[locale].truncated(af.file.name) : null
+        if (w === "truncated") return t[locale].truncated(af.file.name)
+        if (w === "empty") return t[locale].empty(af.file.name)
+        if (w === "too_large") return t[locale].too_large(af.file.name)
+        if (w === "parse_error") return t[locale].parse_error(af.file.name)
+        return null
       })
       .filter(Boolean) as string[]
 

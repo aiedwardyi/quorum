@@ -10,6 +10,21 @@ import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, 
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 
+export const leaveDebateStrings = {
+  en: {
+    leaveTitle: "Leave debate?",
+    leaveDesc: "A debate is still running. Leaving this page will stop it.",
+    leaveConfirm: "Leave",
+    leaveCancel: "Stay",
+  },
+  ko: {
+    leaveTitle: "토론을 나가시겠습니까?",
+    leaveDesc: "토론이 진행 중입니다. 이 페이지를 나가면 중단됩니다.",
+    leaveConfirm: "나가기",
+    leaveCancel: "머무르기",
+  },
+}
+
 const translations = {
   en: {
     round: "Round",
@@ -21,10 +36,7 @@ const translations = {
     login: "Sign In",
     logout: "Log Out",
     settings: "Settings",
-    leaveTitle: "Leave debate?",
-    leaveDesc: "A debate is still running. Leaving this page will stop it.",
-    leaveConfirm: "Leave",
-    leaveCancel: "Stay",
+    ...leaveDebateStrings.en,
   },
   ko: {
     round: "라운드",
@@ -36,10 +48,7 @@ const translations = {
     login: "로그인",
     logout: "로그아웃",
     settings: "설정",
-    leaveTitle: "토론을 나가시겠습니까?",
-    leaveDesc: "토론이 진행 중입니다. 이 페이지를 나가면 중단됩니다.",
-    leaveConfirm: "나가기",
-    leaveCancel: "머무르기",
+    ...leaveDebateStrings.ko,
   },
 }
 

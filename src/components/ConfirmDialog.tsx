@@ -22,19 +22,43 @@ export default function ConfirmDialog({
   onCancel: () => void
   destructive?: boolean
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
   const id = useId()
   const titleId = `${id}-title`
   const descId = `${id}-desc`
 
+  // Save previous focus and restore on close
   useEffect(() => {
-    if (isOpen) confirmRef.current?.focus()
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement
+      confirmRef.current?.focus()
+    } else if (previousFocusRef.current) {
+      previousFocusRef.current.focus()
+      previousFocusRef.current = null
+    }
   }, [isOpen])
 
+  // Escape to close + focus trap
   useEffect(() => {
     if (!isOpen) return
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel()
+      if (e.key === "Escape") { onCancel(); return }
+      if (e.key !== "Tab" || !dialogRef.current) return
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener("keydown", handleKey)
     return () => document.removeEventListener("keydown", handleKey)
@@ -53,6 +77,7 @@ export default function ConfirmDialog({
             onClick={onCancel}
           />
           <motion.div
+            ref={dialogRef}
             initial={{ opacity: 0, scale: 0.95, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 8 }}

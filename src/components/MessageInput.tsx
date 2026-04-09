@@ -145,6 +145,8 @@ export default function MessageInput({
     // Parse each file immediately and show warnings at attach time
     newFiles.forEach(async (af) => {
       const parsed = await parseFile(af.file)
+      // Bail if file was removed while parsing
+      if (!attachedFilesRef.current.some((f) => f.id === af.id)) return
       const warningMsg = parsed.warning === "empty" ? t.empty(af.file.name)
         : parsed.warning === "too_large" ? t.too_large(af.file.name)
         : parsed.warning === "parse_error" ? t.parse_error(af.file.name)
