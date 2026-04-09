@@ -100,18 +100,19 @@ export default function ChatBubble({
   const shouldCollapse = isAI && responseLength !== "short" && !isTyping && !expanded
 
   useEffect(() => {
-    if (isAI && responseLength !== "short" && contentRef.current && message.content) {
+    if (isAI && responseLength !== "short" && !isTyping && contentRef.current && message.content) {
       const el = contentRef.current
       // Temporarily apply collapsed height to measure true overflow
       const prev = el.style.maxHeight
+      const prevOverflow = el.style.overflow
       el.style.maxHeight = "6em"
       el.style.overflow = "hidden"
       const overflows = el.scrollHeight > el.clientHeight + 4
       el.style.maxHeight = prev
-      el.style.overflow = ""
+      el.style.overflow = prevOverflow
       setIsOverflowing(overflows)
     }
-  }, [message.content, isAI, responseLength])
+  }, [message.content, isAI, responseLength, isTyping])
 
   if (message.sender === "system") {
     const isAnalyzing = message.content.includes("Analyzing") || message.content.includes("분석")
