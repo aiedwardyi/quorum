@@ -6,12 +6,12 @@ import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Setti
 import SettingsModal from "@/components/SettingsModal"
 import { motion, AnimatePresence } from "framer-motion"
 import { THEMES } from "@/types"
-import type { Provider, ResponseLength, Locale, Theme, ThreadSummary } from "@/types"
+import type { Provider, ResponseLength, Locale, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
 import LoginGateModal from "@/components/LoginGate"
-import { timeAgo } from "@/lib/time"
+import ThreadDropdown from "@/components/ThreadDropdown"
 import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
 
 /* ─── Model SVG Icons ─── */
@@ -163,6 +163,7 @@ export default function Home() {
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
   const [responseLength, setResponseLength] = useState<ResponseLength>("short")
   const [rounds, setRounds] = useState<number>(1)
+  const sendHint = "Ctrl/⌘+Enter"
 
   // Hydrate persisted settings from localStorage after mount
   useEffect(() => {
@@ -189,15 +190,6 @@ export default function Home() {
   // Header & Settings state
   const [showDropdown, setShowDropdown] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [recentThreads, setRecentThreads] = useState<ThreadSummary[]>([])
-
-  useEffect(() => {
-    if (!isLoggedIn) return
-    fetch("/api/threads")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => { if (data?.threads) setRecentThreads(data.threads.slice(0, 5)) })
-      .catch(() => {})
-  }, [isLoggedIn])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -425,7 +417,7 @@ export default function Home() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault()
       handleSubmit()
     }
@@ -450,9 +442,25 @@ export default function Home() {
 
       {/* Header */}
       <header className="relative z-30 flex justify-between items-center p-4 sm:p-6 md:p-8 w-full max-w-5xl mx-auto">
-        <div className="font-semibold tracking-tight text-base sm:text-lg flex items-center gap-2">
-          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-sm bg-zinc-900 dark:bg-zinc-100" />
-          Quorum
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push("/")}
+            className="font-semibold tracking-tight text-base sm:text-lg flex items-center gap-2 hover:opacity-70 transition-opacity"
+          >
+            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-sm bg-zinc-900 dark:bg-zinc-100" />
+            Quorum
+          </button>
+          {isLoggedIn && (
+            <ThreadDropdown
+              currentThreadId={null}
+              currentTitle={locale === "ko" ? "최근 토론" : "History"}
+              locale={locale}
+              onNewDebate={() => {
+                sessionStorage.removeItem("quorum_config")
+                router.push("/chat")
+              }}
+            />
+          )}
         </div>
         <div className="flex items-center gap-3 sm:gap-5">
           <motion.button
@@ -649,7 +657,7 @@ export default function Home() {
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
                 placeholder={t[locale].placeholder}
-                className="w-full bg-transparent text-lg min-[375px]:text-xl sm:text-2xl md:text-3xl lg:text-4xl font-medium tracking-tight placeholder:text-zinc-400 dark:placeholder:text-zinc-600 resize-none outline-none min-h-[100px] sm:min-h-[120px] leading-[1.15]"
+                className="w-full bg-transparent text-base min-[375px]:text-lg sm:text-xl md:text-2xl font-medium tracking-tight placeholder:text-zinc-400 dark:placeholder:text-zinc-600 resize-none outline-none min-h-[100px] sm:min-h-[120px] leading-[1.15]"
                 autoFocus
               />
               {files.length > 0 && (
@@ -694,6 +702,25 @@ export default function Home() {
                     e.target.value = ""
                   }}
                 />
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+                    {sendHint}
+                  </span>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isParsing || (!prompt.trim() && files.length === 0)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
+                  >
+                    {isParsing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        {t[locale].start}
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -871,49 +898,6 @@ export default function Home() {
           </div>
         </motion.div>
 
-          {/* Recent Debates */}
-          {isLoggedIn && recentThreads.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-              className="mt-12"
-            >
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                {locale === "ko" ? "최근 토론" : "Recent Debates"}
-              </span>
-              <div className="mt-4 flex flex-col gap-2">
-                {recentThreads.map((thread) => (
-                  <motion.button
-                    key={thread.id}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    onClick={() => {
-                      sessionStorage.removeItem("quorum_config")
-                      router.push(`/chat?thread=${thread.id}`)
-                    }}
-                    className="w-full text-left p-3 sm:p-4 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/30 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-all group"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                          {thread.title}
-                        </p>
-                        {thread.verdicts[0] && (
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate mt-1">
-                            {thread.verdicts[0].recommendation}
-                          </p>
-                        )}
-                      </div>
-                      <span className="text-xs text-zinc-400 dark:text-zinc-500 shrink-0 mt-0.5">
-                        {timeAgo(thread.updatedAt, locale)}
-                      </span>
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          )}
       </main>
 
       {/* Settings Modal */}

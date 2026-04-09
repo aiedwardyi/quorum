@@ -42,6 +42,7 @@ export default function MessageInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>([])
   const t = translations[locale]
+  const sendHint = "Ctrl/⌘+Enter"
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -126,7 +127,7 @@ export default function MessageInput({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault()
       handleSend()
     }
@@ -279,6 +280,9 @@ export default function MessageInput({
             </div>
 
             <div className="flex items-center gap-2">
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+                {sendHint}
+              </span>
               {disabled ? (
                 <button
                   onClick={(e) => { e.stopPropagation(); onStop() }}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { Locale, ResponseLength, Theme } from "@/types"
 import ThreadDropdown from "@/components/ThreadDropdown"
-import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, User, Settings2, Sparkles, LogIn, LogOut, Sunrise, Home } from "lucide-react"
+import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, User, Settings2, Sparkles, LogIn, LogOut, Sunrise } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -19,7 +19,6 @@ const translations = {
     lengthTooltip: "Set response length",
     login: "Sign In",
     logout: "Log Out",
-    home: "Home",
     settings: "Settings",
   },
   ko: {
@@ -31,7 +30,6 @@ const translations = {
     lengthTooltip: "답변 길이 설정",
     login: "로그인",
     logout: "로그아웃",
-    home: "홈",
     settings: "설정",
   },
 }
@@ -46,7 +44,6 @@ export default function ChatHeader({
   onToggleTheme,
   onOpenSettings,
   isDebating = false,
-  threadTitle,
   threadId,
   onNewDebate,
   onDeleteCurrent,
@@ -60,7 +57,6 @@ export default function ChatHeader({
   onToggleTheme: () => void
   onOpenSettings: () => void
   isDebating?: boolean
-  threadTitle?: string | null
   threadId?: string | null
   onNewDebate?: () => void
   onDeleteCurrent?: () => void
@@ -96,16 +92,21 @@ export default function ChatHeader({
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 sm:px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       {/* Title + Round + Length */}
       <div className="flex items-center gap-2 sm:gap-4">
-        {isLoggedIn && onNewDebate ? (
+        <button
+          onClick={() => router.push("/")}
+          className="text-sm sm:text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2 hover:opacity-70 transition-opacity"
+        >
+          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-sm bg-zinc-900 dark:bg-zinc-100 shrink-0" />
+          Quorum
+        </button>
+        {isLoggedIn && onNewDebate && (
           <ThreadDropdown
             currentThreadId={threadId ?? null}
-            currentTitle={threadTitle ?? null}
+            currentTitle={locale === "ko" ? "최근 토론" : "History"}
             locale={locale}
             onNewDebate={onNewDebate}
             onDeleteCurrent={onDeleteCurrent}
           />
-        ) : (
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Quorum</h1>
         )}
 
         <div className="flex items-center gap-1.5 sm:gap-4">
@@ -295,13 +296,6 @@ export default function ChatHeader({
                   className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
                 >
                   <div className="p-1">
-                    <button
-                      onClick={() => { setShowUserMenu(false); router.push("/") }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
-                    >
-                      <Home className="w-4 h-4" />
-                      {t.home}
-                    </button>
                     <button
                       onClick={() => { setShowUserMenu(false); signOut() }}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"

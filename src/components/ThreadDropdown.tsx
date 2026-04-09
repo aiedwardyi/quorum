@@ -154,9 +154,10 @@ export default function ThreadDropdown({
         onClick={handleToggle}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-label={displayTitle}
         className="flex items-center gap-1.5 text-sm font-semibold text-[var(--foreground)] hover:text-[var(--foreground)]/80 transition-colors max-w-[200px] sm:max-w-[300px]"
       >
-        <span className="truncate">{displayTitle}</span>
+        <span className="truncate hidden sm:inline">{displayTitle}</span>
         <ChevronDown className={cn("w-3.5 h-3.5 shrink-0 transition-transform", isOpen && "rotate-180")} />
       </button>
 
@@ -168,7 +169,7 @@ export default function ThreadDropdown({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.12 }}
-            className="absolute top-full left-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl z-50 overflow-hidden"
+            className="absolute top-full left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] sm:w-80 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl z-50 overflow-hidden"
           >
             {/* Search */}
             <div className="p-2 border-b border-[var(--border)]">
