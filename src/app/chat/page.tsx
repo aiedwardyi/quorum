@@ -54,23 +54,37 @@ function ChatPageContent() {
   // Warn before browser back/refresh/tab close during active debate
   const [showBackConfirm, setShowBackConfirm] = useState(false)
   const isDebatingRef = useRef(state.isDebating)
+  const allowBackRef = useRef(false)
+  const guardPushedRef = useRef(false)
   isDebatingRef.current = state.isDebating
 
   useEffect(() => {
-    if (!state.isDebating) return
+    if (!state.isDebating) {
+      // Clean up guard entry when debate ends naturally
+      if (guardPushedRef.current) {
+        guardPushedRef.current = false
+        history.back()
+      }
+      return
+    }
 
     // Push a guard entry so we can intercept back navigation
     history.pushState({ debateGuard: true }, "")
+    guardPushedRef.current = true
 
     const handlePopState = () => {
+      if (allowBackRef.current) {
+        allowBackRef.current = false
+        return
+      }
       if (isDebatingRef.current) {
-        // Re-push to stay on the page, show confirm
         history.pushState({ debateGuard: true }, "")
         setShowBackConfirm(true)
       }
     }
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
+      e.returnValue = ""
     }
 
     window.addEventListener("popstate", handlePopState)
@@ -548,6 +562,8 @@ function ChatPageContent() {
         onConfirm={() => {
           setShowBackConfirm(false)
           handleStop()
+          allowBackRef.current = true
+          guardPushedRef.current = false
           router.back()
         }}
         onCancel={() => setShowBackConfirm(false)}

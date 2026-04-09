@@ -116,9 +116,9 @@ export default function ThreadDropdown({
       setIsOpen(false)
       return
     }
+    setIsOpen(false)
     const navigate = () => {
       isNavigatingRef.current = true
-      setIsOpen(false)
       router.replace(`/chat?thread=${threadId}`)
     }
     if (confirmBeforeNav) {
@@ -197,7 +197,8 @@ export default function ThreadDropdown({
             {/* New debate button */}
             <button
               onClick={() => {
-                const go = () => { setIsOpen(false); onNewDebate() }
+                setIsOpen(false)
+                const go = () => { onNewDebate() }
                 if (confirmBeforeNav) confirmBeforeNav(go); else go()
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--accent)] transition-colors"

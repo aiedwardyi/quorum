@@ -102,14 +102,14 @@ export default function MessageInput({
   useEffect(() => {
     if (initialText && !prefilled.current && !text) {
       prefilled.current = true
-      setText(initialText)
+      setText(initialText) // eslint-disable-line react-hooks/set-state-in-effect
       setTimeout(() => textareaRef.current?.focus(), 0)
     }
   }, [initialText]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show initial file warning passed from homepage
   useEffect(() => {
-    if (initialFileWarning) setFileError(initialFileWarning)
+    if (initialFileWarning) setFileError(initialFileWarning) // eslint-disable-line react-hooks/set-state-in-effect
   }, [initialFileWarning])
 
   // Auto-dismiss file error

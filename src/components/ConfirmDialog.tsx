@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useId, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 
 export default function ConfirmDialog({
@@ -23,6 +23,9 @@ export default function ConfirmDialog({
   destructive?: boolean
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const id = useId()
+  const titleId = `${id}-title`
+  const descId = `${id}-desc`
 
   useEffect(() => {
     if (isOpen) confirmRef.current?.focus()
@@ -56,14 +59,14 @@ export default function ConfirmDialog({
             transition={{ duration: 0.15 }}
             role="alertdialog"
             aria-modal="true"
-            aria-labelledby="confirm-title"
-            aria-describedby="confirm-desc"
+            aria-labelledby={titleId}
+            aria-describedby={descId}
             className="relative bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl"
           >
-            <h2 id="confirm-title" className="text-base font-semibold text-[var(--foreground)]">
+            <h2 id={titleId} className="text-base font-semibold text-[var(--foreground)]">
               {title}
             </h2>
-            <p id="confirm-desc" className="text-sm text-[var(--muted-foreground)] mt-2">
+            <p id={descId} className="text-sm text-[var(--muted-foreground)] mt-2">
               {description}
             </p>
             <div className="flex items-center justify-end gap-3 mt-6">

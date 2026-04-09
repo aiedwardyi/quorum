@@ -166,6 +166,7 @@ export default function Home() {
   const sendHint = "Ctrl/⌘+Enter"
 
   // Hydrate persisted settings from localStorage after mount
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const savedLocale = localStorage.getItem("quorum_locale")
     if (savedLocale === "en" || savedLocale === "ko") setLocale(savedLocale)
@@ -174,6 +175,7 @@ export default function Home() {
     const savedRounds = localStorage.getItem("quorum_rounds")
     if (savedRounds) { const n = parseInt(savedRounds, 10); if ([1, 2, 3, 5].includes(n)) setRounds(n) }
   }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
   const [isFocused, setIsFocused] = useState(false)
   const [files, setFiles] = useState<{ id: string; file: File; preview?: string; parsing?: boolean; parsed?: ParseResult }[]>([])
   const [isDragging, setIsDragging] = useState(false)
