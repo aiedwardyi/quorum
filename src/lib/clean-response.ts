@@ -3,8 +3,8 @@
 // other models sometimes include in responses.
 export function cleanResponse(text: string): string {
   return text
-    // Remove inline citation markers like [1], [2][3], [1][4][5]
-    .replace(/\[\d+\](\[\d+\])*/g, "")
+    // Remove inline citation markers like [1], [2][3], [특허 문서], [Patent Document]
+    .replace(/\[[^\]]+\](\[[^\]]+\])*/g, "")
     // Remove trailing "Refs:", "References:", "Sources:" blocks and everything after
     .replace(/\n*-{0,3}\s*(Refs?|References|Sources)\s*:[\s\S]*$/i, "")
     // Remove leftover HTML/XML tags

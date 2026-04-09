@@ -29,9 +29,9 @@ function getMaxTokens(length: ResponseLength): number {
     case "short":
       return 350
     case "long":
-      return 1024
+      return 4096
     default:
-      return 512
+      return 1024
   }
 }
 

@@ -12,6 +12,18 @@ describe("cleanResponse", () => {
     expect(cleanResponse("Result[1][4][5] confirmed.")).toBe("Result confirmed.")
   })
 
+  it("strips text-based citation markers like [특허 문서]", () => {
+    expect(cleanResponse("연구는 밀도 매핑[특허 문서]에 초점을 맞추고 있습니다.")).toBe(
+      "연구는 밀도 매핑에 초점을 맞추고 있습니다."
+    )
+  })
+
+  it("strips English text-based citation markers", () => {
+    expect(cleanResponse("The study[Patent Document] shows results.")).toBe(
+      "The study shows results."
+    )
+  })
+
   it("strips trailing References block", () => {
     const input = "Great answer.\n\nReferences:\n1. Source A\n2. Source B"
     expect(cleanResponse(input)).toBe("Great answer.")
