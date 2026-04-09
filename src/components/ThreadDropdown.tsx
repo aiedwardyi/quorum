@@ -29,12 +29,14 @@ export default function ThreadDropdown({
   locale,
   onNewDebate,
   onDeleteCurrent,
+  confirmBeforeNav,
 }: {
   currentThreadId: string | null
   currentTitle: string | null
   locale: Locale
   onNewDebate: () => void
   onDeleteCurrent?: () => void
+  confirmBeforeNav?: (action: () => void) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [threads, setThreads] = useState<ThreadSummary[]>([])
@@ -114,10 +116,16 @@ export default function ThreadDropdown({
       setIsOpen(false)
       return
     }
-    // Close before navigation to minimize visible flicker during the route change
-    isNavigatingRef.current = true
     setIsOpen(false)
-    router.replace(`/chat?thread=${threadId}`)
+    const navigate = () => {
+      isNavigatingRef.current = true
+      router.replace(`/chat?thread=${threadId}`)
+    }
+    if (confirmBeforeNav) {
+      confirmBeforeNav(navigate)
+    } else {
+      navigate()
+    }
   }
 
   const handleDelete = async (e: React.MouseEvent, threadId: string) => {
@@ -188,7 +196,11 @@ export default function ThreadDropdown({
 
             {/* New debate button */}
             <button
-              onClick={() => { setIsOpen(false); onNewDebate() }}
+              onClick={() => {
+                setIsOpen(false)
+                const go = () => { onNewDebate() }
+                if (confirmBeforeNav) confirmBeforeNav(go); else go()
+              }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--accent)] transition-colors"
             >
               <Plus className="w-4 h-4" />

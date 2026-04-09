@@ -59,6 +59,7 @@ async function parsePDF(file: File): Promise<string> {
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
 
   const pages: string[] = []
+  const seen = new Set<string>()
   let totalLength = 0
   const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES)
   for (let i = 1; i <= pageLimit; i++) {
@@ -68,9 +69,11 @@ async function parsePDF(file: File): Promise<string> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((item: any) => item.str ?? '')
       .join(' ')
-    if (text.trim()) {
-      pages.push(text.trim())
-      totalLength += text.trim().length
+    const trimmed = text.trim()
+    if (trimmed && !seen.has(trimmed)) {
+      seen.add(trimmed)
+      pages.push(trimmed)
+      totalLength += trimmed.length
       if (totalLength >= MAX_FILE_CHARS) break
     }
   }

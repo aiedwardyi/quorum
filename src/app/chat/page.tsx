@@ -8,7 +8,8 @@ import { useDebateEngine } from "@/hooks/useDebateEngine"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
 import ConsensusMeter from "@/components/ConsensusMeter"
-import ChatHeader from "@/components/Header"
+import ChatHeader, { leaveDebateStrings } from "@/components/Header"
+import ConfirmDialog from "@/components/ConfirmDialog"
 import dynamic from "next/dynamic"
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
 import { ChevronDown } from "lucide-react"
@@ -49,6 +50,53 @@ function ChatPageContent() {
   const [showScrollDown, setShowScrollDown] = useState(false)
   // Bumped on bfcache restore to force framer-motion remount
   const [mountKey, setMountKey] = useState(0)
+
+  // Warn before browser back/refresh/tab close during active debate
+  const [showBackConfirm, setShowBackConfirm] = useState(false)
+  const isDebatingRef = useRef(state.isDebating)
+  const allowBackRef = useRef(false)
+  const guardPushedRef = useRef(false)
+  isDebatingRef.current = state.isDebating
+
+  useEffect(() => {
+    if (!state.isDebating) {
+      // Clean up guard entry when debate ends naturally (not during navigation)
+      if (guardPushedRef.current && history.state?.debateGuard) {
+        guardPushedRef.current = false
+        allowBackRef.current = true
+        history.back()
+      } else {
+        guardPushedRef.current = false
+      }
+      return
+    }
+
+    // Push a guard entry so we can intercept back navigation
+    history.pushState({ debateGuard: true }, "")
+    guardPushedRef.current = true
+
+    const handlePopState = () => {
+      if (allowBackRef.current) {
+        allowBackRef.current = false
+        return
+      }
+      if (isDebatingRef.current) {
+        history.pushState({ debateGuard: true }, "")
+        setShowBackConfirm(true)
+      }
+    }
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+    }
+  }, [state.isDebating])
 
   // Apply theme classes to <html>
   useEffect(() => {
@@ -428,6 +476,7 @@ function ChatPageContent() {
         threadId={state.threadId}
         onNewDebate={handleNewDebate}
         onDeleteCurrent={handleNewDebate}
+        onStopDebate={handleStop}
       />
 
       <SettingsModal
@@ -506,6 +555,23 @@ function ChatPageContent() {
           initialText={prefillText}
         />
       </div>
+
+      <ConfirmDialog
+        isOpen={showBackConfirm}
+        title={leaveDebateStrings[locale].leaveTitle}
+        description={leaveDebateStrings[locale].leaveDesc}
+        confirmLabel={leaveDebateStrings[locale].leaveConfirm}
+        cancelLabel={leaveDebateStrings[locale].leaveCancel}
+        onConfirm={() => {
+          setShowBackConfirm(false)
+          handleStop()
+          allowBackRef.current = true
+          guardPushedRef.current = false
+          router.back()
+        }}
+        onCancel={() => setShowBackConfirm(false)}
+        destructive
+      />
     </div>
   )
 }
