@@ -20,6 +20,7 @@ const translations = {
     login: "Sign In",
     logout: "Log Out",
     settings: "Settings",
+    leaveConfirm: "A debate is still running. Leaving will stop it.",
   },
   ko: {
     round: "라운드",
@@ -31,6 +32,7 @@ const translations = {
     login: "로그인",
     logout: "로그아웃",
     settings: "설정",
+    leaveConfirm: "토론이 진행 중입니다. 나가면 중단됩니다.",
   },
 }
 
@@ -47,6 +49,7 @@ export default function ChatHeader({
   threadId,
   onNewDebate,
   onDeleteCurrent,
+  onStopDebate,
 }: {
   currentRound: number
   maxRounds: number
@@ -60,12 +63,21 @@ export default function ChatHeader({
   threadId?: string | null
   onNewDebate?: () => void
   onDeleteCurrent?: () => void
+  onStopDebate?: () => void
 }) {
   const { data: session } = useSession()
   const router = useRouter()
   const isLoggedIn = !!session?.user
   const t = translations[locale]
   const [showLengthDropdown, setShowLengthDropdown] = useState(false)
+
+  const confirmIfDebating = (action: () => void) => {
+    if (isDebating) {
+      if (!window.confirm(t.leaveConfirm)) return
+      onStopDebate?.()
+    }
+    action()
+  }
   const [showUserMenu, setShowUserMenu] = useState(false)
 
   useEffect(() => {
@@ -93,7 +105,7 @@ export default function ChatHeader({
       {/* Title + Round + Length */}
       <div className="flex items-center gap-2 sm:gap-4">
         <button
-          onClick={() => router.push("/")}
+          onClick={() => confirmIfDebating(() => router.push("/"))}
           className="text-sm sm:text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2 hover:opacity-70 transition-opacity"
         >
           <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-sm bg-zinc-900 dark:bg-zinc-100 shrink-0" />
@@ -106,6 +118,7 @@ export default function ChatHeader({
             locale={locale}
             onNewDebate={onNewDebate}
             onDeleteCurrent={onDeleteCurrent}
+            confirmBeforeNav={isDebating ? (action) => confirmIfDebating(action) : undefined}
           />
         )}
 
