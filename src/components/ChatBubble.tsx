@@ -2,7 +2,6 @@
 
 import { Message, Provider, Locale } from "@/types"
 import { cn } from "@/lib/utils"
-import { motion } from "framer-motion"
 import dynamic from "next/dynamic"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => <div className="h-48 w-full max-w-3xl mx-auto mt-8 mb-12 bg-muted rounded-[28px] animate-pulse" />,
@@ -95,11 +94,7 @@ export default function ChatBubble({
     const isAnalyzing = message.content.includes("Analyzing") || message.content.includes("분석")
 
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="my-6 flex w-full items-center gap-3"
-      >
+      <div className="my-6 flex w-full items-center gap-3 animate-bubble-in">
         <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
         <span
           className={cn(
@@ -110,12 +105,11 @@ export default function ChatBubble({
           {message.content}
         </span>
         <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-      </motion.div>
+      </div>
     )
   }
 
   if (message.sender === "verdict" && message.verdictData) {
-    // SummaryCard has its own entrance animation - no wrapper animation needed
     return (
       <div className="w-full">
         <SummaryCard result={message.verdictData} locale={locale} inline onNewDiscussion={onNewDiscussion} />
@@ -127,11 +121,7 @@ export default function ChatBubble({
   const isEmpty = !isUser && !message.content
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={cn("flex w-full mb-4", isUser ? "justify-end" : "justify-start")}
-    >
+    <div className={cn("flex w-full mb-4 animate-bubble-in", isUser ? "justify-end" : "justify-start")}>
       <div className={cn("flex flex-col min-w-0 max-w-[85%] sm:max-w-[75%]", isUser ? "items-end" : "items-start")}>
         <div className="flex items-center gap-2 mb-1.5 px-1">
           {!isUser && (
@@ -183,6 +173,6 @@ export default function ChatBubble({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }
