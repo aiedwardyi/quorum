@@ -389,7 +389,7 @@ export function useDebateEngine(config: {
           const res = await fetch("/api/consensus", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: getConsensusMessages(msgs), locale }),
+            body: JSON.stringify({ messages: getConsensusMessages(msgs), locale, responseLength }),
           })
           if (res.ok && sessionIdRef.current === sessionId) {
             const result = await res.json()
@@ -490,7 +490,7 @@ export function useDebateEngine(config: {
               const res = await fetch("/api/consensus", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: getConsensusMessages(msgs), locale }),
+                body: JSON.stringify({ messages: getConsensusMessages(msgs), locale, responseLength }),
               })
 
               if (res.ok && sessionIdRef.current === thisSession) {
@@ -592,7 +592,7 @@ export function useDebateEngine(config: {
       fetch("/api/consensus", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: getConsensusMessages(currentMessages), locale }),
+        body: JSON.stringify({ messages: getConsensusMessages(currentMessages), locale, responseLength }),
       })
         .then(async (res) => {
           if (!res.ok) throw new Error(`API error: ${res.status}`)
