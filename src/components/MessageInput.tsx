@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { Provider, Locale } from "@/types"
 import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
+import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
 
 const translations = {
   en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files", truncated: (name: string) => `"${name}" is too long - only the first part was included`, empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`, too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`, parse_error: (name: string) => `"${name}" could not be read - the file may be corrupted or password-protected` },
@@ -15,6 +15,8 @@ interface AttachedFile {
   id: string
   file: File
   preview?: string
+  parsing?: boolean
+  parsed?: ParseResult
 }
 
 export default function MessageInput({
@@ -36,7 +38,6 @@ export default function MessageInput({
   const [isDragging, setIsDragging] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
-  const [isParsing, setIsParsing] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -62,68 +63,31 @@ export default function MessageInput({
     }
   }, [])
 
-  const handleSend = async () => {
-    if (isParsing || (!text.trim() && attachedFiles.length === 0) || disabled) return
-    setIsParsing(true)
+  const handleSend = () => {
+    const anyParsing = attachedFiles.some((f) => f.parsing)
+    if (anyParsing || (!text.trim() && attachedFiles.length === 0) || disabled) return
 
-    try {
-      let messageText = text.trim()
+    let messageText = text.trim()
 
-      if (attachedFiles.length > 0) {
-        const results = await Promise.allSettled(
-          attachedFiles.map(async (af) => {
-            const parsed = await parseFile(af.file)
-            if (parsed.warning === 'empty') {
-              return { content: null, warning: t.empty(af.file.name) }
-            }
-            if (parsed.warning === 'too_large') {
-              return { content: null, warning: t.too_large(af.file.name) }
-            }
-            if (parsed.warning === 'parse_error') {
-              return { content: null, warning: t.parse_error(af.file.name) }
-            }
-            const warning = parsed.warning === 'truncated' ? t.truncated(af.file.name) : null
-            if (parsed.text && !parsed.text.startsWith('[Unsupported')) {
-              return { content: `--- File: ${af.file.name} ---\n${parsed.text}`, warning }
-            }
-            return { content: null, warning }
-          })
-        )
+    if (attachedFiles.length > 0) {
+      const fileContents = attachedFiles
+        .filter((af) => af.parsed?.text && !af.parsed.text.startsWith("[Unsupported"))
+        .map((af) => `--- File: ${af.file.name} ---\n${af.parsed!.text}`)
 
-        const warnings = results
-          .map(r => r.status === 'fulfilled' ? r.value.warning : null)
-          .filter(Boolean) as string[]
-        if (warnings.length > 0) setFileError(warnings.join('\n'))
+      if (fileContents.length === 0) return
 
-        const fileContents = results.map((r, i) => {
-          if (r.status === "fulfilled" && r.value.content) return r.value.content
-          if (r.status === "rejected") {
-            console.error(`Failed to parse ${attachedFiles[i].file.name}:`, r.reason)
-            return `--- File: ${attachedFiles[i].file.name} ---\n[Error: Could not read file]`
-          }
-          return null
-        }).filter(Boolean) as string[]
-
-        if (fileContents.length > 0) {
-          messageText = messageText
-            ? `${messageText}\n\n${fileContents.join('\n\n')}`
-            : fileContents.join('\n\n')
-        } else {
-          // All files failed to parse - don't send bare text without the expected file content
-          return
-        }
-      }
-
-      if (!messageText) return
-
-      onSend(messageText, "all")
-      setText("")
-      attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
-      setAttachedFiles([])
-      if (textareaRef.current) textareaRef.current.style.height = "auto"
-    } finally {
-      setIsParsing(false)
+      messageText = messageText
+        ? `${messageText}\n\n${fileContents.join("\n\n")}`
+        : fileContents.join("\n\n")
     }
+
+    if (!messageText) return
+
+    onSend(messageText, "all")
+    setText("")
+    attachedFiles.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
+    setAttachedFiles([])
+    if (textareaRef.current) textareaRef.current.style.height = "auto"
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -155,10 +119,10 @@ export default function MessageInput({
     return () => clearTimeout(timer)
   }, [fileError])
 
-  const addFiles = (files: File[]) => {
+  const addFiles = (incoming: File[]) => {
     const supported: File[] = []
     let hasUnsupported = false
-    for (const file of files) {
+    for (const file of incoming) {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
       if (SUPPORTED_EXTENSIONS.has(ext)) {
         supported.push(file)
@@ -174,8 +138,23 @@ export default function MessageInput({
       id: Math.random().toString(36).substr(2, 9),
       file,
       preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+      parsing: true,
     }))
     setAttachedFiles((prev) => [...prev, ...newFiles])
+
+    // Parse each file immediately and show warnings at attach time
+    newFiles.forEach(async (af) => {
+      const parsed = await parseFile(af.file)
+      const warningMsg = parsed.warning === "empty" ? t.empty(af.file.name)
+        : parsed.warning === "too_large" ? t.too_large(af.file.name)
+        : parsed.warning === "parse_error" ? t.parse_error(af.file.name)
+        : parsed.warning === "truncated" ? t.truncated(af.file.name)
+        : null
+      if (warningMsg) setFileError(warningMsg)
+      setAttachedFiles((prev) => prev.map((f) =>
+        f.id === af.id ? { ...f, parsing: false, parsed } : f
+      ))
+    })
   }
 
   const removeFile = (id: string) => {
@@ -186,7 +165,8 @@ export default function MessageInput({
     })
   }
 
-  const sendDisabled = isParsing || (!text.trim() && attachedFiles.length === 0)
+  const anyParsing = attachedFiles.some((f) => f.parsing)
+  const sendDisabled = anyParsing || (!text.trim() && attachedFiles.length === 0)
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 pb-6">
@@ -231,14 +211,16 @@ export default function MessageInput({
                   key={file.id}
                   className="group relative flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl"
                 >
-                  {file.preview ? (
+                  {file.parsing ? (
+                    <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
+                  ) : file.preview ? (
                     <img src={file.preview} alt="" className="w-8 h-8 rounded-lg object-cover" />
                   ) : file.file.type.includes("pdf") ? (
                     <FileText className="w-4 h-4 text-red-500" />
                   ) : (
                     <File className="w-4 h-4 text-zinc-400" />
                   )}
-                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 max-w-[100px] truncate">
+                  <span className={cn("text-xs font-medium max-w-[100px] truncate", file.parsed?.warning === "empty" || file.parsed?.warning === "too_large" || file.parsed?.warning === "parse_error" ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300")}>
                     {file.file.name}
                   </span>
                   <button
@@ -270,7 +252,7 @@ export default function MessageInput({
               <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)); e.target.value = "" }} className="hidden" multiple accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv" />
               <button
                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
-                disabled={isParsing}
+                disabled={anyParsing}
                 title={t.attach}
                 aria-label={t.attach}
                 className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
@@ -297,7 +279,7 @@ export default function MessageInput({
                   disabled={sendDisabled}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
                 >
-                  {isParsing ? (
+                  {anyParsing ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       {t.parsing}

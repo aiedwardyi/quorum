@@ -12,7 +12,7 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
 import LoginGateModal from "@/components/LoginGate"
 import ThreadDropdown from "@/components/ThreadDropdown"
-import { parseFile, SUPPORTED_EXTENSIONS } from "@/lib/file-parser"
+import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
 
 /* ─── Model SVG Icons ─── */
 
@@ -175,9 +175,8 @@ export default function Home() {
     if (savedRounds) { const n = parseInt(savedRounds, 10); if ([1, 2, 3, 5].includes(n)) setRounds(n) }
   }, [])
   const [isFocused, setIsFocused] = useState(false)
-  const [files, setFiles] = useState<{ id: string; file: File; preview?: string }[]>([])
+  const [files, setFiles] = useState<{ id: string; file: File; preview?: string; parsing?: boolean; parsed?: ParseResult }[]>([])
   const [isDragging, setIsDragging] = useState(false)
-  const [isParsing, setIsParsing] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -296,14 +295,26 @@ export default function Home() {
     }
     if (hasUnsupported) setFileError(t[locale].unsupported)
     if (supported.length === 0) return
-    setFiles((prev) => [
-      ...prev,
-      ...supported.map((file) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        file,
-        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
-      })),
-    ])
+    const newFiles = supported.map((file) => ({
+      id: Math.random().toString(36).substr(2, 9),
+      file,
+      preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+      parsing: true,
+    }))
+    setFiles((prev) => [...prev, ...newFiles])
+
+    newFiles.forEach(async (af) => {
+      const parsed = await parseFile(af.file)
+      const warningMsg = parsed.warning === "empty" ? t[locale].empty(af.file.name)
+        : parsed.warning === "too_large" ? t[locale].too_large(af.file.name)
+        : parsed.warning === "parse_error" ? t[locale].parse_error(af.file.name)
+        : parsed.warning === "truncated" ? t[locale].truncated(af.file.name)
+        : null
+      if (warningMsg) setFileError(warningMsg)
+      setFiles((prev) => prev.map((f) =>
+        f.id === af.id ? { ...f, parsing: false, parsed } : f
+      ))
+    })
   }
 
   const removeFile = (id: string) => {
@@ -321,99 +332,63 @@ export default function Home() {
     return () => clearTimeout(timer)
   }, [fileError])
 
-  const buildPromptWithFiles = async (): Promise<{ text: string | null; fileWarnings: string[]; allFilesFailed: boolean }> => {
+  const anyFileParsing = files.some((f) => f.parsing)
+
+  const handleSubmit = () => {
+    if (anyFileParsing || (!prompt.trim() && files.length === 0)) return
+
     let messageText = prompt.trim()
 
     if (files.length > 0) {
-      const results = await Promise.allSettled(
-        files.map(async (af) => {
-          const parsed = await parseFile(af.file)
-          if (parsed.warning === "empty") {
-            return { content: null, warning: t[locale].empty(af.file.name) }
-          }
-          if (parsed.warning === "too_large") {
-            return { content: null, warning: t[locale].too_large(af.file.name) }
-          }
-          if (parsed.warning === "parse_error") {
-            return { content: null, warning: t[locale].parse_error(af.file.name) }
-          }
-          const warning = parsed.warning === "truncated" ? t[locale].truncated(af.file.name) : null
-          if (parsed.text && !parsed.text.startsWith("[Unsupported")) {
-            return { content: `--- File: ${af.file.name} ---\n${parsed.text}`, warning }
-          }
-          return { content: null, warning }
-        })
-      )
+      const fileContents = files
+        .filter((af) => af.parsed?.text && !af.parsed.text.startsWith("[Unsupported"))
+        .map((af) => `--- File: ${af.file.name} ---\n${af.parsed!.text}`)
 
-      const fileWarnings = results
-        .map(r => r.status === "fulfilled" ? r.value.warning : null)
-        .filter(Boolean) as string[]
+      if (fileContents.length === 0) return
 
-      const fileContents = results
-        .map((r, i) => {
-          if (r.status === "fulfilled" && r.value.content) return r.value.content
-          if (r.status === "rejected") {
-            console.error(`Failed to parse ${files[i].file.name}:`, r.reason)
-            return `--- File: ${files[i].file.name} ---\n[Error: Could not read file]`
-          }
-          return null
-        })
-        .filter(Boolean) as string[]
-
-      if (fileContents.length > 0) {
-        messageText = messageText
-          ? `${messageText}\n\n${fileContents.join("\n\n")}`
-          : fileContents.join("\n\n")
-      }
-
-      const allFilesFailed = fileContents.length === 0
-      return { text: messageText || null, fileWarnings, allFilesFailed }
+      messageText = messageText
+        ? `${messageText}\n\n${fileContents.join("\n\n")}`
+        : fileContents.join("\n\n")
     }
 
-    return { text: messageText || null, fileWarnings: [], allFilesFailed: false }
-  }
+    if (!messageText) return
 
-  const handleSubmit = async () => {
-    if (isParsing || (!prompt.trim() && files.length === 0)) return
-
-    setIsParsing(true)
-    try {
-      const { text: messageText, fileWarnings, allFilesFailed } = await buildPromptWithFiles()
-      if (fileWarnings.length > 0) setFileError(fileWarnings.join("\n"))
-      if (!messageText) return
-      if (allFilesFailed) return
-
-      if (shouldShowLoginGate(!!session?.user)) {
-        savePendingDebate({
-          prompt: messageText,
-          originalPrompt: prompt.trim(),
-          hadFiles: files.length > 0,
-          models: selectedModels,
-          responseLength,
-          rounds,
-          locale,
-        })
-        setShowGate(true)
-        return
-      }
-
-      const config = {
+    if (shouldShowLoginGate(!!session?.user)) {
+      savePendingDebate({
         prompt: messageText,
+        originalPrompt: prompt.trim(),
+        hadFiles: files.length > 0,
         models: selectedModels,
         responseLength,
         rounds,
         locale,
-      }
-      sessionStorage.setItem("quorum_config", JSON.stringify(config))
-      sessionStorage.removeItem("quorum_file_warnings")
-      if (fileWarnings.length > 0) {
-        sessionStorage.setItem("quorum_file_warnings", JSON.stringify(fileWarnings))
-      }
-      files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
-      router.push("/chat")
-    } finally {
-      setIsParsing(false)
+      })
+      setShowGate(true)
+      return
     }
+
+    const fileWarnings = files
+      .filter((af) => af.parsed?.warning)
+      .map((af) => {
+        const w = af.parsed!.warning!
+        return w === "truncated" ? t[locale].truncated(af.file.name) : null
+      })
+      .filter(Boolean) as string[]
+
+    const config = {
+      prompt: messageText,
+      models: selectedModels,
+      responseLength,
+      rounds,
+      locale,
+    }
+    sessionStorage.setItem("quorum_config", JSON.stringify(config))
+    sessionStorage.removeItem("quorum_file_warnings")
+    if (fileWarnings.length > 0) {
+      sessionStorage.setItem("quorum_file_warnings", JSON.stringify(fileWarnings))
+    }
+    files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
+    router.push("/chat")
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -623,12 +598,12 @@ export default function Home() {
           {/* Textarea */}
           <motion.div
             className={`relative group rounded-3xl p-[2px] overflow-hidden -mx-4 sm:-mx-6 ${isDragging ? "ring-4 ring-purple-500" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); if (!isParsing) setIsDragging(true) }}
+            onDragOver={(e) => { e.preventDefault(); if (!anyFileParsing) setIsDragging(true) }}
             onDragLeave={(e) => { e.preventDefault(); setIsDragging(false) }}
             onDrop={(e) => {
               e.preventDefault()
               setIsDragging(false)
-              if (!isParsing && e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files))
+              if (!anyFileParsing && e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files))
             }}
             initial={false}
             animate={{ scale: isFocused ? 1.02 : 1 }}
@@ -667,12 +642,14 @@ export default function Home() {
                       key={af.id}
                       className="group/file flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-sm"
                     >
-                      {af.file.type.includes("pdf") ? (
+                      {af.parsing ? (
+                        <Loader2 className="w-3.5 h-3.5 text-zinc-400 animate-spin flex-shrink-0" />
+                      ) : af.file.type.includes("pdf") ? (
                         <FileText className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
                       ) : (
                         <File className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
                       )}
-                      <span className="truncate max-w-[150px] text-zinc-700 dark:text-zinc-300">{af.file.name}</span>
+                      <span className={cn("truncate max-w-[150px]", af.parsed?.warning === "empty" || af.parsed?.warning === "too_large" || af.parsed?.warning === "parse_error" ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300")}>{af.file.name}</span>
                       <button onClick={() => removeFile(af.id)} className="hover:text-red-500 transition-colors">
                         <X size={14} />
                       </button>
@@ -684,7 +661,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isParsing}
+                  disabled={anyFileParsing}
                   title={t[locale].attach}
                   aria-label={t[locale].attach}
                   className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
@@ -708,10 +685,10 @@ export default function Home() {
                   </span>
                   <button
                     onClick={handleSubmit}
-                    disabled={isParsing || (!prompt.trim() && files.length === 0)}
+                    disabled={anyFileParsing || (!prompt.trim() && files.length === 0)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
                   >
-                    {isParsing ? (
+                    {anyFileParsing ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
                       <>
@@ -879,10 +856,10 @@ export default function Home() {
               {/* Submit Button */}
               <button
                 onClick={handleSubmit}
-                disabled={isParsing || (!prompt.trim() && files.length === 0)}
+                disabled={anyFileParsing || (!prompt.trim() && files.length === 0)}
                 className="cursor-pointer w-full lg:w-auto group relative flex items-center justify-center gap-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-6 py-4 sm:py-3.5 rounded-2xl text-sm font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-zinc-900/10 dark:shadow-zinc-100/10 mt-2 lg:mt-0"
               >
-                {isParsing ? (
+                {anyFileParsing ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
                     {t[locale].parsing}
