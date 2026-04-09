@@ -8,6 +8,7 @@ const MAX_PDF_PAGES = 20
 const MAX_FILE_SIZE_MB = 50
 const MAX_OCR_PAGES = 10
 const OCR_RENDER_SCALE = 2
+const WATERMARK_CHAR_THRESHOLD = 200
 
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
@@ -94,7 +95,8 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
       pages.push(trimmed)
       totalLength += trimmed.length
       if (totalLength >= MAX_FILE_CHARS) break
-    } else if (!trimmed) {
+    } else if (!trimmed || (seen.has(trimmed) && trimmed.length < WATERMARK_CHAR_THRESHOLD)) {
+      // Empty page or page with only short duplicate text (watermark/header on scanned image)
       emptyPageIndices.push(i)
     }
   }
