@@ -201,12 +201,12 @@ export default function MessageInput({
         />
 
         <div
-          onDragOver={(e) => { e.preventDefault(); if (!disabled) setIsDragging(true) }}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
           onDragLeave={(e) => { e.preventDefault(); setIsDragging(false) }}
           onDrop={(e) => {
             e.preventDefault()
             setIsDragging(false)
-            if (!disabled && e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files))
+            if (e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files))
           }}
           onClick={() => textareaRef.current?.focus()}
           className={cn(
@@ -266,7 +266,7 @@ export default function MessageInput({
               <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)); e.target.value = "" }} className="hidden" multiple accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv" />
               <button
                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
-                disabled={disabled || isParsing}
+                disabled={isParsing}
                 title={t.attach}
                 aria-label={t.attach}
                 className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
