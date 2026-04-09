@@ -102,7 +102,14 @@ export default function ChatBubble({
   useEffect(() => {
     if (isAI && responseLength !== "short" && contentRef.current && message.content) {
       const el = contentRef.current
-      setIsOverflowing(el.scrollHeight > el.clientHeight + 4)
+      // Temporarily apply collapsed height to measure true overflow
+      const prev = el.style.maxHeight
+      el.style.maxHeight = "6em"
+      el.style.overflow = "hidden"
+      const overflows = el.scrollHeight > el.clientHeight + 4
+      el.style.maxHeight = prev
+      el.style.overflow = ""
+      setIsOverflowing(overflows)
     }
   }, [message.content, isAI, responseLength])
 
