@@ -215,7 +215,7 @@ export default function ChatBubble({
                 </span>
               </button>
             )}
-            {isAI && expanded && isOverflowing && (
+            {isAI && expanded && isOverflowing && responseLength !== "short" && (
               <button
                 onClick={() => setExpanded(false)}
                 className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors px-4"

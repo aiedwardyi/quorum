@@ -46,8 +46,8 @@ export async function POST(
           minorityView,
           oppositeCase,
           ...(typeof analysis === "string" ? { analysis } : {}),
-          ...(Array.isArray(keyTakeaways) ? { keyTakeaways } : {}),
-          ...(Array.isArray(actionItems) ? { actionItems } : {}),
+          ...(Array.isArray(keyTakeaways) && keyTakeaways.every((k: unknown) => typeof k === "string") ? { keyTakeaways } : {}),
+          ...(Array.isArray(actionItems) && actionItems.every((a: unknown) => typeof a === "string") ? { actionItems } : {}),
           afterMessageIndex: afterMessageIndex ?? 0,
         },
       })
