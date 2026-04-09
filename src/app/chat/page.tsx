@@ -125,6 +125,9 @@ function ChatPageContent() {
     const pending = sessionStorage.getItem("quorum_pending")
     if (pending) {
       sessionStorage.removeItem("quorum_pending")
+      // Clear stale quorum_config so it doesn't auto-send over our prefill
+      sessionStorage.removeItem("quorum_config")
+      sessionStorage.removeItem("quorum_file_warnings")
       try {
         const config = JSON.parse(pending)
         if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
@@ -141,6 +144,8 @@ function ChatPageContent() {
           setFileWarning(reattachMsg)
         }
       } catch { /* ignore */ }
+      setConfigHydrated(true)
+      return
     }
 
     const raw = sessionStorage.getItem("quorum_config")

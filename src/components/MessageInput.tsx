@@ -130,13 +130,15 @@ export default function MessageInput({
     }
   }
 
-  // Prefill text from pending prompt (e.g., after login redirect)
+  // Prefill text from pending prompt (e.g., after login redirect) - only once, only if empty
+  const prefilled = useRef(false)
   useEffect(() => {
-    if (initialText) {
+    if (initialText && !prefilled.current && !text) {
+      prefilled.current = true
       setText(initialText)
       setTimeout(() => textareaRef.current?.focus(), 0)
     }
-  }, [initialText])
+  }, [initialText]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show initial file warning passed from homepage
   useEffect(() => {
