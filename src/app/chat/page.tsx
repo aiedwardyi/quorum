@@ -327,6 +327,15 @@ function ChatPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.messages.length])
 
+  // Save messages when debate ends (covers stop, single-model, and normal completion)
+  useEffect(() => {
+    if (isHydratingRef.current) return
+    if (!state.isDebating && state.messages.length > 0 && persistence.threadId.current) {
+      persistence.saveMessages(state.messages)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.isDebating])
+
   // Auto-save verdict when summary is shown (save messages first to avoid version race)
   useEffect(() => {
     if (isHydratingRef.current) return
