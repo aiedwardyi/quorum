@@ -11,7 +11,6 @@ import ConsensusMeter from "@/components/ConsensusMeter"
 import ChatHeader from "@/components/Header"
 import dynamic from "next/dynamic"
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
-import { AnimatePresence, motion } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
 import { incrementDebateCount } from "@/components/LoginGate"
@@ -482,31 +481,22 @@ function ChatPageContent() {
         )}
       </main>
 
-      <AnimatePresence>
-        {showScrollDown && (
-          <motion.button
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 5 }}
-            onClick={() => mainRef.current?.scrollTo({ top: mainRef.current.scrollHeight, behavior: "smooth" })}
-            className="absolute left-1/2 -translate-x-1/2 bottom-20 sm:bottom-24 w-8 h-8 rounded-full bg-zinc-500/20 dark:bg-zinc-400/15 backdrop-blur-sm text-zinc-500 dark:text-zinc-400 flex items-center justify-center hover:bg-zinc-500/30 dark:hover:bg-zinc-400/25 transition-colors z-30"
-          >
-            <ChevronDown className="w-4 h-4" />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      <button
+        onClick={() => mainRef.current?.scrollTo({ top: mainRef.current.scrollHeight, behavior: "smooth" })}
+        className={`absolute left-1/2 -translate-x-1/2 bottom-20 sm:bottom-24 w-8 h-8 rounded-full bg-zinc-500/20 dark:bg-zinc-400/15 backdrop-blur-sm text-zinc-500 dark:text-zinc-400 flex items-center justify-center hover:bg-zinc-500/30 dark:hover:bg-zinc-400/25 transition-all duration-200 z-30 ${showScrollDown ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"}`}
+      >
+        <ChevronDown className="w-4 h-4" />
+      </button>
 
       {/* Bottom bar: consensus rail + input */}
       <div className="w-full shrink-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-4 z-10">
-        <AnimatePresence>
-          {(state.isDebating || state.typingModel !== null || state.verdict !== null) && (
-            <ConsensusMeter
-              score={state.verdict?.confidence ?? null}
-              result={state.showSummary ? state.verdict : null}
-              locale={locale}
-            />
-          )}
-        </AnimatePresence>
+        {(state.isDebating || state.typingModel !== null || state.verdict !== null) && (
+          <ConsensusMeter
+            score={state.verdict?.confidence ?? null}
+            result={state.showSummary ? state.verdict : null}
+            locale={locale}
+          />
+        )}
 
         <MessageInput
           onSend={handleSend}

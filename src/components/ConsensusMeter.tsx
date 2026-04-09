@@ -1,8 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { VerdictResult, Locale } from "@/types"
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 const translations = {
@@ -32,14 +31,25 @@ export default function ConsensusMeter({
   const t = translations[locale]
   const isFinal = !!result
 
-  const scoreValue = useMotionValue(0)
-  const springScore = useSpring(scoreValue, { stiffness: 60, damping: 15 })
-  const displayScore = useTransform(springScore, (latest) => Math.round(latest))
-  const barWidth = useTransform(springScore, (latest) => `${latest}%`)
+  const [displayScore, setDisplayScore] = useState(0)
 
   useEffect(() => {
-    scoreValue.set(score ?? 0)
-  }, [score, scoreValue])
+    const target = score ?? 0
+    if (target === displayScore) return
+
+    const step = target > displayScore ? 1 : -1
+    const timer = setInterval(() => {
+      setDisplayScore((prev) => {
+        const next = prev + step
+        if ((step > 0 && next >= target) || (step < 0 && next <= target)) {
+          clearInterval(timer)
+          return target
+        }
+        return next
+      })
+    }, 16)
+    return () => clearInterval(timer)
+  }, [score]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getColor = (s: number) => {
     if (s >= 60) return "bg-theme-accent shadow-[0_0_15px_var(--theme-accent-glow)]"
@@ -54,12 +64,7 @@ export default function ConsensusMeter({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      className="w-full max-w-2xl mx-auto px-4 mb-3"
-    >
+    <div className="w-full max-w-2xl mx-auto px-4 mb-3 animate-bubble-in">
       <div className="space-y-2">
         <div className="flex items-center justify-between" aria-live="polite">
           <div className="flex items-center gap-2 group/label relative cursor-help">
@@ -91,15 +96,12 @@ export default function ConsensusMeter({
           </div>
 
           {score !== null ? (
-            <motion.div
-              key={score}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <div
               className={cn("flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500", getTextColor(score), isFinal && "drop-shadow-[0_0_8px_var(--theme-accent-glow)]")}
             >
-              <motion.span>{displayScore}</motion.span>
+              <span>{displayScore}</span>
               <span className="text-xs ml-0.5">%</span>
-            </motion.div>
+            </div>
           ) : (
             <span className="text-[10px] font-mono font-medium text-zinc-400 dark:text-zinc-600 tracking-widest animate-pulse">
               {t.analyzing}
@@ -109,13 +111,13 @@ export default function ConsensusMeter({
 
         <div className={cn("h-1.5 w-full rounded-full overflow-hidden transition-colors duration-500 bg-muted", isFinal && "ring-1 ring-border")}>
           {score !== null && (
-            <motion.div
-              className={cn("h-full rounded-full transition-colors duration-500", getColor(score))}
-              style={{ width: barWidth }}
+            <div
+              className={cn("h-full rounded-full transition-all duration-700 ease-out", getColor(score))}
+              style={{ width: `${displayScore}%` }}
             />
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }

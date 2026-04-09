@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
 import { Provider, Locale } from "@/types"
 import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -187,10 +186,8 @@ export default function MessageInput({
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4 pb-6">
-      <motion.div
-        animate={{ scale: isFocused ? 1.02 : 1 }}
-        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-        className="relative p-[2px] rounded-3xl overflow-hidden"
+      <div
+        className={`relative p-[2px] rounded-3xl overflow-hidden transition-transform duration-200 ${isFocused ? "scale-[1.02]" : "scale-100"}`}
       >
         {/* Animated rainbow border */}
         <div
@@ -217,18 +214,11 @@ export default function MessageInput({
             isDragging ? "ring-4 ring-purple-500/20 dark:ring-purple-500/30" : ""
           )}
         >
-          <AnimatePresence>
-            {fileError && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="px-4 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/30 whitespace-pre-line"
-              >
-                {fileError}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {fileError && (
+            <div className="px-4 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800/30 whitespace-pre-line animate-bubble-in">
+              {fileError}
+            </div>
+          )}
 
           {attachedFiles.length > 0 && (
             <div className="flex flex-wrap gap-2 p-3 border-b border-zinc-100 dark:border-zinc-800">
@@ -316,7 +306,7 @@ export default function MessageInput({
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }
