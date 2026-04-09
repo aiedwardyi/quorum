@@ -401,6 +401,7 @@ export default function Home() {
     if (fileWarnings.length > 0) {
       sessionStorage.setItem("quorum_file_warnings", JSON.stringify(fileWarnings))
     }
+    setFileError(null)
     files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
     router.push("/chat")
   }
