@@ -405,6 +405,9 @@ function ChatPageContent() {
             reasons: verdict.reasons,
             minorityView: verdict.minorityView,
             oppositeCase: verdict.oppositeCase,
+            ...(verdict.analysis ? { analysis: verdict.analysis } : {}),
+            ...(verdict.keyTakeaways?.length ? { keyTakeaways: verdict.keyTakeaways } : {}),
+            ...(verdict.actionItems?.length ? { actionItems: verdict.actionItems } : {}),
           }
         }
       }
@@ -419,6 +422,9 @@ function ChatPageContent() {
             reasons: lastVerdict.reasons,
             minorityView: lastVerdict.minorityView,
             oppositeCase: lastVerdict.oppositeCase,
+            ...(lastVerdict.analysis ? { analysis: lastVerdict.analysis } : {}),
+            ...(lastVerdict.keyTakeaways?.length ? { keyTakeaways: lastVerdict.keyTakeaways } : {}),
+            ...(lastVerdict.actionItems?.length ? { actionItems: lastVerdict.actionItems } : {}),
           }
         : null
 
@@ -468,6 +474,10 @@ function ChatPageContent() {
         maxRounds={maxRounds}
         responseLength={responseLength}
         onChangeResponseLength={(len) => { setResponseLength(len); localStorage.setItem("quorum_responseLength", len) }}
+        onChangeRounds={(rounds: number) => {
+          setMaxRounds(rounds)
+          localStorage.setItem("quorum_rounds", String(rounds))
+        }}
         locale={locale}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -490,8 +500,6 @@ function ChatPageContent() {
         })}
         activeModels={state.activeModels}
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
-        maxRounds={maxRounds}
-        onChangeRounds={(r) => { setMaxRounds(r); localStorage.setItem("quorum_rounds", String(r)) }}
         isDebating={state.isDebating}
         theme={theme}
         onChangeTheme={changeTheme}
@@ -523,6 +531,7 @@ function ChatPageContent() {
             typingModel={state.typingModel}
             locale={locale}
             activeModels={state.activeModels}
+            responseLength={responseLength}
             onSendMessage={(text) => handleSend(text, "all")}
             onNewDiscussion={handleNewDebate}
           />

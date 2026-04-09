@@ -12,15 +12,15 @@ describe("cleanResponse", () => {
     expect(cleanResponse("Result[1][4][5] confirmed.")).toBe("Result confirmed.")
   })
 
-  it("strips text-based citation markers like [특허 문서]", () => {
+  it("preserves text-based bracket content like [특허 문서]", () => {
     expect(cleanResponse("연구는 밀도 매핑[특허 문서]에 초점을 맞추고 있습니다.")).toBe(
-      "연구는 밀도 매핑에 초점을 맞추고 있습니다."
+      "연구는 밀도 매핑[특허 문서]에 초점을 맞추고 있습니다."
     )
   })
 
-  it("strips English text-based citation markers", () => {
+  it("preserves English text-based bracket content", () => {
     expect(cleanResponse("The study[Patent Document] shows results.")).toBe(
-      "The study shows results."
+      "The study[Patent Document] shows results."
     )
   })
 
@@ -41,6 +41,11 @@ describe("cleanResponse", () => {
 
   it("cleans double spaces left behind", () => {
     expect(cleanResponse("Hello  world  test")).toBe("Hello world test")
+  })
+
+  it("strips markdown horizontal rules", () => {
+    expect(cleanResponse("Some text.\n---\nMore text.")).toBe("Some text.\n\nMore text.")
+    expect(cleanResponse("Above\n  ***  \nBelow")).toBe("Above\n\nBelow")
   })
 
   it("handles empty string", () => {

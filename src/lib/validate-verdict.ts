@@ -43,6 +43,33 @@ export function validateVerdictResult(raw: unknown): VerdictResult {
     }
   }
 
+  // Validate optional structured fields
+  if (obj.analysis !== undefined && typeof obj.analysis !== "string") {
+    throw new Error("analysis must be a string")
+  }
+
+  if (obj.keyTakeaways !== undefined) {
+    if (!Array.isArray(obj.keyTakeaways)) {
+      throw new Error("keyTakeaways must be an array")
+    }
+    for (let i = 0; i < obj.keyTakeaways.length; i++) {
+      if (typeof obj.keyTakeaways[i] !== "string") {
+        throw new Error(`keyTakeaways[${i}] must be a string`)
+      }
+    }
+  }
+
+  if (obj.actionItems !== undefined) {
+    if (!Array.isArray(obj.actionItems)) {
+      throw new Error("actionItems must be an array")
+    }
+    for (let i = 0; i < obj.actionItems.length; i++) {
+      if (typeof obj.actionItems[i] !== "string") {
+        throw new Error(`actionItems[${i}] must be a string`)
+      }
+    }
+  }
+
   return {
     recommendedAnswer: obj.recommendedAnswer,
     voteSplit: obj.voteSplit,
@@ -51,5 +78,8 @@ export function validateVerdictResult(raw: unknown): VerdictResult {
     minorityView: obj.minorityView,
     oppositeCase: obj.oppositeCase,
     ...(obj.modelAgreement !== undefined ? { modelAgreement: obj.modelAgreement } : {}),
+    ...(typeof obj.analysis === "string" ? { analysis: obj.analysis } : {}),
+    ...(Array.isArray(obj.keyTakeaways) ? { keyTakeaways: obj.keyTakeaways as string[] } : {}),
+    ...(Array.isArray(obj.actionItems) ? { actionItems: obj.actionItems as string[] } : {}),
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import type { Message, Locale } from "@/types"
+import type { Message, Locale, ResponseLength } from "@/types"
 import {
   VertexAI,
   HarmCategory,
@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
     const messages: Message[] = body.messages
     const rawLocale = body.locale
     const locale: Locale = rawLocale === "en" || rawLocale === "ko" ? rawLocale : "en"
+    const rawResponseLength = body.responseLength
+    const responseLength: ResponseLength = rawResponseLength === "short" || rawResponseLength === "medium" || rawResponseLength === "long" ? rawResponseLength : "medium"
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -108,7 +110,7 @@ export async function POST(req: NextRequest) {
       model.generateContent({
         systemInstruction: {
           role: "system",
-          parts: [{ text: getVerdictPrompt(locale) }],
+          parts: [{ text: getVerdictPrompt(locale, responseLength) }],
         },
         contents: [
           {

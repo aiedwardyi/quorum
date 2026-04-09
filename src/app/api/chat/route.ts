@@ -116,11 +116,13 @@ The human is the decision-maker. Respond to the full conversation naturally.
 If you disagree with another model, say so directly and explain why.
 If you changed your mind based on new points, say that too.
 ${lengthLine}
-This is a discussion, not an essay.
+This is a discussion, not an essay. Write in plain text only.
+Do NOT use markdown formatting like headers (#), horizontal rules (---), or bold (**text**).
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
-IMPORTANT: You CANNOT access URLs, links, or websites. If the user shares a link, do NOT pretend you visited it or describe its contents. Say honestly that you cannot access links and ask the user to paste the relevant content instead.
-${responseLength === "short" ? `\n${lengthLine}` : ""}`
+IMPORTANT: You CANNOT access URLs, links, or websites. Do NOT fabricate links, write "(link to article)", or reference URLs in any way. If the user shares a link, say you cannot access it and ask them to paste the content.
+NEVER give a lazy one-sentence answer. Even in short mode, provide a substantive response with reasoning. "That depends" or "It varies" alone is not acceptable.
+Do NOT roleplay as the user or quote what the user said. Only respond as yourself.`
 }
 
 function getStreamFn(provider: Provider) {

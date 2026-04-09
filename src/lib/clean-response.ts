@@ -3,10 +3,12 @@
 // other models sometimes include in responses.
 export function cleanResponse(text: string): string {
   return text
-    // Remove inline citation markers like [1], [2][3], [특허 문서], [Patent Document]
-    .replace(/\[[^\]]+\](\[[^\]]+\])*/g, "")
+    // Remove inline citation markers like [1], [2][3], [1][2] - only numeric/short refs
+    .replace(/\[\d+\](\[\d+\])*/g, "")
     // Remove trailing "Refs:", "References:", "Sources:" blocks and everything after
     .replace(/\n*-{0,3}\s*(Refs?|References|Sources)\s*:[\s\S]*$/i, "")
+    // Remove markdown horizontal rules (--- or ***) that some models add
+    .replace(/^\s*[-*]{3,}\s*$/gm, "")
     // Remove leftover HTML/XML tags
     .replace(/<\/?[a-zA-Z][^>]*>/g, "")
     // Decode HTML entities (decode &amp; first to handle double-encoded like &amp;lt;)

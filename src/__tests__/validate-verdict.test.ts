@@ -108,6 +108,57 @@ describe("validateVerdictResult", () => {
     expect(() => validateVerdictResult({ ...validVerdict, modelAgreement: "high" })).toThrow("modelAgreement")
   })
 
+  // Optional structured fields
+  it("passes with valid analysis string", () => {
+    const result = validateVerdictResult({ ...validVerdict, analysis: "Models agreed on the core approach." })
+    expect(result.analysis).toBe("Models agreed on the core approach.")
+  })
+
+  it("passes without analysis", () => {
+    const result = validateVerdictResult(validVerdict)
+    expect(result.analysis).toBeUndefined()
+  })
+
+  it("throws when analysis is not a string", () => {
+    expect(() => validateVerdictResult({ ...validVerdict, analysis: 123 })).toThrow("analysis")
+  })
+
+  it("passes with valid keyTakeaways", () => {
+    const result = validateVerdictResult({ ...validVerdict, keyTakeaways: ["Point A", "Point B"] })
+    expect(result.keyTakeaways).toEqual(["Point A", "Point B"])
+  })
+
+  it("passes without keyTakeaways", () => {
+    const result = validateVerdictResult(validVerdict)
+    expect(result.keyTakeaways).toBeUndefined()
+  })
+
+  it("throws when keyTakeaways is not an array", () => {
+    expect(() => validateVerdictResult({ ...validVerdict, keyTakeaways: "not array" })).toThrow("keyTakeaways")
+  })
+
+  it("throws when keyTakeaways contains non-string", () => {
+    expect(() => validateVerdictResult({ ...validVerdict, keyTakeaways: [123] })).toThrow("keyTakeaways[0]")
+  })
+
+  it("passes with valid actionItems", () => {
+    const result = validateVerdictResult({ ...validVerdict, actionItems: ["Do X", "Do Y"] })
+    expect(result.actionItems).toEqual(["Do X", "Do Y"])
+  })
+
+  it("passes without actionItems", () => {
+    const result = validateVerdictResult(validVerdict)
+    expect(result.actionItems).toBeUndefined()
+  })
+
+  it("throws when actionItems is not an array", () => {
+    expect(() => validateVerdictResult({ ...validVerdict, actionItems: "not array" })).toThrow("actionItems")
+  })
+
+  it("throws when actionItems contains non-string", () => {
+    expect(() => validateVerdictResult({ ...validVerdict, actionItems: [42] })).toThrow("actionItems[0]")
+  })
+
   it("accepts confidence at boundary 0", () => {
     const result = validateVerdictResult({ ...validVerdict, confidence: 0 })
     expect(result.confidence).toBe(0)

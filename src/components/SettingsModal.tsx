@@ -2,7 +2,7 @@
 
 import { useState, type ComponentType } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, RotateCw, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise } from "lucide-react"
+import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 
@@ -40,8 +40,8 @@ const ModelIcon = ({ provider, size = 16 }: { provider: Provider; size?: number 
 }
 
 const translations = {
-  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiDesc: "Google's flagship multimodal AI model", perplexityDesc: "AI search engine for up-to-date information", claudeDesc: "Anthropic's advanced reasoning model", gptDesc: "OpenAI's powerful language model", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", discussionRounds: "Discussion Rounds", rounds: "rounds", rounds1Desc: "Single response", rounds2Desc: "Quick back-and-forth", rounds3Desc: "Standard debate", rounds5Desc: "Deep analysis", toggle: "Toggle", theme: "Theme" },
-  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiDesc: "Google의 대표 멀티모달 AI 모델", perplexityDesc: "최신 정보를 위한 AI 검색 엔진", claudeDesc: "Anthropic의 고급 추론 모델", gptDesc: "OpenAI의 강력한 언어 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", discussionRounds: "토론 라운드", rounds: "라운드", rounds1Desc: "단일 응답", rounds2Desc: "빠른 의견 교환", rounds3Desc: "표준 토론", rounds5Desc: "심층 분석", toggle: "전환", theme: "테마" },
+  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiDesc: "Google's flagship multimodal AI model", perplexityDesc: "AI search engine for up-to-date information", claudeDesc: "Anthropic's advanced reasoning model", gptDesc: "OpenAI's powerful language model", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme" },
+  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiDesc: "Google의 대표 멀티모달 AI 모델", perplexityDesc: "최신 정보를 위한 AI 검색 엔진", claudeDesc: "Anthropic의 고급 추론 모델", gptDesc: "OpenAI의 강력한 언어 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마" },
 }
 
 type Tab = "account" | "preferences"
@@ -53,8 +53,6 @@ export default function SettingsModal({
   onToggleLocale,
   activeModels,
   onToggleModel,
-  maxRounds,
-  onChangeRounds,
   showPreferences,
   isDebating = false,
   theme,
@@ -66,8 +64,6 @@ export default function SettingsModal({
   onToggleLocale: () => void
   activeModels: Provider[]
   onToggleModel: (model: Provider) => void
-  maxRounds: number
-  onChangeRounds: (rounds: number) => void
   showPreferences?: boolean
   isDebating?: boolean
   theme?: Theme
@@ -241,34 +237,6 @@ export default function SettingsModal({
                           </motion.button>
                         )
                       })}
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 px-1"><RotateCw className="w-3.5 h-3.5 text-muted-foreground" /><span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">{t.discussionRounds}</span></div>
-                    <div className={cn("flex items-center gap-1 bg-secondary/30 p-1 rounded-xl border border-border/50", isDebating && "pointer-events-none opacity-40")}>
-                      {[
-                        { val: 1, desc: t.rounds1Desc },
-                        { val: 2, desc: t.rounds2Desc },
-                        { val: 3, desc: t.rounds3Desc },
-                        { val: 5, desc: t.rounds5Desc },
-                      ].map((r) => (
-                        <motion.button
-                          key={r.val}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => onChangeRounds(r.val)}
-                          className={cn(
-                            "group/round relative flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200",
-                            maxRounds === r.val
-                              ? "bg-card text-foreground shadow-sm border border-border/50"
-                              : "text-muted-foreground hover:text-foreground border border-transparent"
-                          )}
-                        >
-                          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-primary text-primary-foreground text-[10px] font-medium rounded opacity-0 group-hover/round:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-sm">
-                            {r.desc}
-                          </div>
-                          {r.val} {t.rounds}
-                        </motion.button>
-                      ))}
                     </div>
                   </div>
                 </div>

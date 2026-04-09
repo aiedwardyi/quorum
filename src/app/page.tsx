@@ -878,8 +878,6 @@ export default function Home() {
         onToggleLocale={() => setLocale((l) => (l === "en" ? "ko" : "en"))}
         activeModels={selectedModels}
         onToggleModel={toggleModel}
-        maxRounds={rounds}
-        onChangeRounds={setRounds}
         showPreferences={false}
       />
       {showGate && <LoginGateModal onClose={() => setShowGate(false)} locale={locale} />}

@@ -1,6 +1,7 @@
 "use client"
 
-import { Message, Provider, Locale } from "@/types"
+import { useState, useRef, useEffect } from "react"
+import { Message, Provider, Locale, ResponseLength } from "@/types"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
@@ -8,6 +9,8 @@ const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
 })
 
 const thinkingText = { en: "is thinking...", ko: "생각 중..." }
+const showLessText = { en: "Show less", ko: "접기" }
+const showMoreText = { en: "...", ko: "..." }
 
 const modelColors: Record<string, string> = {
   gemini: "text-blue-600 dark:text-blue-400",
@@ -83,13 +86,36 @@ export default function ChatBubble({
   message,
   isTyping,
   locale = "en",
+  responseLength = "short",
   onNewDiscussion,
 }: {
   message: Message
   isTyping?: boolean
   locale?: Locale
+  responseLength?: ResponseLength
   onNewDiscussion?: () => void
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [isOverflowing, setIsOverflowing] = useState(false)
+  const isAI = !["user", "system", "verdict"].includes(message.sender)
+  const shouldCollapse = isAI && responseLength !== "short" && !isTyping && !expanded
+
+  useEffect(() => {
+    if (isAI && responseLength !== "short" && !isTyping && contentRef.current && message.content) {
+      const el = contentRef.current
+      // Temporarily apply collapsed height to measure true overflow
+      const prev = el.style.maxHeight
+      const prevOverflow = el.style.overflow
+      el.style.maxHeight = "6em"
+      el.style.overflow = "hidden"
+      const overflows = el.scrollHeight > el.clientHeight + 4
+      el.style.maxHeight = prev
+      el.style.overflow = prevOverflow
+      setIsOverflowing(overflows)
+    }
+  }, [message.content, isAI, responseLength, isTyping])
+
   if (message.sender === "system") {
     const isAnalyzing = message.content.includes("Analyzing") || message.content.includes("분석")
 
@@ -153,22 +179,49 @@ export default function ChatBubble({
             <span className={cn("text-xs font-medium", modelColors[message.sender] ?? "text-zinc-500")}>{thinkingText[locale]}</span>
           </div>
         ) : (
-          <div
-            key="content"
-            className={cn(
-              "px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm break-words whitespace-pre-wrap transition-all duration-200",
-              isUser
-                ? "bg-[var(--user-bubble)] text-[var(--user-bubble-foreground)] rounded-tr-sm"
-                : cn(
-                    "border rounded-tl-sm text-zinc-800 dark:text-zinc-200",
-                    modelBorders[message.sender] ?? "border-zinc-200 dark:border-zinc-800",
-                    modelBackgrounds[message.sender] ?? "bg-zinc-50 dark:bg-zinc-900/50"
-                  )
+          <div className="relative">
+            <div
+              key="content"
+              ref={isAI ? contentRef : undefined}
+              className={cn(
+                "px-4 py-2.5 rounded-2xl text-[15px] leading-relaxed shadow-sm break-words whitespace-pre-wrap transition-all duration-200",
+                isUser
+                  ? "bg-[var(--user-bubble)] text-[var(--user-bubble-foreground)] rounded-tr-sm"
+                  : cn(
+                      "border rounded-tl-sm text-zinc-800 dark:text-zinc-200",
+                      modelBorders[message.sender] ?? "border-zinc-200 dark:border-zinc-800",
+                      modelBackgrounds[message.sender] ?? "bg-zinc-50 dark:bg-zinc-900/50"
+                    )
+              )}
+              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.3s ease" } : isAI && responseLength !== "short" ? { maxHeight: "9999px", transition: isTyping ? "none" : "max-height 0.3s ease" } : undefined}
+            >
+              {message.content}
+              {isTyping && (
+                <span className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-current animate-pulse" />
+              )}
+            </div>
+            {shouldCollapse && isOverflowing && (
+              <button
+                type="button"
+                className="absolute bottom-0 left-0 right-0 h-10 rounded-b-2xl flex items-end justify-center pb-1 cursor-pointer"
+                style={{
+                  background: "linear-gradient(transparent, var(--background))",
+                }}
+                onClick={() => setExpanded(true)}
+                aria-label={locale === "ko" ? "더 보기" : "Show more"}
+              >
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors">
+                  {showMoreText[locale]}
+                </span>
+              </button>
             )}
-          >
-            {message.content}
-            {isTyping && (
-              <span className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-current animate-pulse" />
+            {isAI && expanded && isOverflowing && responseLength !== "short" && (
+              <button
+                onClick={() => setExpanded(false)}
+                className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors px-4"
+              >
+                {showLessText[locale]}
+              </button>
             )}
           </div>
         )}
