@@ -140,9 +140,11 @@ export function reducer(state: State, action: Action): State {
       return { ...state, messages: [...state.messages, action.message] }
     case "UPDATE_LAST_AI_CONTENT": {
       const msgs = [...state.messages]
-      const last = msgs[msgs.length - 1]
-      if (last && last.sender !== "user" && last.sender !== "system" && last.sender !== "verdict") {
-        msgs[msgs.length - 1] = { ...last, content: action.content }
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].sender !== "user" && msgs[i].sender !== "system" && msgs[i].sender !== "verdict") {
+          msgs[i] = { ...msgs[i], content: action.content }
+          break
+        }
       }
       return { ...state, messages: msgs }
     }
