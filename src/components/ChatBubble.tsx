@@ -9,6 +9,8 @@ const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
 })
 
 const thinkingText = { en: "is thinking...", ko: "생각 중..." }
+const showLessText = { en: "Show less", ko: "접기" }
+const showMoreText = { en: "...", ko: "..." }
 
 const modelColors: Record<string, string> = {
   gemini: "text-blue-600 dark:text-blue-400",
@@ -191,7 +193,7 @@ export default function ChatBubble({
                       modelBackgrounds[message.sender] ?? "bg-zinc-50 dark:bg-zinc-900/50"
                     )
               )}
-              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden" } : undefined}
+              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.3s ease" } : isAI && responseLength !== "short" && !isTyping ? { transition: "max-height 0.3s ease" } : undefined}
             >
               {message.content}
               {isTyping && (
@@ -216,7 +218,7 @@ export default function ChatBubble({
                 onClick={() => setExpanded(false)}
                 className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors px-4"
               >
-                Show less
+                {showLessText[locale]}
               </button>
             )}
           </div>
