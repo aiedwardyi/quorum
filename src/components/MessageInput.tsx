@@ -273,7 +273,7 @@ export default function MessageInput({
 
           <div className="flex items-center justify-between px-3 pb-3 pt-1">
             <div className="flex items-center gap-1">
-              <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)) }} className="hidden" multiple accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv" />
+              <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)); e.target.value = "" }} className="hidden" multiple accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv" />
               <button
                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
                 disabled={disabled || isParsing}
