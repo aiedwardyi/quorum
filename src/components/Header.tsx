@@ -164,6 +164,8 @@ export default function ChatHeader({
         )}
 
         <div className="flex items-center gap-1.5 sm:gap-4">
+          <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-800 shrink-0" />
+
           <div className={cn("relative shrink-0 group", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
             <motion.button
               whileTap={{ scale: 0.95 }}
