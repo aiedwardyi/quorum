@@ -2,7 +2,7 @@ import type { Locale, ResponseLength } from "@/types"
 
 export function getVerdictPrompt(locale: Locale, responseLength: ResponseLength = "medium"): string {
   const localeRule = locale === "ko"
-    ? "\n- Return ALL text fields (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase, analysis, keyTakeaways, actionItems) in Korean."
+    ? `\n- Return ALL text fields in Korean. This includes every string value in the JSON${responseLength === "long" ? " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase, analysis, keyTakeaways, actionItems)" : responseLength === "medium" ? " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase, keyTakeaways)" : " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase)"}.`
     : ""
 
   const shortSchema = `{

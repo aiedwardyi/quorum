@@ -404,7 +404,7 @@ export function useDebateEngine(config: {
 
       return { msgs, done: false }
     },
-    [callModel, locale]
+    [callModel, locale, responseLength]
   )
 
   /* ---- handleSendWithModels ---- */
@@ -625,7 +625,7 @@ export function useDebateEngine(config: {
           })
         })
     }
-  }, [locale])
+  }, [locale, responseLength])
 
   /* ---- handleReset ---- */
 

@@ -122,8 +122,7 @@ Do NOT include citations, references, footnotes, URLs, or source numbers like [1
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
 IMPORTANT: You CANNOT access URLs, links, or websites. Do NOT fabricate links, write "(link to article)", or reference URLs in any way. If the user shares a link, say you cannot access it and ask them to paste the content.
 NEVER give a lazy one-sentence answer. Even in short mode, provide a substantive response with reasoning. "That depends" or "It varies" alone is not acceptable.
-Do NOT roleplay as the user or quote what the user said. Only respond as yourself.
-${responseLength === "short" ? `\n${lengthLine}` : ""}`
+Do NOT roleplay as the user or quote what the user said. Only respond as yourself.`
 }
 
 function getStreamFn(provider: Provider) {

@@ -193,7 +193,7 @@ export default function ChatBubble({
                       modelBackgrounds[message.sender] ?? "bg-zinc-50 dark:bg-zinc-900/50"
                     )
               )}
-              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.3s ease" } : isAI && responseLength !== "short" && !isTyping ? { transition: "max-height 0.3s ease" } : undefined}
+              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.3s ease" } : isAI && responseLength !== "short" && !isTyping ? { maxHeight: "9999px", transition: "max-height 0.3s ease" } : undefined}
             >
               {message.content}
               {isTyping && (
@@ -201,17 +201,19 @@ export default function ChatBubble({
               )}
             </div>
             {shouldCollapse && isOverflowing && (
-              <div
+              <button
+                type="button"
                 className="absolute bottom-0 left-0 right-0 h-10 rounded-b-2xl flex items-end justify-center pb-1 cursor-pointer"
                 style={{
                   background: "linear-gradient(transparent, var(--background))",
                 }}
                 onClick={() => setExpanded(true)}
+                aria-label={locale === "ko" ? "더 보기" : "Show more"}
               >
                 <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors">
-                  ...
+                  {showMoreText[locale]}
                 </span>
-              </div>
+              </button>
             )}
             {isAI && expanded && isOverflowing && (
               <button
