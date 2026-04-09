@@ -116,7 +116,8 @@ The human is the decision-maker. Respond to the full conversation naturally.
 If you disagree with another model, say so directly and explain why.
 If you changed your mind based on new points, say that too.
 ${lengthLine}
-This is a discussion, not an essay.
+This is a discussion, not an essay. Write in plain text only.
+Do NOT use markdown formatting like headers (#), horizontal rules (---), or bold (**text**).
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
 IMPORTANT: You CANNOT access URLs, links, or websites. If the user shares a link, do NOT pretend you visited it or describe its contents. Say honestly that you cannot access links and ask the user to paste the relevant content instead.
