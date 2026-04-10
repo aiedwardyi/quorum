@@ -86,7 +86,11 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
 
   options?.onProgress?.('Reading PDF...', 2)
 
-  // First pass: extract text from all pages
+  // First pass: extract text from all pages.
+  // Any page with below-threshold text is treated as a scanned/watermark-only page
+  // and queued for OCR, regardless of whether we've "seen" the text before. This
+  // ensures page 1 of a watermarked scan (which would otherwise be the first
+  // occurrence and get kept as content) is still OCR'd.
   for (let i = 1; i <= pageLimit; i++) {
     options?.onProgress?.(`Reading page ${i}/${pageLimit}`, Math.round(2 + (i / pageLimit) * 3))
     const page = await pdf.getPage(i)
@@ -96,13 +100,13 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
       .map((item: any) => item.str ?? '')
       .join(' ')
     const trimmed = text.trim()
-    if (trimmed && !seen.has(trimmed)) {
+    if (trimmed.length >= WATERMARK_CHAR_THRESHOLD && !seen.has(trimmed)) {
       seen.add(trimmed)
       pages.push(trimmed)
       totalLength += trimmed.length
       if (totalLength >= MAX_FILE_CHARS) break
-    } else if (!trimmed || (seen.has(trimmed) && trimmed.length < WATERMARK_CHAR_THRESHOLD)) {
-      // Empty page or page with only short duplicate text (watermark/header on scanned image)
+    } else {
+      // Empty, watermark-only, or duplicate short text -> OCR candidate
       emptyPageIndices.push(i)
     }
   }

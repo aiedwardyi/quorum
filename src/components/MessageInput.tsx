@@ -224,13 +224,25 @@ export default function MessageInput({
                   className="group relative flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl"
                 >
                   {file.parsing ? (
-                    <svg className="w-5 h-5 shrink-0 -rotate-90" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="10" fill="none" strokeWidth="2.5" className="stroke-zinc-300 dark:stroke-zinc-700" />
-                      <circle cx="12" cy="12" r="10" fill="none" strokeWidth="2.5" strokeLinecap="round"
-                        className="stroke-blue-500 dark:stroke-blue-400 transition-[stroke-dashoffset] duration-300 ease-out"
-                        strokeDasharray={2 * Math.PI * 10}
-                        strokeDashoffset={2 * Math.PI * 10 * (1 - (file.parseProgress ?? 1) / 100)} />
-                    </svg>
+                    <div className="relative shrink-0 w-9 h-9">
+                      <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" className="stroke-zinc-300 dark:stroke-zinc-700" />
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          className="stroke-blue-500 dark:stroke-blue-400 transition-[stroke-dashoffset] duration-500 ease-out"
+                          strokeDasharray={2 * Math.PI * 15}
+                          strokeDashoffset={2 * Math.PI * 15 * (1 - Math.max(1, Math.min(100, Math.round(file.parseProgress ?? 1))) / 100)}
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                        {Math.max(1, Math.min(100, Math.round(file.parseProgress ?? 1)))}%
+                      </span>
+                    </div>
                   ) : file.preview ? (
                     <img src={file.preview} alt="" className="w-8 h-8 rounded-lg object-cover" />
                   ) : file.file.type.includes("pdf") ? (

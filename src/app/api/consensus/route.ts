@@ -8,6 +8,7 @@ import {
 import { getVertexConfig } from "@/lib/vertex-config"
 import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt } from "@/lib/verdict-prompt"
+import { isPredominantlyKorean } from "@/lib/detect-language"
 
 const HEDGING_PHRASES = [
   "it depends",
@@ -66,6 +67,12 @@ export async function POST(req: NextRequest) {
 
     const discussionMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
 
+    // Match the chat route's behavior: if the discussion is predominantly Korean,
+    // force the verdict prompt into Korean even when the UI locale is English.
+    // Otherwise the verdict (recommendedAnswer, reasons, etc.) comes back in
+    // English while the chat replies are Korean - jarring for the user.
+    const effectiveLocale: Locale = isPredominantlyKorean(discussionMessages) ? "ko" : locale
+
     // Extract previous verdict recommendations for context
     const previousVerdicts = messages
       .filter((m) => m.sender === "verdict")
@@ -103,14 +110,14 @@ export async function POST(req: NextRequest) {
       ],
     })
 
-    console.log(`[verdict] Generating verdict for ${aiMessages.length} AI messages, locale=${locale}`)
+    console.log(`[verdict] Generating verdict for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}`)
 
     const VERDICT_TIMEOUT_MS = 30_000
     const result = await Promise.race([
       model.generateContent({
         systemInstruction: {
           role: "system",
-          parts: [{ text: getVerdictPrompt(locale, responseLength) }],
+          parts: [{ text: getVerdictPrompt(effectiveLocale, responseLength) }],
         },
         contents: [
           {

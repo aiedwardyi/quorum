@@ -40,12 +40,30 @@ export async function POST(req: NextRequest) {
           role: "user",
           parts: [
             {
-              text: `Extract ALL text from these scanned document pages. Return ONLY the extracted text, preserving the original language and formatting. Do not summarize, translate, or add commentary. Include every word, number, date, and name exactly as written. Separate pages with blank lines.`,
+              text: `You are an OCR engine. Extract EVERY character of text from these scanned document pages verbatim.
+
+ABSOLUTE RULES:
+1. Output ONLY the raw text from the document. Nothing else.
+2. NO preamble. NO "The following is a transcription". NO "Here is the text". NO "Page 1:". NO commentary of any kind.
+3. NO suffix. NO closing remark. NO summary. NO explanation.
+4. Do NOT invent or hallucinate text that is not actually visible in the image. If a section is blank, leave it blank.
+5. Preserve the original language exactly (Korean stays Korean, English stays English). NEVER translate.
+6. Include every word, number, date, name, legal citation, article number, signature, stamp text, and page header/footer exactly as written.
+7. Preserve line breaks and paragraph structure. Keep numbered lists, bullet points, and indentation where visible.
+8. For Korean legal documents: capture 소장, 준비서면, 원고, 피고, 갑 제X호증, 사건번호, article references, and Korean proper nouns with full fidelity.
+9. If a character is unclear, make your best guess based on context - do NOT write "[illegible]" or skip content.
+10. Separate each page's content with a single blank line.
+
+Your output must start with the first character of actual document text, and end with the last character of actual document text. Anything else is a failure.`,
             },
             ...parts,
           ],
         },
       ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 8192,
+      },
     })
 
     const response = result.response

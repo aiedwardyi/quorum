@@ -2,6 +2,7 @@ import { streamGemini } from "@/lib/providers/gemini"
 import { streamPerplexity } from "@/lib/providers/perplexity"
 import { streamClaude } from "@/lib/providers/claude"
 import { streamGPT } from "@/lib/providers/gpt"
+import { isPredominantlyKorean } from "@/lib/detect-language"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
 const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
@@ -106,12 +107,12 @@ function polishTruncatedShortResponse(text: string, wordLimit: number): string {
   return clampToWordLimit(result, wordLimit).text
 }
 
-function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength): string {
+function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength, forceKorean: boolean): string {
   const lengthLine = getResponseLengthInstruction(responseLength)
-  const isKorean = locale === "ko"
+  const isKorean = locale === "ko" || forceKorean
   const shortLimitBlock = responseLength === "short" ? `${lengthLine}\n\n` : ""
 
-  return `${shortLimitBlock}${isKorean ? "IMPORTANT: You MUST respond entirely in Korean (한국어). Every word of your response must be in Korean, regardless of what language the user writes in.\n\n" : "IMPORTANT: Detect the primary language of the user's message and any attached document content. If the user's content is predominantly in Korean (한국어), Japanese, Chinese, or another non-English language, respond ENTIRELY in that same language. Match the user's language - do not translate to English unless their content is in English.\n\n"}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
+  return `${shortLimitBlock}${isKorean ? "CRITICAL LANGUAGE REQUIREMENT: You MUST respond ENTIRELY in Korean (한국어). Every single word of your response - including names, technical terms, and explanations - must be written in Korean. Do NOT use any English words except for proper nouns that have no Korean equivalent. The user's document is in Korean and they expect a Korean response. If you respond in English, the response is wrong.\n\n" : "IMPORTANT: Detect the primary language of the user's message and any attached document content. If the user's content is predominantly in Korean (한국어), Japanese, Chinese, or another non-English language, respond ENTIRELY in that same language. Match the user's language - do not translate to English unless their content is in English.\n\n"}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
 Your name is ${DISPLAY_NAMES[provider]}. Always speak as yourself in first person.
 Do NOT introduce yourself or state your name. Jump straight into the topic.
 NEVER speak as another model. NEVER prefix your response with any name like "[Gemini]:" or "[Claude]:".
@@ -173,7 +174,8 @@ export async function POST(request: Request) {
 
     const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
     const streamFn = getStreamFn(provider)
-    const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
+    const forceKorean = validatedLocale !== "ko" && isPredominantlyKorean(inputMessages)
+    const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength, forceKorean)
     const maxTokens = getMaxTokens(validatedResponseLength)
     const wordLimit = validatedResponseLength === "short" ? 75 : null
     const encoder = new TextEncoder()
