@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useSession, signIn, signOut } from "next-auth/react"
-import { Locale, ResponseLength, Theme } from "@/types"
+import { Locale, Provider, ResponseLength, Theme } from "@/types"
 import ThreadDropdown from "@/components/ThreadDropdown"
 import ConfirmDialog from "@/components/ConfirmDialog"
+import ModelToggleGroup from "@/components/ModelToggleGroup"
 import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, AlignLeft, ChevronDown, User, Settings2, Sparkles, LogIn, LogOut, Sunrise, RotateCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -62,6 +63,8 @@ export default function ChatHeader({
   responseLength,
   onChangeResponseLength,
   onChangeRounds,
+  activeModels,
+  onToggleModel,
   locale,
   theme,
   onToggleTheme,
@@ -77,6 +80,8 @@ export default function ChatHeader({
   responseLength: ResponseLength
   onChangeResponseLength: (length: ResponseLength) => void
   onChangeRounds: (rounds: number) => void
+  activeModels: Provider[]
+  onToggleModel: (model: Provider) => void
   locale: Locale
   theme: Theme
   onToggleTheme: () => void
@@ -273,6 +278,15 @@ export default function ChatHeader({
               )}
             </AnimatePresence>
           </div>
+
+          <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-800 shrink-0" />
+
+          <ModelToggleGroup
+            activeModels={activeModels}
+            onToggle={onToggleModel}
+            locale={locale}
+            disabled={isDebating}
+          />
         </div>
       </div>
 

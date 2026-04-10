@@ -487,6 +487,8 @@ function ChatPageContent() {
           setMaxRounds(rounds)
           localStorage.setItem("quorum_rounds", String(rounds))
         }}
+        activeModels={state.activeModels}
+        onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         locale={locale}
         theme={theme}
         onToggleTheme={toggleTheme}
