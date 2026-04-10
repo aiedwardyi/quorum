@@ -13,6 +13,20 @@ const OCR_RENDER_SCALE = 2
 // incorrectly queued for OCR. The page-1 watermark fix still works as long as the
 // watermark text is short, which is the common case.
 const WATERMARK_CHAR_THRESHOLD = 30
+// Pages with at least this many image XObjects are treated as graphical/poster
+// layouts whose content of interest (prices, schedules, charts) is rendered as
+// image text that pdf.js cannot read. They get OCR'd even when pdf.js extracted
+// substantial text. Threshold is intentionally above the typical text-PDF case
+// of one or two header/footer logos so normal documents are not re-OCR'd.
+const IMAGE_HEAVY_OPS_THRESHOLD = 4
+// Sparse-text pages with at least one image are treated as image-driven (single
+// big poster + caption layouts). Threshold is kept tight so cover pages of
+// regular text PDFs are not pulled into the OCR queue.
+const SPARSE_TEXT_WITH_IMAGE_THRESHOLD = 100
+// Above this character count a page is considered text-dense and we skip the
+// image detection pass entirely. Avoids paying for getOperatorList on long
+// text-only pages where the outcome cannot flip.
+const DENSE_TEXT_THRESHOLD = 2000
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
 export type ParseWarning = "truncated" | "empty" | "too_large" | "parse_error"
@@ -92,11 +106,17 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
 
   options?.onProgress?.('Reading PDF...', 2)
 
-  // First pass: extract text from all pages.
-  // Keep any non-empty extracted text as a fallback, and only queue short pages
-  // for OCR. This preserves sparse text pages if OCR underperforms while still
-  // allowing watermark-heavy scanned pages to be re-read. Duplicate long pages
-  // are skipped without triggering OCR.
+  // First pass: extract text from all pages and decide which need OCR.
+  // A page is queued for OCR if any of the following hold:
+  //   1. The extracted text is empty or watermark-short (existing scanned-page rule).
+  //   2. The page has many image operators - a graphical/poster layout where the
+  //      content of interest (prices, schedules, charts) is rendered as image text
+  //      that pdf.js cannot read.
+  //   3. The page has at least one image AND the extracted text is sparse, which
+  //      catches sparse cover and schedule pages without dragging in normal text
+  //      PDFs that just have a header logo.
+  // Text-dense pages skip the image detection pass entirely, so the cost of
+  // getOperatorList is only paid on pages where it can actually change the result.
   for (let i = 1; i <= pageLimit; i++) {
     options?.onProgress?.(`Reading page ${i}/${pageLimit}`, Math.round(2 + (i / pageLimit) * 3))
     const page = await pdf.getPage(i)
@@ -114,6 +134,38 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     }
 
     if (trimmed.length < WATERMARK_CHAR_THRESHOLD) {
+      pages[pageIndex] = trimmed
+      ocrPageIndices.push(i)
+      continue
+    }
+
+    // Image-driven page detection: only run on text-light pages where the
+    // outcome can actually flip the OCR decision.
+    let isImagePage = false
+    if (trimmed.length < DENSE_TEXT_THRESHOLD) {
+      let imageOps = 0
+      try {
+        const ops = await page.getOperatorList()
+        for (const fn of ops.fnArray) {
+          if (
+            fn === pdfjsLib.OPS.paintImageXObject ||
+            fn === pdfjsLib.OPS.paintInlineImageXObject ||
+            fn === pdfjsLib.OPS.paintImageMaskXObject ||
+            fn === pdfjsLib.OPS.paintImageXObjectRepeat
+          ) {
+            imageOps++
+          }
+        }
+      } catch {
+        // best-effort - if operator list parsing fails we just skip the rule
+      }
+      isImagePage =
+        imageOps >= IMAGE_HEAVY_OPS_THRESHOLD ||
+        (imageOps >= 1 && trimmed.length < SPARSE_TEXT_WITH_IMAGE_THRESHOLD)
+    }
+
+    if (isImagePage) {
+      // Stash the extracted text as a fallback in case OCR fails for this page.
       pages[pageIndex] = trimmed
       ocrPageIndices.push(i)
       continue
