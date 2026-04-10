@@ -58,9 +58,11 @@ Make the ending state decisive and make debates reusable.
 - [x] Thinking indicator with colored model icons (merged into ChatBubble)
 - [x] Wire response length to system prompt (short ~75w, medium ~150w, long ~300w)
 - [x] i18n for AI-generated content — locale passed to system prompts for chat + consensus API
-- [ ] Between-round status feedback (brief "analyzing..." bubble)
-- [ ] Round divider labels in chat thread ("ROUND 1", "ROUND 2" visual separators)
+- [x] Between-round status feedback (analyzing bubble + consensus meter updates)
+- [x] Round divider labels in chat thread ("ROUND 1", "ROUND 2" visual separators)
 - [x] Stop button stuck state fix (BUG-012)
+- [x] Stop-and-continue reliability (BUG-026, BUG-027): placeholder-keyed reducer + post-await guards
+- [x] Empty-stream graceful handling (BUG-050, BUG-024, BUG-029): Gemini retry-once + snack-break fallback
 - [ ] API error graceful handling (rate limits, quota)
 - [x] Continue discussion from completed verdict (follow-up in same thread)
 - [x] Session persistence foundation
@@ -91,7 +93,11 @@ Make saved work, identity, and recommendation UX feel complete.
 - [x] Theme-aware semantic color tokens (success/warning/danger) — ConsensusMeter + SummaryCard respond to active theme
 - [ ] Additional custom themes (accent colors, more palettes)
 - [x] Settings page - Account + Preferences tabs
-- [ ] Fix settings modal tab scroll position (BUG-039)
+- [x] Fix settings modal tab scroll position (BUG-039)
+- [x] Model toggle icons in chat header (chat-page picker, replaces settings-only flow)
+- [x] Scanned PDF OCR + Korean response forcing
+- [x] OCR image-heavy PDF pages even with extracted text (BUG-049)
+- [x] URL grounding for direct-link debates (BUG-020)
 - [ ] Voice input (Watson STT)
 - [x] Homepage chat history section (logged-in users can access past debates from homepage)
 - [x] Mobile-friendly chat history (responsive history browsing on chat page)
