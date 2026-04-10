@@ -119,7 +119,7 @@ export default function ChatBubble({
   }, [message.content, isAI, responseLength, isTyping])
 
   if (message.sender === "system") {
-    const isAnalyzing = message.content === "Analyzing discussion..." || message.content === "토론 분석 중..."
+    const isAnalyzing = message.content.includes("Analyzing") || message.content.includes("분석")
 
     return (
       <div className="my-6 flex w-full items-center gap-3 animate-bubble-in">

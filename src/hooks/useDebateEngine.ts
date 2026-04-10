@@ -495,10 +495,7 @@ export function useDebateEngine(config: {
                 body: JSON.stringify({ messages: getConsensusMessages(msgs), locale, responseLength }),
               })
 
-              // Guard: if user stopped during fetch, let handleStop own the verdict
-              if (stopRef.current || stoppingRef.current) {
-                logDebate("verdict:skipped-stopped", {})
-              } else if (res.ok && sessionIdRef.current === thisSession) {
+              if (res.ok && sessionIdRef.current === thisSession) {
                 const result = await res.json()
 
                 if (!isValidVerdict(result)) {
@@ -588,17 +585,11 @@ export function useDebateEngine(config: {
     const currentMessages = messagesRef.current
     const aiCount = getAIMessageCount(currentMessages)
     if (aiCount >= 2) {
-      // Reuse existing "Analyzing..." divider if the normal flow already created one
-      const existingAnalyzing = currentMessages.find(
-        (m) => m.sender === "system" && m.content === SYSTEM_MESSAGES.analyzing(locale)
-      )
-      const analyzingMsg = existingAnalyzing ?? createSystemMessage(
+      const analyzingMsg = createSystemMessage(
         SYSTEM_MESSAGES.analyzing(locale),
         locale
       )
-      if (!existingAnalyzing) {
-        dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
-      }
+      dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
 
       fetch("/api/consensus", {
         method: "POST",
