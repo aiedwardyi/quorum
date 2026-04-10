@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
+import { MODEL_INFO } from "@/lib/model-info"
 
 const ALL_MODELS: Provider[] = ["gemini", "claude", "gpt", "perplexity"]
 
@@ -40,8 +41,8 @@ const ModelIcon = ({ provider, size = 16 }: { provider: Provider; size?: number 
 }
 
 const translations = {
-  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiDesc: "Google's flagship multimodal AI model", perplexityDesc: "AI search engine for up-to-date information", claudeDesc: "Anthropic's advanced reasoning model", gptDesc: "OpenAI's powerful language model", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme" },
-  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiDesc: "Google의 대표 멀티모달 AI 모델", perplexityDesc: "최신 정보를 위한 AI 검색 엔진", claudeDesc: "Anthropic의 고급 추론 모델", gptDesc: "OpenAI의 강력한 언어 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마" },
+  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme" },
+  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마" },
 }
 
 type Tab = "account" | "preferences"
@@ -88,7 +89,12 @@ export default function SettingsModal({
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const descriptions: Record<Provider, string> = { gemini: t.geminiDesc, perplexity: t.perplexityDesc, claude: t.claudeDesc, gpt: t.gptDesc }
+  const descriptions: Record<Provider, string> = {
+    gemini: MODEL_INFO.gemini.description[locale],
+    perplexity: MODEL_INFO.perplexity.description[locale],
+    claude: MODEL_INFO.claude.description[locale],
+    gpt: MODEL_INFO.gpt.description[locale],
+  }
   const keyLabels: Record<Provider, string> = { gemini: t.geminiKey, perplexity: t.perplexityKey, claude: t.claudeKey, gpt: t.gptKey }
 
   return (
@@ -234,9 +240,9 @@ export default function SettingsModal({
                         const isActive = activeModels.includes(model)
                         const style = modelStyles[model]
                         return (
-                          <motion.button key={model} whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2, ease: "easeOut" }} onClick={() => { if (isActive && activeModels.length === 1) return; onToggleModel(model) }} className={cn("relative flex items-center gap-2.5 p-2.5 rounded-xl border transition-colors duration-200 text-left group hover:z-10", isActive ? cn("bg-card", style.activeBorder, style.glow) : "bg-secondary/30 border-border/60 grayscale opacity-60 hover:grayscale-0 hover:opacity-100")}>
+                          <motion.button key={model} whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2, ease: "easeOut" }} onClick={() => { if (isActive && activeModels.length <= 2) return; onToggleModel(model) }} className={cn("relative flex items-center gap-2.5 p-2.5 rounded-xl border transition-colors duration-200 text-left group hover:z-10", isActive ? cn("bg-card", style.activeBorder, style.glow) : "bg-secondary/30 border-border/60 grayscale opacity-60 hover:grayscale-0 hover:opacity-100")}>
                             <div className={cn("p-1.5 rounded-lg transition-colors shrink-0", isActive ? style.iconBg : "bg-secondary")}><ModelIcon provider={model} size={16} /></div>
-                            <span className={cn("text-[12px] font-bold tracking-tight flex-1", isActive ? "text-foreground" : "text-muted-foreground")}>{model === "gpt" ? "GPT" : model.charAt(0).toUpperCase() + model.slice(1)}</span>
+                            <span className={cn("text-[12px] font-bold tracking-tight flex-1", isActive ? "text-foreground" : "text-muted-foreground")}>{MODEL_INFO[model].name}</span>
                             <div className={cn("w-2 h-2 rounded-full transition-all shrink-0", isActive ? style.dot : "bg-zinc-300 dark:bg-zinc-600")} />
                             <div className={cn("absolute left-1/2 -translate-x-1/2 px-2 py-1 bg-primary text-primary-foreground text-[10px] font-medium rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-sm", modelIndex < 2 ? "bottom-full mb-2" : "top-full mt-2")}>{descriptions[model]}</div>
                           </motion.button>

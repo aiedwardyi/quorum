@@ -162,7 +162,8 @@ export function reducer(state: State, action: Action): State {
       return { ...state, showSummary: false, currentRound: 0 }
     case "TOGGLE_MODEL": {
       const has = state.activeModels.includes(action.model)
-      if (has && state.activeModels.length <= 1) return state
+      // Minimum two models required for a debate
+      if (has && state.activeModels.length <= 2) return state
       return {
         ...state,
         activeModels: has

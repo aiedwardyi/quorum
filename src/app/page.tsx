@@ -13,6 +13,7 @@ import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
 import LoginGateModal from "@/components/LoginGate"
 import ThreadDropdown from "@/components/ThreadDropdown"
 import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
+import { MODEL_INFO } from "@/lib/model-info"
 
 /* ─── Model SVG Icons ─── */
 
@@ -92,10 +93,6 @@ const t = {
     signIn: "Sign In",
     signOut: "Sign Out",
     tooltips: {
-      gemini: "Google's flagship multimodal AI model",
-      perplexity: "AI search engine for up-to-date information",
-      claude: "Anthropic's advanced reasoning model",
-      gpt: "OpenAI's powerful language model",
       short: "1-2 paragraphs per response",
       medium: "3-4 paragraphs per response",
       long: "Comprehensive, detailed analysis",
@@ -131,10 +128,6 @@ const t = {
     signIn: "로그인",
     signOut: "로그아웃",
     tooltips: {
-      gemini: "Google의 최신 멀티모달 AI 모델",
-      perplexity: "최신 정보를 제공하는 AI 검색 엔진",
-      claude: "Anthropic의 고급 추론 모델",
-      gpt: "OpenAI의 강력한 언어 모델",
       short: "응답당 1-2 문단",
       medium: "응답당 3-4 문단",
       long: "포괄적이고 상세한 분석",
@@ -810,7 +803,7 @@ export default function Home() {
                     >
                       {/* Tooltip */}
                       <div className="hidden sm:block absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[11px] sm:text-xs font-medium rounded-lg opacity-0 group-hover/model:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl">
-                        {t[locale].tooltips[model.id as keyof Tooltips]}
+                        {MODEL_INFO[model.id].description[locale]}
                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
                       </div>
 

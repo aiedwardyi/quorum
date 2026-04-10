@@ -110,10 +110,16 @@ describe("reducer", () => {
     expect(next.activeModels).toEqual(["gemini", "claude"])
   })
 
-  it("TOGGLE_MODEL removes model if more than one", () => {
+  it("TOGGLE_MODEL removes model if more than two", () => {
+    const state = makeState({ activeModels: ["gemini", "claude", "gpt"] })
+    const next = reducer(state, { type: "TOGGLE_MODEL", model: "claude" })
+    expect(next.activeModels).toEqual(["gemini", "gpt"])
+  })
+
+  it("TOGGLE_MODEL refuses to drop below two models (debate needs at least two)", () => {
     const state = makeState({ activeModels: ["gemini", "claude"] })
     const next = reducer(state, { type: "TOGGLE_MODEL", model: "claude" })
-    expect(next.activeModels).toEqual(["gemini"])
+    expect(next.activeModels).toEqual(["gemini", "claude"])
   })
 
   it("TOGGLE_MODEL refuses to remove last model", () => {
