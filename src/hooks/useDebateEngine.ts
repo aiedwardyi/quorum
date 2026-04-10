@@ -98,8 +98,10 @@ export function getAIMessageCount(messages: Message[]): number {
 /**
  * Resolves the final placeholder content from a streamed provider response.
  * If the provider returned no usable text - either the server flagged the
- * stream as empty, or cleanResponse left us with whitespace - substitute a
+ * stream as empty, or cleanResponse left us with nothing - substitute a
  * localized fallback so the bubble doesn't get stuck in "thinking..." state.
+ * cleanResponse already trims, so an empty result here means there was
+ * nothing meaningful to show.
  */
 export function resolveProviderContent(
   rawContent: string,
@@ -108,7 +110,7 @@ export function resolveProviderContent(
   provider: Provider
 ): string {
   const cleaned = cleanResponse(rawContent)
-  if (providerEmpty || !cleaned.trim()) {
+  if (providerEmpty || !cleaned) {
     return SYSTEM_MESSAGES.emptyResponse(locale, provider)
   }
   return cleaned
