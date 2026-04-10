@@ -67,7 +67,9 @@ Your output must start with the first character of actual document text, and end
     })
 
     const response = result.response
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    const text = (response.candidates?.[0]?.content?.parts ?? [])
+      .map((part) => part.text ?? "")
+      .join("")
 
     return NextResponse.json({ text })
   } catch (err) {
