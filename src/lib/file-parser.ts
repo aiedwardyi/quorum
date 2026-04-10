@@ -8,7 +8,11 @@ const MAX_PDF_PAGES = 20
 const MAX_FILE_SIZE_MB = 50
 const MAX_OCR_PAGES = 10
 const OCR_RENDER_SCALE = 2
-const WATERMARK_CHAR_THRESHOLD = 200
+// Pages with fewer than this many characters are treated as scanned/watermark-only.
+// Kept low (30) so that legitimate text PDFs with sparse cover/divider pages are not
+// incorrectly queued for OCR. The page-1 watermark fix still works as long as the
+// watermark text is short, which is the common case.
+const WATERMARK_CHAR_THRESHOLD = 30
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
 export type ParseWarning = "truncated" | "empty" | "too_large" | "parse_error"

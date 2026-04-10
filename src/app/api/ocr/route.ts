@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { VertexAI } from "@google-cloud/vertexai"
 import { getVertexConfig } from "@/lib/vertex-config"
 
+/**
+ * Strip LLM OCR repetition loops where the model gets stuck on a token/phrase
+ * (common failure mode on dense Korean text with low-confidence regions).
+ * Collapses 4+ consecutive identical short tokens to a single instance.
+ *
+ * Example: "만천하에 만천하에 만천하에 만천하에 만천하에" -> "만천하에"
+ */
+function sanitizeOcrText(text: string): string {
+  if (!text) return text
+  // 1-30 char token followed by 3+ whitespace-separated repetitions of itself.
+  // Use word-boundary-ish matching by anchoring on \S+.
+  let cleaned = text.replace(/(\S{1,30})((?:\s+\1){3,})/g, "$1")
+  // Also catch 2-3 word phrases stuck in a loop (e.g., "page 1 page 1 page 1").
+  cleaned = cleaned.replace(/(\S{1,30}\s\S{1,30})((?:\s+\1){3,})/g, "$1")
+  return cleaned
+}
+
 function getModel() {
   const { projectId, location } = getVertexConfig()
   const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
@@ -67,9 +84,10 @@ Your output must start with the first character of actual document text, and end
     })
 
     const response = result.response
-    const text = (response.candidates?.[0]?.content?.parts ?? [])
+    const rawText = (response.candidates?.[0]?.content?.parts ?? [])
       .map((part) => part.text ?? "")
       .join("")
+    const text = sanitizeOcrText(rawText)
 
     return NextResponse.json({ text })
   } catch (err) {
