@@ -13,8 +13,6 @@ const OCR_RENDER_SCALE = 2
 // incorrectly queued for OCR. The page-1 watermark fix still works as long as the
 // watermark text is short, which is the common case.
 const WATERMARK_CHAR_THRESHOLD = 30
-const OCR_BATCH_SIZE = 2
-
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
 export type ParseWarning = "truncated" | "empty" | "too_large" | "parse_error"
@@ -31,6 +29,10 @@ export interface ParseOptions {
   onProgress?: (status: string, progress?: number) => void
 }
 
+function joinPDFPages(pages: Array<string | null | undefined>): string {
+  return pages.map((page) => page?.trim() ?? '').filter(Boolean).join('\n\n')
+}
+
 export async function parseFile(file: File, options?: ParseOptions): Promise<ParseResult> {
   const sizeMB = file.size / (1024 * 1024)
   if (sizeMB > MAX_FILE_SIZE_MB) {
@@ -44,7 +46,7 @@ export async function parseFile(file: File, options?: ParseOptions): Promise<Par
     if (ext === 'pdf') {
       const pdfResult = await parsePDF(file, options)
       if (pdfResult.usedOCR) {
-        if (!pdfResult.text.trim()) return { text: '', warning: 'empty' }
+        if (!pdfResult.text.trim()) return { text: '', warning: 'empty', usedOCR: true }
         if (pdfResult.text.length > MAX_FILE_CHARS) {
           return { text: pdfResult.text.slice(0, MAX_FILE_CHARS) + '\n[...file truncated]', warning: 'truncated', usedOCR: true }
         }
@@ -82,19 +84,19 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
 
-  const pages: string[] = []
-  const emptyPageIndices: number[] = []
+  const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES)
+  const pages: Array<string | null> = Array(pageLimit).fill(null)
+  const ocrPageIndices: number[] = []
   const seen = new Set<string>()
   let totalLength = 0
-  const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES)
 
   options?.onProgress?.('Reading PDF...', 2)
 
   // First pass: extract text from all pages.
-  // Any page with below-threshold text is treated as a scanned/watermark-only page
-  // and queued for OCR, regardless of whether we've "seen" the text before. This
-  // ensures page 1 of a watermarked scan (which would otherwise be the first
-  // occurrence and get kept as content) is still OCR'd.
+  // Keep any non-empty extracted text as a fallback, and only queue short pages
+  // for OCR. This preserves sparse text pages if OCR underperforms while still
+  // allowing watermark-heavy scanned pages to be re-read. Duplicate long pages
+  // are skipped without triggering OCR.
   for (let i = 1; i <= pageLimit; i++) {
     options?.onProgress?.(`Reading page ${i}/${pageLimit}`, Math.round(2 + (i / pageLimit) * 3))
     const page = await pdf.getPage(i)
@@ -104,38 +106,49 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
       .map((item: any) => item.str ?? '')
       .join(' ')
     const trimmed = text.trim()
-    if (trimmed.length >= WATERMARK_CHAR_THRESHOLD && !seen.has(trimmed)) {
-      seen.add(trimmed)
-      pages.push(trimmed)
-      totalLength += trimmed.length
-      if (totalLength >= MAX_FILE_CHARS) break
-    } else {
-      // Empty, watermark-only, or duplicate short text -> OCR candidate
-      emptyPageIndices.push(i)
+    const pageIndex = i - 1
+
+    if (!trimmed) {
+      ocrPageIndices.push(i)
+      continue
     }
+
+    if (trimmed.length < WATERMARK_CHAR_THRESHOLD) {
+      pages[pageIndex] = trimmed
+      ocrPageIndices.push(i)
+      continue
+    }
+
+    if (seen.has(trimmed)) continue
+
+    seen.add(trimmed)
+    pages[pageIndex] = trimmed
+    totalLength += trimmed.length
+    if (totalLength >= MAX_FILE_CHARS) break
   }
 
-  // If no empty pages, return whatever text we got
-  if (emptyPageIndices.length === 0) {
-    return { text: pages.join('\n\n'), usedOCR: false }
+  // If no OCR candidates, return whatever text we got.
+  if (ocrPageIndices.length === 0) {
+    return { text: joinPDFPages(pages), usedOCR: false }
   }
 
   // If we already hit the char limit from text pages, skip OCR
   if (totalLength >= MAX_FILE_CHARS) {
-    return { text: pages.join('\n\n'), usedOCR: false }
+    return { text: joinPDFPages(pages), usedOCR: false }
   }
 
-  // OCR the empty pages (scanned images) via server-side Gemini Vision
-  const ocrLimit = Math.min(emptyPageIndices.length, MAX_OCR_PAGES)
+  // OCR short/empty pages via the server-side OCR endpoint.
+  const ocrTargets = ocrPageIndices.slice(0, MAX_OCR_PAGES)
   options?.onProgress?.('Preparing pages...', 5)
 
-  // Render all pages to images first
-  const base64Images: string[] = []
-  for (let idx = 0; idx < ocrLimit; idx++) {
-    const pct = Math.round(5 + (idx / ocrLimit) * 20)
-    options?.onProgress?.(`Preparing ${idx + 1}/${ocrLimit}`, pct)
+  // Render OCR candidates to images first.
+  const renderedPages: Array<{ pageNumber: number; base64: string }> = []
+  for (let idx = 0; idx < ocrTargets.length; idx++) {
+    const pct = Math.round(5 + (idx / ocrTargets.length) * 20)
+    options?.onProgress?.(`Preparing ${idx + 1}/${ocrTargets.length}`, pct)
 
-    const page = await pdf.getPage(emptyPageIndices[idx])
+    const pageNumber = ocrTargets[idx]
+    const page = await pdf.getPage(pageNumber)
     const viewport = page.getViewport({ scale: OCR_RENDER_SCALE })
     const canvas = document.createElement('canvas')
     canvas.width = viewport.width
@@ -145,47 +158,37 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
 
     await page.render({ canvas, viewport }).promise
     const dataUrl = canvas.toDataURL('image/png')
-    base64Images.push(dataUrl.split(',')[1])
+    renderedPages.push({ pageNumber, base64: dataUrl.split(',')[1] })
   }
 
-  if (base64Images.length === 0) {
-    return { text: pages.join('\n\n'), usedOCR: false }
+  if (renderedPages.length === 0) {
+    return { text: joinPDFPages(pages), usedOCR: false }
   }
 
-  // Process in batches so progress updates between Gemini calls
+  // OCR one page at a time so the recovered text can be placed back into the
+  // original document order.
   try {
-    const ocrTexts: string[] = []
-    const totalBatches = Math.ceil(base64Images.length / OCR_BATCH_SIZE)
-
-    for (let b = 0; b < totalBatches; b++) {
-      const start = b * OCR_BATCH_SIZE
-      const batch = base64Images.slice(start, start + OCR_BATCH_SIZE)
-      const pct = Math.round(25 + ((b + 1) / totalBatches) * 70)
-      const startPage = start + 1
-      const endPage = Math.min(start + OCR_BATCH_SIZE, base64Images.length)
-      options?.onProgress?.(`Reading pages ${startPage}-${endPage}/${base64Images.length}`, pct - 5)
+    for (let idx = 0; idx < renderedPages.length; idx++) {
+      const { pageNumber, base64 } = renderedPages[idx]
+      const pct = Math.round(25 + ((idx + 1) / renderedPages.length) * 70)
+      options?.onProgress?.(`Reading page ${idx + 1}/${renderedPages.length}`, pct - 5)
 
       const res = await fetch('/api/ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ images: batch }),
+        body: JSON.stringify({ images: [base64] }),
       })
 
       if (!res.ok) throw new Error(`OCR API error: ${res.status}`)
       const { text: ocrText } = await res.json()
       const trimmed = (ocrText ?? '').trim()
-      if (trimmed) ocrTexts.push(trimmed)
+      if (trimmed) pages[pageNumber - 1] = trimmed
 
-      options?.onProgress?.(`Reading pages ${startPage}-${endPage}/${base64Images.length}`, pct)
+      options?.onProgress?.(`Reading page ${idx + 1}/${renderedPages.length}`, pct)
     }
 
     options?.onProgress?.('Done', 100)
-
-    if (ocrTexts.length > 0) {
-      pages.push(ocrTexts.join('\n\n'))
-    }
-
-    return { text: pages.join('\n\n'), usedOCR: true }
+    return { text: joinPDFPages(pages), usedOCR: true }
   } catch (err) {
     console.error('[file-parser] Gemini OCR failed, falling back to Tesseract:', err)
     options?.onProgress?.('Fallback OCR...', 70)
@@ -194,11 +197,12 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     const { createWorker } = await import('tesseract.js')
     const worker = await createWorker('kor+eng')
     try {
-      for (let idx = 0; idx < ocrLimit; idx++) {
-        const pct = Math.round(70 + (idx / ocrLimit) * 25)
-        options?.onProgress?.(`OCR page ${idx + 1}/${ocrLimit}...`, pct)
+      for (let idx = 0; idx < renderedPages.length; idx++) {
+        const pageNumber = renderedPages[idx].pageNumber
+        const pct = Math.round(70 + (idx / renderedPages.length) * 25)
+        options?.onProgress?.(`OCR page ${idx + 1}/${renderedPages.length}...`, pct)
 
-        const page = await pdf.getPage(emptyPageIndices[idx])
+        const page = await pdf.getPage(pageNumber)
         const viewport = page.getViewport({ scale: OCR_RENDER_SCALE })
         const canvas = document.createElement('canvas')
         canvas.width = viewport.width
@@ -210,12 +214,10 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
         const { data: { text } } = await worker.recognize(canvas)
         const trimmed = text.trim()
         if (trimmed) {
-          pages.push(trimmed)
-          totalLength += trimmed.length
-          if (totalLength >= MAX_FILE_CHARS) break
+          pages[pageNumber - 1] = trimmed
         }
       }
-      return { text: pages.join('\n\n'), usedOCR: true }
+      return { text: joinPDFPages(pages), usedOCR: true }
     } finally {
       await worker.terminate()
     }
