@@ -246,11 +246,19 @@ export async function POST(request: Request) {
               fullContent = polishTruncatedShortResponse(fullContent, wordLimit)
             }
 
+            // Empty-stream guard: providers occasionally close the stream
+            // without yielding any text (safety filter, transient model glitch).
+            // streamGemini already retries once internally. Surface it as an
+            // explicit empty flag so the client can show a clear fallback
+            // instead of a placeholder stuck in "thinking..." forever.
+            const isEmpty = !fullContent.trim()
+
             enqueueEvent({
               done: true,
               sender: provider,
               displayName: DISPLAY_NAMES[provider],
               content: fullContent,
+              ...(isEmpty ? { empty: true } : {}),
             })
           }
           closeController()

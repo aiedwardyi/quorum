@@ -38,6 +38,10 @@ const SYSTEM_MESSAGES = {
     locale === "ko"
       ? "분석을 완료할 수 없습니다. 새 메시지를 보내 계속하세요."
       : "Could not complete analysis. Send a new message to continue.",
+  emptyResponse: (locale: Locale, provider: Provider) =>
+    locale === "ko"
+      ? `${DISPLAY_NAMES[provider]} 잠깐 간식 먹으러 갔어요. 곧 돌아올게요.`
+      : `${DISPLAY_NAMES[provider]} stepped out for a snack break. Back soon.`,
 }
 
 /* ---- Client-side verdict validation ---- */
@@ -89,6 +93,27 @@ export function getAIMessageCount(messages: Message[]): number {
   return messages.filter(
     (m) => m.sender !== "user" && m.sender !== "system" && m.sender !== "verdict"
   ).length
+}
+
+/**
+ * Resolves the final placeholder content from a streamed provider response.
+ * If the provider returned no usable text - either the server flagged the
+ * stream as empty, or cleanResponse left us with nothing - substitute a
+ * localized fallback so the bubble doesn't get stuck in "thinking..." state.
+ * cleanResponse already trims, so an empty result here means there was
+ * nothing meaningful to show.
+ */
+export function resolveProviderContent(
+  rawContent: string,
+  providerEmpty: boolean,
+  locale: Locale,
+  provider: Provider
+): string {
+  const cleaned = cleanResponse(rawContent)
+  if (providerEmpty || !cleaned) {
+    return SYSTEM_MESSAGES.emptyResponse(locale, provider)
+  }
+  return cleaned
 }
 
 /* ---- State ---- */
@@ -290,6 +315,7 @@ export function useDebateEngine(config: {
         let fullContent = ""
         let finalContent: string | null = null
         let cancelled = false
+        let providerEmpty = false
 
         while (true) {
           if (stopRef.current || sessionIdRef.current !== sessionId) {
@@ -318,6 +344,7 @@ export function useDebateEngine(config: {
             if (data.done) {
               finalContent =
                 typeof data.content === "string" ? data.content : fullContent
+              if (data.empty === true) providerEmpty = true
             }
             if (data.chunk) {
               fullContent += data.chunk
@@ -335,7 +362,12 @@ export function useDebateEngine(config: {
           return null
         }
 
-        const cleaned = cleanResponse(finalContent ?? fullContent)
+        const cleaned = resolveProviderContent(
+          finalContent ?? fullContent,
+          providerEmpty,
+          locale,
+          provider
+        )
         logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
         updatePlaceholder(cleaned)
         clearTypingIfCurrentSession()
