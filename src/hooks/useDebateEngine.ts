@@ -273,6 +273,9 @@ export function useDebateEngine(config: {
 
         // Session guard - bail if a newer debate started
         if (sessionIdRef.current !== sessionId) {
+          // Release the unused stream so we don't keep the upstream connection
+          // open after a newer session has taken over.
+          if (!controller.signal.aborted) controller.abort()
           updatePlaceholder("Response cancelled.")
           return null
         }
@@ -459,8 +462,8 @@ export function useDebateEngine(config: {
           const result = await runRound(msgs, orderedModels, thisSession)
           // Post-await guards: a newer debate may have started or the user
           // may have clicked stop while runRound was in-flight. Bail before
-          // dispatching SET_ROUND state or round dividers that belong to a
-          // round that will not actually run.
+          // pushing the next round divider or starting another iteration
+          // for a round that will not actually run.
           if (sessionIdRef.current !== thisSession) break
           if (stopRef.current || stoppingRef.current) {
             stoppedEarly = true
