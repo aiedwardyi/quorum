@@ -3,6 +3,7 @@ import { streamPerplexity } from "@/lib/providers/perplexity"
 import { streamClaude } from "@/lib/providers/claude"
 import { streamGPT } from "@/lib/providers/gpt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
+import { getUrlCapabilityInstruction } from "@/lib/url-access"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
 const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
@@ -43,9 +44,8 @@ function clampToWordLimit(text: string, wordLimit: number): { text: string; trun
   const wordRegex = /\S+/g
   let wordCount = 0
   let lastAllowedIndex = text.length
-  let match: RegExpExecArray | null
 
-  while ((match = wordRegex.exec(text)) !== null) {
+  while (wordRegex.exec(text) !== null) {
     wordCount += 1
     if (wordCount === wordLimit) {
       lastAllowedIndex = wordRegex.lastIndex
@@ -124,7 +124,7 @@ This is a discussion, not an essay. Write in plain text only.
 Do NOT use markdown formatting like headers (#), horizontal rules (---), or bold (**text**).
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
-IMPORTANT: You CANNOT access external URLs, links, or websites. Do NOT fabricate links or reference URLs. However, when the user's message includes document text (between "--- File:" markers), that content HAS ALREADY BEEN EXTRACTED and is part of the message - read and analyze it directly.
+${getUrlCapabilityInstruction(provider)} However, when the user's message includes document text (between "--- File:" markers), that content HAS ALREADY BEEN EXTRACTED and is part of the message - read and analyze it directly.
 NEVER give a lazy one-sentence answer. Even in short mode, provide a substantive response with reasoning. "That depends" or "It varies" alone is not acceptable.
 Do NOT roleplay as the user or quote what the user said. Only respond as yourself.`
 }
@@ -173,8 +173,8 @@ export async function POST(request: Request) {
     }
 
     const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
-    const streamFn = getStreamFn(provider)
     const forceKorean = validatedLocale !== "ko" && isPredominantlyKorean(inputMessages)
+    const streamFn = getStreamFn(provider)
     const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength, forceKorean)
     const maxTokens = getMaxTokens(validatedResponseLength)
     const wordLimit = validatedResponseLength === "short" ? 75 : null
