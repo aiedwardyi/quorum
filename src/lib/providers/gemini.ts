@@ -93,12 +93,11 @@ async function* withTimeout<T>(
   }
 }
 
-// Streaming (used by chat route)
-export async function* streamGemini(
+async function* runGeminiStream(
   systemPrompt: string,
   messages: Message[],
-  signal?: AbortSignal,
-  maxTokens = 1024
+  signal: AbortSignal | undefined,
+  maxTokens: number
 ): AsyncGenerator<string> {
   const model = getModel()
   const contents = buildContents(messages)
@@ -114,6 +113,29 @@ export async function* streamGemini(
     if (text) {
       yield text
     }
+  }
+}
+
+// Streaming (used by chat route).
+// Vertex occasionally returns a stream with no text candidates (safety filter,
+// transient model issue). When that happens we retry the upstream call once
+// before giving up, since these empties are usually a single-sample fluke.
+export async function* streamGemini(
+  systemPrompt: string,
+  messages: Message[],
+  signal?: AbortSignal,
+  maxTokens = 1024
+): AsyncGenerator<string> {
+  let yielded = false
+  for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens)) {
+    yielded = true
+    yield text
+  }
+  if (yielded || signal?.aborted) return
+
+  // First attempt yielded nothing - retry once
+  for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens)) {
+    yield text
   }
 }
 

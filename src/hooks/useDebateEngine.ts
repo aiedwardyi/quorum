@@ -38,6 +38,10 @@ const SYSTEM_MESSAGES = {
     locale === "ko"
       ? "분석을 완료할 수 없습니다. 새 메시지를 보내 계속하세요."
       : "Could not complete analysis. Send a new message to continue.",
+  emptyResponse: (locale: Locale, provider: Provider) =>
+    locale === "ko"
+      ? `${DISPLAY_NAMES[provider]} 잠깐 간식 먹으러 갔어요. 다음 라운드에 돌아올게요.`
+      : `${DISPLAY_NAMES[provider]} stepped out for a snack break. Back next round.`,
 }
 
 /* ---- Client-side verdict validation ---- */
@@ -290,6 +294,7 @@ export function useDebateEngine(config: {
         let fullContent = ""
         let finalContent: string | null = null
         let cancelled = false
+        let providerEmpty = false
 
         while (true) {
           if (stopRef.current || sessionIdRef.current !== sessionId) {
@@ -318,6 +323,7 @@ export function useDebateEngine(config: {
             if (data.done) {
               finalContent =
                 typeof data.content === "string" ? data.content : fullContent
+              if (data.empty === true) providerEmpty = true
             }
             if (data.chunk) {
               fullContent += data.chunk
@@ -335,7 +341,14 @@ export function useDebateEngine(config: {
           return null
         }
 
-        const cleaned = cleanResponse(finalContent ?? fullContent)
+        let cleaned = cleanResponse(finalContent ?? fullContent)
+        // Empty-response fallback: provider closed the stream with no text
+        // (server flagged it via `empty: true`, or cleanResponse left us with
+        // nothing). Replace with a friendly snack-break message so the bubble
+        // resolves and the rest of the round can finish.
+        if (providerEmpty || !cleaned.trim()) {
+          cleaned = SYSTEM_MESSAGES.emptyResponse(locale, provider)
+        }
         logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
         updatePlaceholder(cleaned)
         clearTypingIfCurrentSession()
