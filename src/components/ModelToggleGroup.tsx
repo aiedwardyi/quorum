@@ -28,6 +28,13 @@ const activeColors: Record<Provider, string> = {
   gpt: "text-emerald-600 dark:text-emerald-400",
 }
 
+const activeHoverBg: Record<Provider, string> = {
+  gemini: "hover:bg-blue-50 dark:hover:bg-blue-500/15",
+  perplexity: "hover:bg-teal-50 dark:hover:bg-teal-500/15",
+  claude: "hover:bg-orange-50 dark:hover:bg-orange-500/15",
+  gpt: "hover:bg-emerald-50 dark:hover:bg-emerald-500/15",
+}
+
 function GeminiGlyph({ active }: { active: boolean }) {
   return (
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" aria-hidden style={{ filter: active ? undefined : "grayscale(1)" }}>
@@ -92,41 +99,53 @@ export default function ModelToggleGroup({
   locale: Locale
   disabled?: boolean
 }) {
+  const lastIdx = MODELS.length - 1
   return (
     <div
       className={cn(
-        "flex items-center gap-1 sm:gap-1.5",
+        "flex items-center gap-0.5 sm:gap-1",
         disabled && "pointer-events-none opacity-40"
       )}
       role="group"
       aria-label={locale === "ko" ? "참여 모델" : "Participants"}
     >
-      {MODELS.map((model) => {
+      {MODELS.map((model, idx) => {
         const active = activeModels.includes(model)
-        const isOnlyActive = active && activeModels.length === 1
+        const isMinReached = active && activeModels.length <= 2
         const tip = tooltips[locale][model]
         return (
           <div key={model} className="relative group/model">
             <motion.button
               type="button"
-              whileTap={{ scale: 0.9 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
               onClick={() => onToggle(model)}
               aria-pressed={active}
               aria-label={tip.name}
-              disabled={isOnlyActive}
+              disabled={isMinReached}
               className={cn(
-                "flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-md transition-all",
+                "flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg transition-colors duration-200",
+                "bg-zinc-100/70 dark:bg-zinc-800/40",
                 active
-                  ? cn("hover:bg-zinc-100 dark:hover:bg-zinc-800", activeColors[model])
-                  : "text-zinc-300 dark:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800",
-                isOnlyActive && "cursor-not-allowed"
+                  ? cn(activeColors[model], activeHoverBg[model])
+                  : "text-zinc-400 dark:text-zinc-600 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/50",
+                isMinReached && "cursor-not-allowed"
               )}
             >
               <ModelGlyph provider={model} active={active} />
             </motion.button>
-            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-primary text-primary-foreground text-[10px] font-medium rounded pointer-events-none opacity-0 group-hover/model:opacity-100 transition-opacity delay-100 whitespace-nowrap z-50 shadow-sm hidden sm:block">
-              <div className="font-semibold">{tip.name}</div>
-              <div className="opacity-80 max-w-[180px] whitespace-normal text-center">{tip.desc}</div>
+            <div
+              className={cn(
+                "absolute top-full mt-2 z-50 px-3 py-2 rounded-lg pointer-events-none opacity-0 group-hover/model:opacity-100 transition-opacity delay-150 hidden sm:block",
+                "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg border border-zinc-800 dark:border-zinc-200",
+                idx === 0 && "left-0",
+                idx === lastIdx && "right-0",
+                idx > 0 && idx < lastIdx && "left-1/2 -translate-x-1/2"
+              )}
+            >
+              <div className="text-[11px] font-bold tracking-tight whitespace-nowrap">{tip.name}</div>
+              <div className="text-[10px] mt-0.5 opacity-70 leading-snug w-[180px] text-left">{tip.desc}</div>
             </div>
           </div>
         )
