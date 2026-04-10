@@ -3,6 +3,7 @@
 import { useReducer, useCallback, useRef, useEffect } from "react"
 import type { Message, Provider, VerdictResult, Locale, ResponseLength } from "@/types"
 import { cleanResponse } from "@/lib/clean-response"
+import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
 
 /* ---- Constants ---- */
 
@@ -416,7 +417,12 @@ export function useDebateEngine(config: {
       // Claim a new session - any in-flight debate with old ID will bail
       const thisSession = ++sessionIdRef.current
       try {
-      logDebate("debate:start", { session: thisSession, models, maxRounds: maxRoundsRef.current })
+      const orderedModels =
+        target === "all" && hasDirectUrlReference(text)
+          ? prioritizePerplexity(models)
+          : models
+
+      logDebate("debate:start", { session: thisSession, models: orderedModels, maxRounds: maxRoundsRef.current })
 
       // Abort any in-flight request from the previous session
       abortRef.current?.abort()
@@ -446,20 +452,20 @@ export function useDebateEngine(config: {
       if (target === "all") {
         let msgs = allMessages
         // Read from ref to avoid stale closure when auto-sending on mount
-        const rounds = models.length >= 2 ? maxRoundsRef.current : 1
+        const rounds = orderedModels.length >= 2 ? maxRoundsRef.current : 1
         let stoppedEarly = false
 
         for (let r = 0; r < rounds; r++) {
           if (stopRef.current || sessionIdRef.current !== thisSession) break
           dispatch({ type: "SET_ROUND", round: r + 1 })
-          const result = await runRound(msgs, models, thisSession)
+          const result = await runRound(msgs, orderedModels, thisSession)
           msgs = result.msgs
           if (result.done) {
             stoppedEarly = true
             break
           }
           // Insert round divider between rounds (not after the last)
-          if (models.length >= 2 && r < rounds - 1) {
+          if (orderedModels.length >= 2 && r < rounds - 1) {
             const roundDivider = createSystemMessage(
               SYSTEM_MESSAGES.round(locale, r + 2),
               locale
@@ -477,7 +483,7 @@ export function useDebateEngine(config: {
           !stoppedEarly &&
           !stopRef.current &&
           !stoppingRef.current &&
-          models.length >= 2
+          orderedModels.length >= 2
         ) {
           const aiCount = getAIMessageCount(msgs)
           if (aiCount >= 2) {
@@ -552,7 +558,7 @@ export function useDebateEngine(config: {
         dispatch({ type: "SET_TYPING", model: null })
       }
     },
-    [state.showSummary, maxRounds, callModel, runRound, locale]
+    [state.showSummary, callModel, runRound, locale, responseLength]
   )
 
   // Keep ref in sync for auto-send on mount
