@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ComponentType } from "react"
+import { useState, useRef, useEffect, type ComponentType } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
@@ -74,7 +74,12 @@ export default function SettingsModal({
   const [keys, setKeys] = useState({ gemini: "", claude: "", gpt: "", perplexity: "" })
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({})
   const [saved, setSaved] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const t = translations[locale]
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [activeTab])
 
   if (!isOpen) return null
 
@@ -111,7 +116,7 @@ export default function SettingsModal({
           </div>}
 
           {/* Content */}
-          <div className="flex-1 p-5 sm:p-7 overflow-y-auto overflow-x-hidden relative">
+          <div ref={scrollRef} className="flex-1 p-5 sm:p-7 overflow-y-auto overflow-x-hidden relative">
             <button onClick={onClose} className={cn("absolute top-4 right-4 sm:top-5 sm:right-5 p-1.5 text-muted-foreground hover:text-foreground bg-secondary hover:bg-accent rounded-full transition-colors active:scale-95 z-10", showPrefs && "hidden sm:block")}><X className="w-4 h-4" /></button>
 
             {activeTab === "account" && (
