@@ -6,7 +6,7 @@ import {
   getApiMessages,
   getAIMessageCount,
 } from "@/hooks/useDebateEngine"
-import type { State, Action } from "@/hooks/useDebateEngine"
+import type { State } from "@/hooks/useDebateEngine"
 import type { Message, VerdictResult } from "@/types"
 
 /* ---- Test data ---- */
@@ -83,24 +83,6 @@ describe("reducer", () => {
     expect(next.messages[2].verdictData).toBe(verdictData)
   })
 
-  it("UPDATE_LAST_AI_CONTENT updates last AI message", () => {
-    const state = makeState({ messages: [userMsg, aiMsg] })
-    const next = reducer(state, { type: "UPDATE_LAST_AI_CONTENT", content: "Updated." })
-    expect(next.messages[1].content).toBe("Updated.")
-  })
-
-  it("UPDATE_LAST_AI_CONTENT skips verdict messages", () => {
-    const state = makeState({ messages: [userMsg, verdictMsg] })
-    const next = reducer(state, { type: "UPDATE_LAST_AI_CONTENT", content: "Should not apply" })
-    expect(next.messages[1].content).toBe("Choose Option A.")
-  })
-
-  it("UPDATE_LAST_AI_CONTENT skips user messages", () => {
-    const state = makeState({ messages: [userMsg] })
-    const next = reducer(state, { type: "UPDATE_LAST_AI_CONTENT", content: "Nope" })
-    expect(next.messages[0].content).toBe("Which is better?")
-  })
-
   it("CONTINUE_THREAD clears showSummary but keeps messages", () => {
     const state = makeState({
       messages: [userMsg, aiMsg, verdictMsg],
@@ -160,6 +142,23 @@ describe("reducer", () => {
       content: "Should not appear",
     })
     expect(next.messages).toEqual(state.messages)
+  })
+
+  it("UPDATE_MESSAGE targets the matching AI placeholder only", () => {
+    const state = makeState({
+      messages: [
+        userMsg,
+        { ...aiMsg, id: "gemini-old", content: "Old partial response" },
+        { ...aiMsg, id: "gpt-new", sender: "gpt", displayName: "GPT", content: "" },
+      ],
+    })
+    const next = reducer(state, {
+      type: "UPDATE_MESSAGE",
+      id: "gemini-old",
+      content: "Response cancelled.",
+    })
+    expect(next.messages[1].content).toBe("Response cancelled.")
+    expect(next.messages[2].content).toBe("")
   })
 
   it("RESET returns initial state with current models", () => {

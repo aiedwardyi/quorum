@@ -108,7 +108,6 @@ export type State = {
 
 export type Action =
   | { type: "ADD_MESSAGE"; message: Message }
-  | { type: "UPDATE_LAST_AI_CONTENT"; content: string }
   | { type: "SET_TYPING"; model: Provider | null }
   | { type: "SET_DEBATING"; value: boolean }
   | { type: "SET_VERDICT"; result: VerdictResult }
@@ -139,16 +138,6 @@ export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "ADD_MESSAGE":
       return { ...state, messages: [...state.messages, action.message] }
-    case "UPDATE_LAST_AI_CONTENT": {
-      const msgs = [...state.messages]
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        if (msgs[i].sender !== "user" && msgs[i].sender !== "system" && msgs[i].sender !== "verdict") {
-          msgs[i] = { ...msgs[i], content: action.content }
-          break
-        }
-      }
-      return { ...state, messages: msgs }
-    }
     case "UPDATE_MESSAGE": {
       return {
         ...state,
@@ -256,6 +245,13 @@ export function useDebateEngine(config: {
 
       const controller = new AbortController()
       abortRef.current = controller
+      const updatePlaceholder = (content: string) =>
+        dispatch({ type: "UPDATE_MESSAGE", id: placeholderId, content })
+      const clearTypingIfCurrentSession = () => {
+        if (sessionIdRef.current === sessionId) {
+          dispatch({ type: "SET_TYPING", model: null })
+        }
+      }
 
       // Timeout guard - aborts after MODEL_TIMEOUT_MS
       const timeoutId = setTimeout(() => {
@@ -277,8 +273,10 @@ export function useDebateEngine(config: {
 
         // Session guard - bail if a newer debate started
         if (sessionIdRef.current !== sessionId) {
-          dispatch({ type: "SET_TYPING", model: null })
-          dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: "" })
+          // Release the unused stream so we don't keep the upstream connection
+          // open after a newer session has taken over.
+          if (!controller.signal.aborted) controller.abort()
+          updatePlaceholder("Response cancelled.")
           return null
         }
 
@@ -322,42 +320,45 @@ export function useDebateEngine(config: {
             }
             if (data.chunk) {
               fullContent += data.chunk
-              dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: fullContent })
+              updatePlaceholder(fullContent)
             }
           }
         }
 
         // If loop exited due to stop/session change, don't overwrite newer state
         if (cancelled) {
-          dispatch({ type: "SET_TYPING", model: null })
+          if (!fullContent) {
+            updatePlaceholder("Response cancelled.")
+          }
+          clearTypingIfCurrentSession()
           return null
         }
 
         const cleaned = cleanResponse(finalContent ?? fullContent)
         logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
-        dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: cleaned })
-        dispatch({ type: "SET_TYPING", model: null })
+        updatePlaceholder(cleaned)
+        clearTypingIfCurrentSession()
         return { ...placeholder, content: cleaned }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
-          dispatch({ type: "SET_TYPING", model: null })
+          clearTypingIfCurrentSession()
           // Distinguish timeout from user-initiated stop
-          const wasTimeout = !stopRef.current && !stoppingRef.current
+          const wasTimeout =
+            sessionIdRef.current === sessionId &&
+            !stopRef.current &&
+            !stoppingRef.current
           const msg = wasTimeout
             ? `${DISPLAY_NAMES[provider]} timed out.`
             : "Response cancelled."
           logDebate("callModel:abort", { provider, wasTimeout })
-          dispatch({ type: "UPDATE_LAST_AI_CONTENT", content: msg })
+          updatePlaceholder(msg)
           return null
         }
         const errorMsg = err instanceof Error ? err.message : "Unknown error"
         logDebate("callModel:error", { provider, error: errorMsg })
         console.error(`[debate] ${provider} failed:`, err)
-        dispatch({ type: "SET_TYPING", model: null })
-        dispatch({
-          type: "UPDATE_LAST_AI_CONTENT",
-          content: `${DISPLAY_NAMES[provider]} encountered an error.`,
-        })
+        clearTypingIfCurrentSession()
+        updatePlaceholder(`${DISPLAY_NAMES[provider]} encountered an error.`)
         return null
       } finally {
         clearTimeout(timeoutId)
@@ -459,6 +460,16 @@ export function useDebateEngine(config: {
           if (stopRef.current || sessionIdRef.current !== thisSession) break
           dispatch({ type: "SET_ROUND", round: r + 1 })
           const result = await runRound(msgs, orderedModels, thisSession)
+          // Post-await guards: a newer debate may have started or the user
+          // may have clicked stop while runRound was in-flight. Bail before
+          // pushing the next round divider or starting another iteration
+          // for a round that will not actually run.
+          if (sessionIdRef.current !== thisSession) break
+          if (stopRef.current || stoppingRef.current) {
+            stoppedEarly = true
+            msgs = result.msgs
+            break
+          }
           msgs = result.msgs
           if (result.done) {
             stoppedEarly = true
