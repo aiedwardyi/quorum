@@ -2,6 +2,7 @@ import { streamGemini } from "@/lib/providers/gemini"
 import { streamPerplexity } from "@/lib/providers/perplexity"
 import { streamClaude } from "@/lib/providers/claude"
 import { streamGPT } from "@/lib/providers/gpt"
+import { isPredominantlyKorean } from "@/lib/detect-language"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
 const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
@@ -27,7 +28,10 @@ function getResponseLengthInstruction(length: ResponseLength): string {
 function getMaxTokens(length: ResponseLength): number {
   switch (length) {
     case "short":
-      return 350
+      // Korean uses 2-3x more tokens than English in Gemini's tokenizer.
+      // Bumped from 350 to 800 so short responses don't get cut mid-sentence
+      // in Korean. Output is still clamped by clampToWordLimit downstream.
+      return 800
     case "long":
       return 4096
     default:
@@ -103,12 +107,12 @@ function polishTruncatedShortResponse(text: string, wordLimit: number): string {
   return clampToWordLimit(result, wordLimit).text
 }
 
-function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength): string {
+function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength, forceKorean: boolean): string {
   const lengthLine = getResponseLengthInstruction(responseLength)
-  const isKorean = locale === "ko"
+  const isKorean = locale === "ko" || forceKorean
   const shortLimitBlock = responseLength === "short" ? `${lengthLine}\n\n` : ""
 
-  return `${shortLimitBlock}${isKorean ? "IMPORTANT: You MUST respond entirely in Korean (한국어). Every word of your response must be in Korean, regardless of what language the user writes in.\n\n" : ""}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
+  return `${shortLimitBlock}${isKorean ? "CRITICAL LANGUAGE REQUIREMENT: You MUST respond ENTIRELY in Korean (한국어). Every single word of your response - including names, technical terms, and explanations - must be written in Korean. Do NOT use any English words except for proper nouns that have no Korean equivalent. The user's document is in Korean and they expect a Korean response. If you respond in English, the response is wrong.\n\n" : "IMPORTANT: Detect the primary language of the user's message and any attached document content. If the user's content is predominantly in Korean (한국어), Japanese, Chinese, or another non-English language, respond ENTIRELY in that same language. Match the user's language - do not translate to English unless their content is in English.\n\n"}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
 Your name is ${DISPLAY_NAMES[provider]}. Always speak as yourself in first person.
 Do NOT introduce yourself or state your name. Jump straight into the topic.
 NEVER speak as another model. NEVER prefix your response with any name like "[Gemini]:" or "[Claude]:".
@@ -120,7 +124,7 @@ This is a discussion, not an essay. Write in plain text only.
 Do NOT use markdown formatting like headers (#), horizontal rules (---), or bold (**text**).
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
-IMPORTANT: You CANNOT access URLs, links, or websites. Do NOT fabricate links, write "(link to article)", or reference URLs in any way. If the user shares a link, say you cannot access it and ask them to paste the content.
+IMPORTANT: You CANNOT access external URLs, links, or websites. Do NOT fabricate links or reference URLs. However, when the user's message includes document text (between "--- File:" markers), that content HAS ALREADY BEEN EXTRACTED and is part of the message - read and analyze it directly.
 NEVER give a lazy one-sentence answer. Even in short mode, provide a substantive response with reasoning. "That depends" or "It varies" alone is not acceptable.
 Do NOT roleplay as the user or quote what the user said. Only respond as yourself.`
 }
@@ -170,7 +174,8 @@ export async function POST(request: Request) {
 
     const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
     const streamFn = getStreamFn(provider)
-    const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength)
+    const forceKorean = validatedLocale !== "ko" && isPredominantlyKorean(inputMessages)
+    const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength, forceKorean)
     const maxTokens = getMaxTokens(validatedResponseLength)
     const wordLimit = validatedResponseLength === "short" ? 75 : null
     const encoder = new TextEncoder()

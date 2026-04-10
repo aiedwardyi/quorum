@@ -177,7 +177,7 @@ export default function Home() {
   }, [])
   /* eslint-enable react-hooks/set-state-in-effect */
   const [isFocused, setIsFocused] = useState(false)
-  const [files, setFiles] = useState<{ id: string; file: File; preview?: string; parsing?: boolean; parsed?: ParseResult }[]>([])
+  const [files, setFiles] = useState<{ id: string; file: File; preview?: string; parsing?: boolean; parseStatus?: string; parseProgress?: number; parsed?: ParseResult }[]>([])
   const filesRef = useRef(files)
   const [isDragging, setIsDragging] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
@@ -303,6 +303,7 @@ export default function Home() {
       file,
       preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
       parsing: true,
+      parseProgress: 1,
     }))
     setFiles((prev) => {
       const next = [...prev, ...newFiles]
@@ -311,7 +312,17 @@ export default function Home() {
     })
 
     newFiles.forEach(async (af) => {
-      const parsed = await parseFile(af.file)
+      const parsed = await parseFile(af.file, {
+        onProgress: (status, progress) => {
+          setFiles((prev) => {
+            const next = prev.map((f) =>
+              f.id === af.id ? { ...f, parseStatus: status, parseProgress: progress } : f
+            )
+            filesRef.current = next
+            return next
+          })
+        },
+      })
       if (!filesRef.current.some((f) => f.id === af.id)) return
       const warningMsg = parsed.warning === "empty" ? t[locale].empty(af.file.name)
         : parsed.warning === "too_large" ? t[locale].too_large(af.file.name)
@@ -319,9 +330,13 @@ export default function Home() {
         : parsed.warning === "truncated" ? t[locale].truncated(af.file.name)
         : null
       if (warningMsg) setFileError(warningMsg)
-      setFiles((prev) => prev.map((f) =>
-        f.id === af.id ? { ...f, parsing: false, parsed } : f
-      ))
+      setFiles((prev) => {
+        const next = prev.map((f) =>
+          f.id === af.id ? { ...f, parsing: false, parseStatus: undefined, parsed } : f
+        )
+        filesRef.current = next
+        return next
+      })
     })
   }
 
@@ -652,24 +667,53 @@ export default function Home() {
               />
               {files.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
-                  {files.map((af) => (
-                    <div
-                      key={af.id}
-                      className="group/file flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-sm"
-                    >
-                      {af.parsing ? (
-                        <Loader2 className="w-3.5 h-3.5 text-zinc-400 animate-spin flex-shrink-0" />
-                      ) : af.file.type.includes("pdf") ? (
-                        <FileText className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                      ) : (
-                        <File className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
-                      )}
-                      <span className={cn("truncate max-w-[150px]", af.parsed?.warning === "empty" || af.parsed?.warning === "too_large" || af.parsed?.warning === "parse_error" ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300")}>{af.file.name}</span>
-                      <button onClick={() => removeFile(af.id)} className="hover:text-red-500 transition-colors">
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
+                  {files.map((af) => {
+                    const pct = Math.max(1, Math.min(100, Math.round(af.parseProgress ?? 1)))
+                    return (
+                      <div
+                        key={af.id}
+                        className={cn(
+                          "group/file flex items-center gap-2.5 pl-2 pr-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-sm",
+                          af.parsing && "pl-2"
+                        )}
+                      >
+                        {af.parsing ? (
+                          <div className="relative flex-shrink-0 w-9 h-9">
+                            <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                              <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" className="stroke-zinc-300 dark:stroke-zinc-700" />
+                              <circle
+                                cx="18"
+                                cy="18"
+                                r="15"
+                                fill="none"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                className="stroke-blue-500 dark:stroke-blue-400 transition-[stroke-dashoffset] duration-500 ease-out"
+                                strokeDasharray={2 * Math.PI * 15}
+                                strokeDashoffset={2 * Math.PI * 15 * (1 - pct / 100)}
+                              />
+                            </svg>
+                            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                              {pct}%
+                            </span>
+                          </div>
+                        ) : af.file.type.includes("pdf") ? (
+                          <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        ) : (
+                          <File className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                        )}
+                        <div className="flex flex-col min-w-0">
+                          <span className={cn("truncate max-w-[180px] leading-tight", af.parsed?.warning === "empty" || af.parsed?.warning === "too_large" || af.parsed?.warning === "parse_error" ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300")}>{af.file.name}</span>
+                          {af.parsing && af.parseStatus && (
+                            <span className="text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[180px] leading-tight">{af.parseStatus}</span>
+                          )}
+                        </div>
+                        <button onClick={() => removeFile(af.id)} className="text-zinc-400 hover:text-red-500 transition-colors flex-shrink-0">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
               <div className="flex items-center justify-between mt-3">

@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils"
 import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
 
 const translations = {
-  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files", truncated: (name: string) => `"${name}" is too long - only the first part was included`, empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`, too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`, parse_error: (name: string) => `"${name}" could not be read - the file may be corrupted or password-protected` },
-  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중...", unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일", truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`, empty: (name: string) => `"${name}" 파일에 읽을 수 있는 텍스트가 없습니다 - 스캔 이미지일 수 있음`, too_large: (name: string) => `"${name}" 파일이 50MB 크기 제한을 초과합니다`, parse_error: (name: string) => `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)` },
+  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files", truncated: (name: string) => `"${name}" is too long - only the first part was included`, empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`, too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`, parse_error: (name: string) => `"${name}" could not be read - the file may be corrupted or password-protected`, ocrDone: (name: string) => `"${name}" scanned via OCR` },
+  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중...", unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일", truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`, empty: (name: string) => `"${name}" 파일에 읽을 수 있는 텍스트가 없습니다 - 스캔 이미지일 수 있음`, too_large: (name: string) => `"${name}" 파일이 50MB 크기 제한을 초과합니다`, parse_error: (name: string) => `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)`, ocrDone: (name: string) => `"${name}" OCR 스캔 완료` },
 }
 
 interface AttachedFile {
@@ -16,6 +16,8 @@ interface AttachedFile {
   file: File
   preview?: string
   parsing?: boolean
+  parseStatus?: string
+  parseProgress?: number
   parsed?: ParseResult
 }
 
@@ -139,12 +141,19 @@ export default function MessageInput({
       file,
       preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
       parsing: true,
+      parseProgress: 1,
     }))
     setAttachedFiles((prev) => [...prev, ...newFiles])
 
     // Parse each file immediately and show warnings at attach time
     newFiles.forEach(async (af) => {
-      const parsed = await parseFile(af.file)
+      const parsed = await parseFile(af.file, {
+        onProgress: (status, progress) => {
+          setAttachedFiles((prev) => prev.map((f) =>
+            f.id === af.id ? { ...f, parseStatus: status, parseProgress: progress } : f
+          ))
+        },
+      })
       // Bail if file was removed while parsing
       if (!attachedFilesRef.current.some((f) => f.id === af.id)) return
       const warningMsg = parsed.warning === "empty" ? t.empty(af.file.name)
@@ -153,8 +162,9 @@ export default function MessageInput({
         : parsed.warning === "truncated" ? t.truncated(af.file.name)
         : null
       if (warningMsg) setFileError(warningMsg)
+      if (parsed.usedOCR && !parsed.warning) setFileError(t.ocrDone(af.file.name))
       setAttachedFiles((prev) => prev.map((f) =>
-        f.id === af.id ? { ...f, parsing: false, parsed } : f
+        f.id === af.id ? { ...f, parsing: false, parseStatus: undefined, parsed } : f
       ))
     })
   }
@@ -214,7 +224,25 @@ export default function MessageInput({
                   className="group relative flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl"
                 >
                   {file.parsing ? (
-                    <Loader2 className="w-4 h-4 text-zinc-400 animate-spin" />
+                    <div className="relative shrink-0 w-9 h-9">
+                      <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" className="stroke-zinc-300 dark:stroke-zinc-700" />
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          className="stroke-blue-500 dark:stroke-blue-400 transition-[stroke-dashoffset] duration-500 ease-out"
+                          strokeDasharray={2 * Math.PI * 15}
+                          strokeDashoffset={2 * Math.PI * 15 * (1 - Math.max(1, Math.min(100, Math.round(file.parseProgress ?? 1))) / 100)}
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                        {Math.max(1, Math.min(100, Math.round(file.parseProgress ?? 1)))}%
+                      </span>
+                    </div>
                   ) : file.preview ? (
                     <img src={file.preview} alt="" className="w-8 h-8 rounded-lg object-cover" />
                   ) : file.file.type.includes("pdf") ? (
@@ -222,9 +250,14 @@ export default function MessageInput({
                   ) : (
                     <File className="w-4 h-4 text-zinc-400" />
                   )}
-                  <span className={cn("text-xs font-medium max-w-[100px] truncate", file.parsed?.warning === "empty" || file.parsed?.warning === "too_large" || file.parsed?.warning === "parse_error" ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300")}>
-                    {file.file.name}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className={cn("text-xs font-medium max-w-[100px] truncate", file.parsed?.warning === "empty" || file.parsed?.warning === "too_large" || file.parsed?.warning === "parse_error" ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300")}>
+                      {file.file.name}
+                    </span>
+                    {file.parseStatus && (
+                      <span className="text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[120px]">{file.parseStatus}</span>
+                    )}
+                  </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); removeFile(file.id) }}
                     className="p-1 text-zinc-400 hover:text-red-500 transition-colors"
