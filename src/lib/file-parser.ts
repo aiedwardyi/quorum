@@ -84,8 +84,11 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
   let totalLength = 0
   const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES)
 
+  options?.onProgress?.('Reading PDF...', 2)
+
   // First pass: extract text from all pages
   for (let i = 1; i <= pageLimit; i++) {
+    options?.onProgress?.(`Reading page ${i}/${pageLimit}`, Math.round(2 + (i / pageLimit) * 3))
     const page = await pdf.getPage(i)
     const content = await page.getTextContent()
     const text = content.items
