@@ -5,6 +5,7 @@ import {
   createSystemMessage,
   getApiMessages,
   getAIMessageCount,
+  resolveProviderContent,
 } from "@/hooks/useDebateEngine"
 import type { State } from "@/hooks/useDebateEngine"
 import type { Message, VerdictResult } from "@/types"
@@ -397,5 +398,50 @@ describe("reducer - default case (unknown action)", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const next = reducer(state, { type: "UNKNOWN_ACTION" } as any)
     expect(next).toBe(state)
+  })
+})
+
+describe("resolveProviderContent", () => {
+  it("returns cleaned content when stream had real text", () => {
+    const result = resolveProviderContent(
+      "Option A is the better choice.",
+      false,
+      "en",
+      "gemini"
+    )
+    expect(result).toBe("Option A is the better choice.")
+  })
+
+  it("substitutes EN snack-break fallback when server flags empty", () => {
+    const result = resolveProviderContent("", true, "en", "gemini")
+    expect(result).toBe("Gemini stepped out for a snack break. Back soon.")
+  })
+
+  it("substitutes KO snack-break fallback when server flags empty", () => {
+    const result = resolveProviderContent("", true, "ko", "gemini")
+    expect(result).toBe("Gemini 잠깐 간식 먹으러 갔어요. 곧 돌아올게요.")
+  })
+
+  it("substitutes fallback when raw content is whitespace only", () => {
+    const result = resolveProviderContent("   \n\t  ", false, "en", "claude")
+    expect(result).toBe("Claude stepped out for a snack break. Back soon.")
+  })
+
+  it("substitutes fallback when cleanResponse strips content to nothing", () => {
+    // cleanResponse removes citation markers and horizontal rules; if that's
+    // all the model returned we should still surface the fallback.
+    const result = resolveProviderContent("[1][2][3]", false, "en", "perplexity")
+    expect(result).toBe("Perplexity stepped out for a snack break. Back soon.")
+  })
+
+  it("uses provider display name in the fallback", () => {
+    expect(resolveProviderContent("", true, "en", "gpt")).toBe(
+      "GPT stepped out for a snack break. Back soon."
+    )
+  })
+
+  it("does not call fallback when content has any real text", () => {
+    const result = resolveProviderContent("Yes.", false, "en", "gemini")
+    expect(result).toBe("Yes.")
   })
 })

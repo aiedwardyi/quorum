@@ -40,8 +40,8 @@ const SYSTEM_MESSAGES = {
       : "Could not complete analysis. Send a new message to continue.",
   emptyResponse: (locale: Locale, provider: Provider) =>
     locale === "ko"
-      ? `${DISPLAY_NAMES[provider]} 잠깐 간식 먹으러 갔어요. 다음 라운드에 돌아올게요.`
-      : `${DISPLAY_NAMES[provider]} stepped out for a snack break. Back next round.`,
+      ? `${DISPLAY_NAMES[provider]} 잠깐 간식 먹으러 갔어요. 곧 돌아올게요.`
+      : `${DISPLAY_NAMES[provider]} stepped out for a snack break. Back soon.`,
 }
 
 /* ---- Client-side verdict validation ---- */
@@ -93,6 +93,25 @@ export function getAIMessageCount(messages: Message[]): number {
   return messages.filter(
     (m) => m.sender !== "user" && m.sender !== "system" && m.sender !== "verdict"
   ).length
+}
+
+/**
+ * Resolves the final placeholder content from a streamed provider response.
+ * If the provider returned no usable text - either the server flagged the
+ * stream as empty, or cleanResponse left us with whitespace - substitute a
+ * localized fallback so the bubble doesn't get stuck in "thinking..." state.
+ */
+export function resolveProviderContent(
+  rawContent: string,
+  providerEmpty: boolean,
+  locale: Locale,
+  provider: Provider
+): string {
+  const cleaned = cleanResponse(rawContent)
+  if (providerEmpty || !cleaned.trim()) {
+    return SYSTEM_MESSAGES.emptyResponse(locale, provider)
+  }
+  return cleaned
 }
 
 /* ---- State ---- */
@@ -341,14 +360,12 @@ export function useDebateEngine(config: {
           return null
         }
 
-        let cleaned = cleanResponse(finalContent ?? fullContent)
-        // Empty-response fallback: provider closed the stream with no text
-        // (server flagged it via `empty: true`, or cleanResponse left us with
-        // nothing). Replace with a friendly snack-break message so the bubble
-        // resolves and the rest of the round can finish.
-        if (providerEmpty || !cleaned.trim()) {
-          cleaned = SYSTEM_MESSAGES.emptyResponse(locale, provider)
-        }
+        const cleaned = resolveProviderContent(
+          finalContent ?? fullContent,
+          providerEmpty,
+          locale,
+          provider
+        )
         logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
         updatePlaceholder(cleaned)
         clearTypingIfCurrentSession()
