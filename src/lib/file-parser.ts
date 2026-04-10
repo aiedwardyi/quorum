@@ -13,11 +13,13 @@ const OCR_RENDER_SCALE = 2
 // incorrectly queued for OCR. The page-1 watermark fix still works as long as the
 // watermark text is short, which is the common case.
 const WATERMARK_CHAR_THRESHOLD = 30
-// Pages with at least this many image XObjects are treated as graphical/poster
-// layouts whose content of interest (prices, schedules, charts) is rendered as
-// image text that pdf.js cannot read. They get OCR'd even when pdf.js extracted
-// substantial text. Threshold is intentionally above the typical text-PDF case
-// of one or two header/footer logos so normal documents are not re-OCR'd.
+// Pages with at least this many image paint operators (XObject draws, inline
+// images, image masks, and repeated XObject draws all count) are treated as
+// graphical/poster layouts whose content of interest (prices, schedules,
+// charts) is rendered as image text that pdf.js cannot read. They get OCR'd
+// even when pdf.js extracted substantial text. Threshold is intentionally
+// above the typical text-PDF case of one or two header/footer logos so normal
+// documents are not re-OCR'd.
 const IMAGE_HEAVY_OPS_THRESHOLD = 4
 // Sparse-text pages with at least one image are treated as image-driven (single
 // big poster + caption layouts). Threshold is kept tight so cover pages of
