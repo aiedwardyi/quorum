@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
           role: "user",
           parts: [
             {
-              text: `You are an OCR engine. Extract EVERY character of text from these scanned document pages verbatim.
+              text: `You are an OCR engine. Extract EVERY character of text from these document page images verbatim, including text rendered as part of posters, price tables, schedules, charts, signs, and any other visual elements.
 
 ABSOLUTE RULES:
 1. Output ONLY the raw text from the document. Nothing else.
