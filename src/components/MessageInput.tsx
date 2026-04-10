@@ -223,20 +223,20 @@ export default function MessageInput({
                   className="group relative flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-xl"
                 >
                   {file.parsing ? (
-                    <svg className="w-4 h-4 shrink-0 -rotate-90" viewBox="0 0 20 20">
-                      <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" className="stroke-zinc-300 dark:stroke-zinc-700" />
-                      {file.parseProgress != null && file.parseProgress > 0 ? (
-                        <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" strokeLinecap="round"
-                          className="stroke-blue-500 dark:stroke-blue-400 transition-[stroke-dashoffset] duration-500 ease-out"
-                          strokeDasharray={2 * Math.PI * 8}
-                          strokeDashoffset={2 * Math.PI * 8 * (1 - file.parseProgress / 100)} />
-                      ) : (
-                        <circle cx="10" cy="10" r="8" fill="none" strokeWidth="2.5" strokeLinecap="round"
-                          className="stroke-blue-500 dark:stroke-blue-400 animate-spin origin-center"
-                          strokeDasharray={2 * Math.PI * 8}
-                          strokeDashoffset={2 * Math.PI * 8 * 0.75} />
+                    <div className="relative w-5 h-5 shrink-0 flex items-center justify-center">
+                      <svg className="w-5 h-5 -rotate-90" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" fill="none" strokeWidth="2.5" className="stroke-zinc-300 dark:stroke-zinc-700" />
+                        {file.parseProgress != null && file.parseProgress > 0 ? (
+                          <circle cx="12" cy="12" r="10" fill="none" strokeWidth="2.5" strokeLinecap="round"
+                            className="stroke-blue-500 dark:stroke-blue-400 transition-[stroke-dashoffset] duration-500 ease-out"
+                            strokeDasharray={2 * Math.PI * 10}
+                            strokeDashoffset={2 * Math.PI * 10 * (1 - file.parseProgress / 100)} />
+                        ) : null}
+                      </svg>
+                      {(file.parseProgress == null || file.parseProgress === 0) && (
+                        <Loader2 className="absolute w-3 h-3 text-blue-500 dark:text-blue-400 animate-spin" />
                       )}
-                    </svg>
+                    </div>
                   ) : file.preview ? (
                     <img src={file.preview} alt="" className="w-8 h-8 rounded-lg object-cover" />
                   ) : file.file.type.includes("pdf") ? (

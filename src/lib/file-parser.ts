@@ -9,6 +9,7 @@ const MAX_FILE_SIZE_MB = 50
 const MAX_OCR_PAGES = 10
 const OCR_RENDER_SCALE = 2
 const WATERMARK_CHAR_THRESHOLD = 200
+const OCR_BATCH_SIZE = 2
 
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
@@ -115,13 +116,13 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
 
   // OCR the empty pages (scanned images) via server-side Gemini Vision
   const ocrLimit = Math.min(emptyPageIndices.length, MAX_OCR_PAGES)
-  options?.onProgress?.('Scanning document...', 10)
+  options?.onProgress?.('Preparing pages...', 5)
 
   // Render all pages to images first
   const base64Images: string[] = []
   for (let idx = 0; idx < ocrLimit; idx++) {
-    const pct = Math.round(10 + (idx / ocrLimit) * 40)
-    options?.onProgress?.(`Rendering page ${idx + 1}/${ocrLimit}...`, pct)
+    const pct = Math.round(5 + (idx / ocrLimit) * 20)
+    options?.onProgress?.(`Preparing ${idx + 1}/${ocrLimit}`, pct)
 
     const page = await pdf.getPage(emptyPageIndices[idx])
     const viewport = page.getViewport({ scale: OCR_RENDER_SCALE })
@@ -140,24 +141,37 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     return { text: pages.join('\n\n'), usedOCR: false }
   }
 
-  // Send to server for Gemini Vision OCR
-  options?.onProgress?.('Extracting text...', 60)
-
+  // Process in batches so progress updates between Gemini calls
   try {
-    const res = await fetch('/api/ocr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images: base64Images }),
-    })
+    const ocrTexts: string[] = []
+    const totalBatches = Math.ceil(base64Images.length / OCR_BATCH_SIZE)
 
-    if (!res.ok) throw new Error(`OCR API error: ${res.status}`)
-    const { text: ocrText } = await res.json()
-    const trimmed = (ocrText ?? '').trim()
+    for (let b = 0; b < totalBatches; b++) {
+      const start = b * OCR_BATCH_SIZE
+      const batch = base64Images.slice(start, start + OCR_BATCH_SIZE)
+      const pct = Math.round(25 + ((b + 1) / totalBatches) * 70)
+      const startPage = start + 1
+      const endPage = Math.min(start + OCR_BATCH_SIZE, base64Images.length)
+      options?.onProgress?.(`Reading pages ${startPage}-${endPage}/${base64Images.length}`, pct - 5)
+
+      const res = await fetch('/api/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: batch }),
+      })
+
+      if (!res.ok) throw new Error(`OCR API error: ${res.status}`)
+      const { text: ocrText } = await res.json()
+      const trimmed = (ocrText ?? '').trim()
+      if (trimmed) ocrTexts.push(trimmed)
+
+      options?.onProgress?.(`Reading pages ${startPage}-${endPage}/${base64Images.length}`, pct)
+    }
 
     options?.onProgress?.('Done', 100)
 
-    if (trimmed) {
-      pages.push(trimmed)
+    if (ocrTexts.length > 0) {
+      pages.push(ocrTexts.join('\n\n'))
     }
 
     return { text: pages.join('\n\n'), usedOCR: true }

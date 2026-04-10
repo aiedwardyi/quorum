@@ -27,7 +27,10 @@ function getResponseLengthInstruction(length: ResponseLength): string {
 function getMaxTokens(length: ResponseLength): number {
   switch (length) {
     case "short":
-      return 350
+      // Korean uses 2-3x more tokens than English in Gemini's tokenizer.
+      // Bumped from 350 to 800 so short responses don't get cut mid-sentence
+      // in Korean. Output is still clamped by clampToWordLimit downstream.
+      return 800
     case "long":
       return 4096
     default:
