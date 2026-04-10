@@ -41,6 +41,12 @@ describe("hasDirectUrlReference", () => {
     expect(hasDirectUrlReference("Please check https://example.com/policy")).toBe(true)
   })
 
+  it("stays stable across repeated calls", () => {
+    const input = "Please check https://example.com/policy"
+    expect(hasDirectUrlReference(input)).toBe(true)
+    expect(hasDirectUrlReference(input)).toBe(true)
+  })
+
   it("ignores URLs that only appear inside extracted file text", () => {
     expect(
       hasDirectUrlReference("Summarize this.\n\n--- File: brief.txt ---\nSource: https://example.com/policy")

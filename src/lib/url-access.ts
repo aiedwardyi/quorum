@@ -1,6 +1,6 @@
 import type { Message, Provider } from "@/types"
 
-const URL_REGEX = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/giu
+const URL_REGEX = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/iu
 
 function getLatestUserMessage(messages: Message[]): Message | null {
   for (let i = messages.length - 1; i >= 0; i--) {
