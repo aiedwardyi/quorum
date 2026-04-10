@@ -138,7 +138,7 @@ export default function ModelToggleGroup({
             <div
               className={cn(
                 "absolute top-full mt-2 z-50 px-3 py-2 rounded-lg pointer-events-none opacity-0 group-hover/model:opacity-100 transition-opacity delay-150 hidden sm:block",
-                "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg border border-zinc-800 dark:border-zinc-200",
+                "bg-primary text-primary-foreground shadow-lg",
                 idx === 0 && "left-0",
                 idx === lastIdx && "right-0",
                 idx > 0 && idx < lastIdx && "left-1/2 -translate-x-1/2"
