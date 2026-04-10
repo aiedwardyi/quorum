@@ -457,6 +457,16 @@ export function useDebateEngine(config: {
           if (stopRef.current || sessionIdRef.current !== thisSession) break
           dispatch({ type: "SET_ROUND", round: r + 1 })
           const result = await runRound(msgs, orderedModels, thisSession)
+          // Post-await guards: a newer debate may have started or the user
+          // may have clicked stop while runRound was in-flight. Bail before
+          // dispatching SET_ROUND state or round dividers that belong to a
+          // round that will not actually run.
+          if (sessionIdRef.current !== thisSession) break
+          if (stopRef.current || stoppingRef.current) {
+            stoppedEarly = true
+            msgs = result.msgs
+            break
+          }
           msgs = result.msgs
           if (result.done) {
             stoppedEarly = true
