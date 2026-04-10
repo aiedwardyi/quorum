@@ -84,7 +84,9 @@ Your output must start with the first character of actual document text, and end
     })
 
     const response = result.response
-    const rawText = response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    const rawText = (response.candidates?.[0]?.content?.parts ?? [])
+      .map((part) => part.text ?? "")
+      .join("")
     const text = sanitizeOcrText(rawText)
 
     return NextResponse.json({ text })
