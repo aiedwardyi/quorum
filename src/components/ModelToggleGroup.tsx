@@ -1,25 +1,12 @@
 "use client"
 
+import { useId } from "react"
 import { motion } from "framer-motion"
 import type { Provider, Locale } from "@/types"
 import { cn } from "@/lib/utils"
+import { MODEL_INFO } from "@/lib/model-info"
 
 const MODELS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
-
-const tooltips: Record<Locale, Record<Provider, { name: string; desc: string }>> = {
-  en: {
-    gemini: { name: "Gemini", desc: "Google's flagship multimodal AI model" },
-    perplexity: { name: "Perplexity", desc: "AI search engine for up-to-date information" },
-    claude: { name: "Claude", desc: "Anthropic's advanced reasoning model" },
-    gpt: { name: "GPT", desc: "OpenAI's powerful language model" },
-  },
-  ko: {
-    gemini: { name: "Gemini", desc: "Google의 최신 멀티모달 AI 모델" },
-    perplexity: { name: "Perplexity", desc: "최신 정보를 제공하는 AI 검색 엔진" },
-    claude: { name: "Claude", desc: "Anthropic의 고급 추론 모델" },
-    gpt: { name: "GPT", desc: "OpenAI의 강력한 언어 모델" },
-  },
-}
 
 const activeColors: Record<Provider, string> = {
   gemini: "text-blue-600 dark:text-blue-400",
@@ -36,16 +23,29 @@ const activeHoverBg: Record<Provider, string> = {
 }
 
 function GeminiGlyph({ active }: { active: boolean }) {
+  // useId guarantees the gradient ids are unique even if the glyph
+  // is rendered more than once on the same page.
+  const uid = useId().replace(/[:]/g, "")
+  const g0 = `gem-g0-${uid}`
+  const g1 = `gem-g1-${uid}`
+  const g2 = `gem-g2-${uid}`
   return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" aria-hidden style={{ filter: active ? undefined : "grayscale(1)" }}>
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      style={{ filter: active ? undefined : "grayscale(1)" }}
+    >
       <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="#3186FF" />
-      <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#mtg-gem-g0)" />
-      <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#mtg-gem-g1)" />
-      <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#mtg-gem-g2)" />
+      <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill={`url(#${g0})`} />
+      <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill={`url(#${g1})`} />
+      <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill={`url(#${g2})`} />
       <defs>
-        <linearGradient gradientUnits="userSpaceOnUse" id="mtg-gem-g0" x1="7" x2="11" y1="15.5" y2="12"><stop stopColor="#08B962" /><stop offset="1" stopColor="#08B962" stopOpacity="0" /></linearGradient>
-        <linearGradient gradientUnits="userSpaceOnUse" id="mtg-gem-g1" x1="8" x2="11.5" y1="5.5" y2="11"><stop stopColor="#F94543" /><stop offset="1" stopColor="#F94543" stopOpacity="0" /></linearGradient>
-        <linearGradient gradientUnits="userSpaceOnUse" id="mtg-gem-g2" x1="3.5" x2="17.5" y1="13.5" y2="12"><stop stopColor="#FABC12" /><stop offset=".46" stopColor="#FABC12" stopOpacity="0" /></linearGradient>
+        <linearGradient gradientUnits="userSpaceOnUse" id={g0} x1="7" x2="11" y1="15.5" y2="12"><stop stopColor="#08B962" /><stop offset="1" stopColor="#08B962" stopOpacity="0" /></linearGradient>
+        <linearGradient gradientUnits="userSpaceOnUse" id={g1} x1="8" x2="11.5" y1="5.5" y2="11"><stop stopColor="#F94543" /><stop offset="1" stopColor="#F94543" stopOpacity="0" /></linearGradient>
+        <linearGradient gradientUnits="userSpaceOnUse" id={g2} x1="3.5" x2="17.5" y1="13.5" y2="12"><stop stopColor="#FABC12" /><stop offset=".46" stopColor="#FABC12" stopOpacity="0" /></linearGradient>
       </defs>
     </svg>
   )
@@ -112,7 +112,11 @@ export default function ModelToggleGroup({
       {MODELS.map((model, idx) => {
         const active = activeModels.includes(model)
         const isMinReached = active && activeModels.length <= 2
-        const tip = tooltips[locale][model]
+        // Mid-debate: also disable on the button itself so keyboard
+        // (Tab + Enter / Space) can't bypass the wrapper's
+        // pointer-events-none guard.
+        const isDisabled = disabled || isMinReached
+        const info = MODEL_INFO[model]
         return (
           <div key={model} className="relative group/model">
             <motion.button
@@ -120,16 +124,19 @@ export default function ModelToggleGroup({
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              onClick={() => onToggle(model)}
+              onClick={() => {
+                if (isDisabled) return
+                onToggle(model)
+              }}
               aria-pressed={active}
-              aria-label={tip.name}
-              disabled={isMinReached}
+              aria-label={info.name}
+              disabled={isDisabled}
               className={cn(
                 "flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg transition-colors duration-200",
                 "bg-zinc-100/70 dark:bg-zinc-800/40",
                 active
                   ? cn(activeColors[model], activeHoverBg[model])
-                  : "text-zinc-400 dark:text-zinc-600 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/50",
+                  : "text-zinc-400 dark:text-zinc-600 opacity-60 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/50",
                 isMinReached && "cursor-not-allowed"
               )}
             >
@@ -144,8 +151,8 @@ export default function ModelToggleGroup({
                 idx > 0 && idx < lastIdx && "left-1/2 -translate-x-1/2"
               )}
             >
-              <div className="text-[11px] font-bold tracking-tight whitespace-nowrap">{tip.name}</div>
-              <div className="text-[10px] mt-0.5 opacity-70 leading-snug w-[180px] text-left">{tip.desc}</div>
+              <div className="text-[11px] font-bold tracking-tight whitespace-nowrap">{info.name}</div>
+              <div className="text-[10px] mt-0.5 opacity-70 leading-snug w-[180px] text-left">{info.description[locale]}</div>
             </div>
           </div>
         )

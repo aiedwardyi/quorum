@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
+import { MODEL_INFO } from "@/lib/model-info"
 
 const ALL_MODELS: Provider[] = ["gemini", "claude", "gpt", "perplexity"]
 
@@ -40,8 +41,8 @@ const ModelIcon = ({ provider, size = 16 }: { provider: Provider; size?: number 
 }
 
 const translations = {
-  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiDesc: "Google's flagship multimodal AI model", perplexityDesc: "AI search engine for up-to-date information", claudeDesc: "Anthropic's advanced reasoning model", gptDesc: "OpenAI's powerful language model", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme" },
-  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiDesc: "Google의 대표 멀티모달 AI 모델", perplexityDesc: "최신 정보를 위한 AI 검색 엔진", claudeDesc: "Anthropic의 고급 추론 모델", gptDesc: "OpenAI의 강력한 언어 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마" },
+  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme" },
+  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마" },
 }
 
 type Tab = "account" | "preferences"
@@ -88,7 +89,12 @@ export default function SettingsModal({
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const descriptions: Record<Provider, string> = { gemini: t.geminiDesc, perplexity: t.perplexityDesc, claude: t.claudeDesc, gpt: t.gptDesc }
+  const descriptions: Record<Provider, string> = {
+    gemini: MODEL_INFO.gemini.description[locale],
+    perplexity: MODEL_INFO.perplexity.description[locale],
+    claude: MODEL_INFO.claude.description[locale],
+    gpt: MODEL_INFO.gpt.description[locale],
+  }
   const keyLabels: Record<Provider, string> = { gemini: t.geminiKey, perplexity: t.perplexityKey, claude: t.claudeKey, gpt: t.gptKey }
 
   return (
