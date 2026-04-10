@@ -29,10 +29,10 @@ const activeColors: Record<Provider, string> = {
 }
 
 const activeHoverBg: Record<Provider, string> = {
-  gemini: "hover:bg-blue-50 dark:hover:bg-blue-500/15",
-  perplexity: "hover:bg-teal-50 dark:hover:bg-teal-500/15",
-  claude: "hover:bg-orange-50 dark:hover:bg-orange-500/15",
-  gpt: "hover:bg-emerald-50 dark:hover:bg-emerald-500/15",
+  gemini: "hover:bg-blue-200/80 dark:hover:bg-blue-500/15",
+  perplexity: "hover:bg-teal-200/80 dark:hover:bg-teal-500/15",
+  claude: "hover:bg-orange-200/80 dark:hover:bg-orange-500/15",
+  gpt: "hover:bg-emerald-200/80 dark:hover:bg-emerald-500/15",
 }
 
 function GeminiGlyph({ active }: { active: boolean }) {
