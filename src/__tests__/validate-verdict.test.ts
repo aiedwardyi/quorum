@@ -78,8 +78,35 @@ describe("validateVerdictResult", () => {
     expect(() => validateVerdictResult({ ...validVerdict, reasons: [] })).toThrow("reasons")
   })
 
-  it("throws when reasons contains non-string", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, reasons: [123] })).toThrow("reasons[0]")
+  it("throws when reasons is empty after coercion (all elements empty objects)", () => {
+    expect(() =>
+      validateVerdictResult({ ...validVerdict, reasons: [{}, {}] })
+    ).toThrow("reasons")
+  })
+
+  it("coerces numeric reasons to strings rather than rejecting", () => {
+    const result = validateVerdictResult({ ...validVerdict, reasons: [123, "real reason"] })
+    expect(result.reasons).toEqual(["123", "real reason"])
+  })
+
+  it("coerces {label, text} reason objects to 'label - text' strings", () => {
+    // gemini-2.5-pro occasionally wraps each reason in an object
+    // shape rather than the plain strings the schema asks for. We
+    // flatten the common {label|title, text|description} variants
+    // back into strings so the verdict still lands.
+    const result = validateVerdictResult({
+      ...validVerdict,
+      reasons: [
+        { label: "Speed", text: "Monoliths ship faster." },
+        { title: "Cost", description: "Lower infra bill." },
+        "Plain string still works",
+      ],
+    })
+    expect(result.reasons).toEqual([
+      "Speed - Monoliths ship faster.",
+      "Cost - Lower infra bill.",
+      "Plain string still works",
+    ])
   })
 
   it("throws when minorityView is missing", () => {
@@ -137,8 +164,40 @@ describe("validateVerdictResult", () => {
     expect(() => validateVerdictResult({ ...validVerdict, keyTakeaways: "not array" })).toThrow("keyTakeaways")
   })
 
-  it("throws when keyTakeaways contains non-string", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, keyTakeaways: [123] })).toThrow("keyTakeaways[0]")
+  it("coerces {label, text} keyTakeaways objects to strings", () => {
+    // This is the exact failure mode that broke Eddie's live test
+    // under gemini-2.5-pro: Pro returned keyTakeaways as an array of
+    // {label, text} objects instead of strings, and the old strict
+    // validator threw "keyTakeaways[0] must be a string" and the UI
+    // fell back to "Could not complete analysis".
+    const result = validateVerdictResult({
+      ...validVerdict,
+      keyTakeaways: [
+        { label: "Rapid Deployment & Modularity", text: "Wind and solar can be deployed quickly." },
+        { title: "Financial Constraints", description: "Upfront costs are staggering." },
+      ],
+    })
+    expect(result.keyTakeaways).toEqual([
+      "Rapid Deployment & Modularity - Wind and solar can be deployed quickly.",
+      "Financial Constraints - Upfront costs are staggering.",
+    ])
+  })
+
+  it("stringifies unknown-shape keyTakeaways as a last resort", () => {
+    const result = validateVerdictResult({
+      ...validVerdict,
+      keyTakeaways: [{ weird: "shape", other: 42 }],
+    })
+    expect(result.keyTakeaways).toHaveLength(1)
+    expect(result.keyTakeaways?.[0]).toContain("weird")
+  })
+
+  it("drops empty-object keyTakeaways elements during coercion", () => {
+    const result = validateVerdictResult({
+      ...validVerdict,
+      keyTakeaways: ["Keep this", {}, "And this"],
+    })
+    expect(result.keyTakeaways).toEqual(["Keep this", "And this"])
   })
 
   it("passes with valid actionItems", () => {
@@ -155,8 +214,18 @@ describe("validateVerdictResult", () => {
     expect(() => validateVerdictResult({ ...validVerdict, actionItems: "not array" })).toThrow("actionItems")
   })
 
-  it("throws when actionItems contains non-string", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, actionItems: [42] })).toThrow("actionItems[0]")
+  it("coerces {label, text} actionItems objects to strings", () => {
+    const result = validateVerdictResult({
+      ...validVerdict,
+      actionItems: [
+        { label: "Prototype", text: "Build an MVP this week." },
+        "Ship it by Friday",
+      ],
+    })
+    expect(result.actionItems).toEqual([
+      "Prototype - Build an MVP this week.",
+      "Ship it by Friday",
+    ])
   })
 
   it("accepts confidence at boundary 0", () => {

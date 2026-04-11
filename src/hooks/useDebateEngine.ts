@@ -2,13 +2,17 @@
 
 import { useReducer, useCallback, useRef, useEffect } from "react"
 import type { Message, Provider, VerdictResult, Locale, ResponseLength } from "@/types"
-import { cleanResponse } from "@/lib/clean-response"
+import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
 import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
 import { waitForDrain } from "@/lib/drain-registry"
 
 /* ---- Constants ---- */
 
-const MODEL_TIMEOUT_MS = 30_000
+// 60s per model - Gemini on gemini-2.5-pro has ~10-15s TTFT on a cold
+// call plus a slower sustained token rate than Flash, and medium/long
+// responses need comfortable headroom above that. The old 30s cap was
+// tuned for Flash and started triggering aborts on Pro.
+const MODEL_TIMEOUT_MS = 60_000
 
 /* ---- Logging ---- */
 
@@ -122,7 +126,15 @@ export function resolveProviderContent(
 
 /* ---- State ---- */
 
-const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
+// Gemini sits last in the default rotation so its gemini-2.5-pro TTFT
+// (slower than Flash on a cold call) is hidden behind the three faster
+// providers. By the time Perplexity + Claude + GPT have streamed their
+// responses, Gemini has long since started. A second benefit: Gemini
+// now sees all three other models' opinions before forming its own,
+// which actually improves its reasoning quality on consensus-style
+// prompts. Users who customize the participant order override this
+// default; we only rearrange the initial zero-config case.
+const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
 
 export type State = {
   messages: Message[]
@@ -356,7 +368,10 @@ export function useDebateEngine(config: {
               if (data.empty === true) providerEmpty = true
             }
             if (data.chunk) {
-              fullContent += data.chunk
+              // Sanitize on the accumulated content so chunk boundaries
+              // that split `#` and `# Heading` across two chunks still
+              // get caught on the combined string. Idempotent.
+              fullContent = sanitizeHeadings(fullContent + data.chunk)
               updatePlaceholder(fullContent)
             }
           }
@@ -396,11 +411,24 @@ export function useDebateEngine(config: {
           updatePlaceholder(msg)
           return null
         }
+        // Thrown errors here cover two main cases:
+        //  1. Transport errors from fetch (network dropped, CORS, etc.)
+        //  2. `data.error` payloads from the chat route's error channel
+        //     (upstream VertexAI / Anthropic / OpenAI failures that the
+        //     server caught and forwarded with `{error}`)
+        // Previously we dumped the raw error text into the bubble
+        // ("Gemini encountered an error: [VertexAI.ClientError]: got
+        // status: 499 Client Closed Request. {..}"), which is scary and
+        // unactionable for end users. Swap in the friendly snack-break
+        // fallback (the same message shown when a provider stream is
+        // empty) and keep the detailed error in logDebate for debugging.
+        //
+        // logDebate instead of console.error so Next.js's red-box dev
+        // overlay does not pop on an already-handled rejection.
         const errorMsg = err instanceof Error ? err.message : "Unknown error"
         logDebate("callModel:error", { provider, error: errorMsg })
-        console.error(`[debate] ${provider} failed:`, err)
         clearTypingIfCurrentSession()
-        updatePlaceholder(`${DISPLAY_NAMES[provider]} encountered an error.`)
+        updatePlaceholder(SYSTEM_MESSAGES.emptyResponse(locale, provider))
         return null
       } finally {
         clearTimeout(timeoutId)
@@ -471,7 +499,12 @@ export function useDebateEngine(config: {
             }
           })
           .catch((err) => {
-            console.error("Mid-debate verdict check failed:", err)
+            // Fire-and-forget - the mid-debate confidence update is a
+            // best-effort badge, not a must-land dispatch. logDebate so
+            // Next.js's dev overlay does not pop for transient failures.
+            logDebate("mid-verdict:failed", {
+              error: err instanceof Error ? err.message : String(err),
+            })
           })
       }
 
@@ -600,7 +633,29 @@ export function useDebateEngine(config: {
               // Guard: if user stopped during fetch, let handleStop own the verdict
               if (stopRef.current || stoppingRef.current) {
                 logDebate("verdict:skipped-stopped", {})
-              } else if (res.ok && sessionIdRef.current === thisSession) {
+              } else if (!res.ok) {
+                // Surface the server's error detail via logDebate so a
+                // dev running the app can still see *why* the verdict
+                // failed ("Verdict response is not an object", confidence
+                // out of range, timeout, etc.) but we no longer trigger
+                // Next.js's red-box dev overlay for what is already a
+                // handled rejection with a visible UI fallback.
+                try {
+                  const errBody = await res.json()
+                  logDebate("verdict:failed", {
+                    status: res.status,
+                    error: errBody?.error,
+                    detail: errBody?.detail,
+                  })
+                } catch {
+                  logDebate("verdict:failed", { status: res.status })
+                }
+                dispatch({
+                  type: "UPDATE_MESSAGE",
+                  id: analyzingMsg.id,
+                  content: SYSTEM_MESSAGES.analysisFailed(locale),
+                })
+              } else if (sessionIdRef.current === thisSession) {
                 const result = await res.json()
 
                 if (!isValidVerdict(result)) {
@@ -635,15 +690,11 @@ export function useDebateEngine(config: {
                   dispatch({ type: "SET_VERDICT", result })
                   dispatch({ type: "SHOW_SUMMARY" })
                 }
-              } else if (!res.ok) {
-                dispatch({
-                  type: "UPDATE_MESSAGE",
-                  id: analyzingMsg.id,
-                  content: SYSTEM_MESSAGES.analysisFailed(locale),
-                })
               }
             } catch (err) {
-              console.error("Final verdict failed:", err)
+              logDebate("verdict:thrown", {
+                error: err instanceof Error ? err.message : String(err),
+              })
               dispatch({
                 type: "UPDATE_MESSAGE",
                 id: analyzingMsg.id,
@@ -660,7 +711,9 @@ export function useDebateEngine(config: {
         dispatch({ type: "SET_DEBATING", value: false })
       }
       } catch (err) {
-        console.error("[debate] Unhandled debate error:", err)
+        logDebate("debate:unhandled", {
+          error: err instanceof Error ? err.message : String(err),
+        })
         dispatch({ type: "SET_DEBATING", value: false })
         dispatch({ type: "SET_TYPING", model: null })
       }
@@ -752,7 +805,18 @@ export function useDebateEngine(config: {
           dispatch({ type: "SHOW_SUMMARY" })
         })
         .catch((err) => {
-          console.error("Stop verdict failed:", err)
+          // logDebate (dev-only console.log) instead of console.error so
+          // Next.js's red-box dev overlay does NOT trigger. This path is
+          // an expected failure mode when the user hits Stop right as
+          // the debate is finishing: handleStop fires its own consensus
+          // fetch, and if the backend races with the in-flight fetch from
+          // the normal flow (or just 500s under load), we gracefully fall
+          // back to the analysisFailed divider. The UI fallback is
+          // already shown below - no need to scare the user in dev mode
+          // with a full-screen error overlay for a handled rejection.
+          logDebate("stop-verdict:failed", {
+            error: err instanceof Error ? err.message : String(err),
+          })
           dispatch({
             type: "UPDATE_MESSAGE",
             id: analyzingMsg.id,

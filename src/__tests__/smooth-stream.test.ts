@@ -124,33 +124,53 @@ describe("computeNextDisplayedLength", () => {
       expect(getPacingForProvider("gpt")).toBe(PROVIDER_PACING.gpt)
     })
 
-    it("all four providers now share the Claude ramp shape", () => {
-      // The earlier flat non-Claude pacing at 95-110 cps was slower than
-      // each provider's backend burst rate, so a large buffer piled up
-      // during streaming and the mid-debate handoff snapped 70-90% of
-      // non-Claude content in one frame. The debate engine now awaits
-      // drain between models, and all four providers share the Claude
-      // 55 -> 220 ramp with a 600 cps turbo drain so the typing feel
-      // matches across providers.
-      const { claude, gemini, perplexity, gpt } = PROVIDER_PACING
-      for (const pacing of [gemini, perplexity, gpt]) {
-        expect(pacing.baseCps).toBe(claude.baseCps)
-        expect(pacing.maxCps).toBe(claude.maxCps)
-        expect(pacing.rampThreshold).toBe(claude.rampThreshold)
-        expect(pacing.turboCps).toBe(claude.turboCps)
-      }
+    it("Gemini and Perplexity share the same ramp shape", () => {
+      // Gemini and Perplexity stream with similar burst patterns at the
+      // network layer, so they share one pacing config. Claude and GPT
+      // each get their own tuned to their specific backend shape.
+      const { gemini, perplexity } = PROVIDER_PACING
+      expect(gemini.baseCps).toBe(perplexity.baseCps)
+      expect(gemini.maxCps).toBe(perplexity.maxCps)
+      expect(gemini.rampThreshold).toBe(perplexity.rampThreshold)
+      expect(gemini.turboCps).toBe(perplexity.turboCps)
     })
 
-    it("tick with any provider pacing advances the same at saturation", () => {
-      // With all four sharing CLAUDE_LIKE_PACING, a saturated tick should
-      // produce the same advance regardless of provider.
+    it("Claude has a higher floor and earlier ramp than the shared config", () => {
+      // Claude streams steadily at a low effective rate - pending
+      // rarely grows past a handful of characters so the ramp never
+      // triggers with a shared config and it reads noticeably slower
+      // than Gemini/Perplexity. Lifting its baseCps and dropping its
+      // rampThreshold means even small bursts push the rate up, and
+      // the steady stream no longer feels chuggy next to the others.
+      const { claude, gemini } = PROVIDER_PACING
+      expect(claude.baseCps).toBeGreaterThan(gemini.baseCps)
+      expect(claude.rampThreshold).toBeLessThan(gemini.rampThreshold)
+    })
+
+    it("GPT uses a slower config to match the others' perceptual speed", () => {
+      // GPT's backend emits tokens in even larger bursts than
+      // Gemini/Perplexity, so its ramp ratio pegs at 1.0 almost
+      // continuously. If GPT shared the same max cap it would sit at
+      // peak speed almost the whole stream while the others hover
+      // well below their ceiling, and the perceptual mismatch would
+      // read as "GPT types way faster." Capping GPT's max below the
+      // shared cap and raising its ramp threshold brings its
+      // sustained on-screen rate down into line. Test asserts
+      // relationships, not specific values, so retunes don't break it.
+      const { gemini, gpt } = PROVIDER_PACING
+      expect(gpt.maxCps).toBeLessThan(gemini.maxCps)
+      expect(gpt.rampThreshold).toBeGreaterThan(gemini.rampThreshold)
+      expect(gpt.turboCps).toBeLessThan(gemini.turboCps)
+    })
+
+    it("saturated GPT tick advances fewer chars than saturated Claude tick", () => {
       const claudeAdvance = computeNextDisplayedLength({
         displayed: 0, target: 10000, dtMs: 100, pacing: PROVIDER_PACING.claude,
       })
       const gptAdvance = computeNextDisplayedLength({
         displayed: 0, target: 10000, dtMs: 100, pacing: PROVIDER_PACING.gpt,
       })
-      expect(gptAdvance).toBe(claudeAdvance)
+      expect(gptAdvance).toBeLessThan(claudeAdvance)
     })
 
     it("all providers still honor truncation and minimum advance", () => {

@@ -1,5 +1,355 @@
 import { describe, it, expect } from "vitest"
-import { cleanResponse } from "@/lib/clean-response"
+import {
+  cleanResponse,
+  sanitizeHeadings,
+  stripHeadingMarkersForPlainText,
+  trimUnclosedTrailingMarkdown,
+} from "@/lib/clean-response"
+
+describe("stripHeadingMarkersForPlainText", () => {
+  it("removes ### markers and keeps the heading text", () => {
+    expect(stripHeadingMarkersForPlainText("### Economic Factors\nBody")).toBe(
+      "Economic Factors\nBody"
+    )
+  })
+
+  it("removes #### markers", () => {
+    expect(stripHeadingMarkersForPlainText("#### Subsection\nText")).toBe(
+      "Subsection\nText"
+    )
+  })
+
+  it("removes any 1-6 hash marker for plain-text display", () => {
+    const input = "# A\n## B\n### C\n#### D\n##### E\n###### F"
+    expect(stripHeadingMarkersForPlainText(input)).toBe("A\nB\nC\nD\nE\nF")
+  })
+
+  it("leaves mid-line hashes alone", () => {
+    expect(stripHeadingMarkersForPlainText("tag #hashtag here")).toBe(
+      "tag #hashtag here"
+    )
+  })
+
+  it("is a no-op on plain prose", () => {
+    expect(stripHeadingMarkersForPlainText("Just a normal sentence.")).toBe(
+      "Just a normal sentence."
+    )
+  })
+
+  // Covers the per-char streaming flash window: during smoothed streaming
+  // the visible substring is sliced char-by-char, so there is a 1-3 frame
+  // moment where the buffer ends at exactly "###" with no trailing space
+  // yet. The earlier \s+ requirement missed these frames and the raw
+  // hashes flashed on screen. With the (?:[ \t]+|$) alternation an EOS
+  // match also strips the leading hashes.
+  it("strips bare '###' at end of string (no trailing space yet)", () => {
+    expect(stripHeadingMarkersForPlainText("Some body\n###")).toBe("Some body\n")
+  })
+
+  it("strips '###' followed by newline with no intervening space", () => {
+    expect(stripHeadingMarkersForPlainText("###\nBody")).toBe("\nBody")
+  })
+
+  it("strips '#' alone at end of string", () => {
+    expect(stripHeadingMarkersForPlainText("Prose line\n#")).toBe("Prose line\n")
+  })
+
+  it("leaves '#foo' at line start alone (not a heading per CommonMark)", () => {
+    expect(stripHeadingMarkersForPlainText("#foo\nnext")).toBe("#foo\nnext")
+  })
+
+  it("leaves 7+ hashes alone (not a valid heading level)", () => {
+    expect(stripHeadingMarkersForPlainText("####### Not a heading")).toBe(
+      "####### Not a heading"
+    )
+  })
+
+  it("strips '###' with multiple spaces before text", () => {
+    expect(stripHeadingMarkersForPlainText("###   Title")).toBe("Title")
+  })
+
+  it("strips '###' followed by a tab", () => {
+    expect(stripHeadingMarkersForPlainText("###\tTitle")).toBe("Title")
+  })
+
+  // Fenced code blocks can contain lines that look like headings (shell
+  // comments, preprocessor directives, markdown examples). The streaming
+  // plain-text view must NOT rewrite those lines, or users will see the
+  // hashes briefly disappear and then reappear the moment ReactMarkdown
+  // takes over and renders the code block verbatim at settle.
+  it("leaves lines inside triple-backtick fences untouched", () => {
+    const input = "Intro text\n```\n### code comment\n#include <stdio.h>\n```\nOutro"
+    expect(stripHeadingMarkersForPlainText(input)).toBe(input)
+  })
+
+  it("strips headings outside fences but preserves ones inside", () => {
+    const input = [
+      "### Real heading",
+      "",
+      "```",
+      "### not a heading (code comment)",
+      "```",
+      "",
+      "#### Another real heading",
+    ].join("\n")
+    const expected = [
+      "Real heading",
+      "",
+      "```",
+      "### not a heading (code comment)",
+      "```",
+      "",
+      "Another real heading",
+    ].join("\n")
+    expect(stripHeadingMarkersForPlainText(input)).toBe(expected)
+  })
+
+  it("handles a fence that opens but has not yet closed (mid-stream)", () => {
+    // Mid-stream: opening fence, content inside, closing fence hasn't
+    // arrived yet. Everything after the opener is inside the fence.
+    const input = "Prose\n```bash\n### comment in code\necho hi"
+    // Real heading "Prose" has no markers to strip; the fenced content
+    // must stay literal.
+    expect(stripHeadingMarkersForPlainText(input)).toBe(input)
+  })
+
+  it("handles indented fence markers (up to 3 leading spaces, CommonMark)", () => {
+    const input = "   ```\n### inside indented fence\n   ```"
+    expect(stripHeadingMarkersForPlainText(input)).toBe(input)
+  })
+})
+
+describe("trimUnclosedTrailingMarkdown", () => {
+  it("removes just the unclosed ** markers, keeps the content", () => {
+    // "Hello **wo" -> "Hello wo": chars after the marker are preserved
+    // so the bubble types smoothly and doesn't dump a word at the moment
+    // the closing ** arrives.
+    expect(trimUnclosedTrailingMarkdown("Hello **wo")).toBe("Hello wo")
+  })
+
+  it("keeps balanced ** pairs intact", () => {
+    expect(trimUnclosedTrailingMarkdown("Hello **world** bye")).toBe(
+      "Hello **world** bye"
+    )
+  })
+
+  it("keeps partially-closed ** followed by a new unclosed pair", () => {
+    // Two complete pairs + a third unclosed one: count = 5 (odd).
+    // Only the LAST (unclosed) ** marker gets stripped; its content
+    // stays in place.
+    expect(
+      trimUnclosedTrailingMarkdown("a **b** c **d** e **f")
+    ).toBe("a **b** c **d** e f")
+  })
+
+  it("removes an unclosed backtick and keeps the code chars visible", () => {
+    expect(trimUnclosedTrailingMarkdown("run `npm te")).toBe("run npm te")
+  })
+
+  it("keeps balanced backticks intact", () => {
+    expect(trimUnclosedTrailingMarkdown("run `npm test` now")).toBe(
+      "run `npm test` now"
+    )
+  })
+
+  it("handles both unclosed ** and unclosed `", () => {
+    // ** is odd (3) and ` is odd (1). Both markers stripped, content kept.
+    expect(
+      trimUnclosedTrailingMarkdown("a **b** c **d** e **f with `code")
+    ).toBe("a **b** c **d** e f with code")
+  })
+
+  it("is a no-op on plain text with no markers", () => {
+    expect(trimUnclosedTrailingMarkdown("nothing to see here")).toBe(
+      "nothing to see here"
+    )
+  })
+
+  it("is monotonic: removing a marker never shortens visible content", () => {
+    // displayedText grows char-by-char; after trim the output should
+    // never shrink relative to the previous tick (aside from the single
+    // marker bytes that are hidden).
+    const prev = trimUnclosedTrailingMarkdown("Hello **wor")
+    const next = trimUnclosedTrailingMarkdown("Hello **worl")
+    // Visible text length grows in lockstep with displayedText
+    expect(next.length).toBe(prev.length + 1)
+  })
+
+  // Regression: without fence-awareness, the backtick counter treated
+  // triple-backtick fences as odd inline-code markers. Mid-stream of a
+  // fenced code block the opening ``` alone made the count 3 (odd),
+  // stripping one backtick and flickering the fence down to `` for a
+  // frame before the closing fence arrived and the count went even.
+  it("leaves an opening '```' fence alone (fence chars are not inline code)", () => {
+    // 3 backticks total, all part of one opening fence. No single-
+    // backtick inline markers in the view; nothing to strip.
+    expect(trimUnclosedTrailingMarkdown("Here's code:\n```js\nconst x")).toBe(
+      "Here's code:\n```js\nconst x"
+    )
+  })
+
+  it("leaves '```' alone when only the fence is visible", () => {
+    expect(trimUnclosedTrailingMarkdown("Here's code:\n```")).toBe(
+      "Here's code:\n```"
+    )
+  })
+
+  it("handles inline '`code`' alongside a fenced block", () => {
+    // Two inline backticks (even, not stripped) plus one opening fence
+    // (three backticks, skipped). Count of non-fence backticks is 2.
+    expect(
+      trimUnclosedTrailingMarkdown("Run `npm test` then:\n```bash\nrun")
+    ).toBe("Run `npm test` then:\n```bash\nrun")
+  })
+
+  it("still strips an unclosed inline backtick when a fence is present", () => {
+    // Inline `cmd with one unclosed backtick; the fence is balanced.
+    // The fence backticks must be ignored so we correctly identify the
+    // single `cmd backtick as odd and strip it.
+    expect(
+      trimUnclosedTrailingMarkdown("Before\n```\nconst x\n```\nInline `cmd")
+    ).toBe("Before\n```\nconst x\n```\nInline cmd")
+  })
+
+  // Fenced code block contents must stay byte-for-byte stable during
+  // streaming, including bold markers (`**` can be legitimate code like
+  // Python `x**2` or `**kwargs`). Stripping them in the plain-text view
+  // and then "re-adding" them when ReactMarkdown renders the code block
+  // verbatim at settle causes a visible mutation flicker in code.
+  it("leaves '**' inside a fenced code block untouched", () => {
+    const input = "Use exponents:\n```python\nresult = x**2\n```\n"
+    expect(trimUnclosedTrailingMarkdown(input)).toBe(input)
+  })
+
+  it("still strips an unclosed '**' outside fences when a fence is present", () => {
+    // The fence contains `x**2` (1 `**`), the prose has an unclosed
+    // `**bol`. Without fence-awareness the total `**` count would be
+    // 2 (even, no strip) and the unclosed prose marker would flash.
+    // With fence-awareness, fence contents are ignored and the prose
+    // count is 1 (odd), so the unclosed prose `**` gets stripped.
+    const input = "Intro\n```py\nresult = x**2\n```\nAnd **bol"
+    const expected = "Intro\n```py\nresult = x**2\n```\nAnd bol"
+    expect(trimUnclosedTrailingMarkdown(input)).toBe(expected)
+  })
+
+  it("leaves 'x**2' alone mid-stream with a still-open fence", () => {
+    // Mid-stream: opening fence, code content, closing fence hasn't
+    // arrived yet. The entire tail is inside an unclosed fence; no
+    // marker inside it should be touched.
+    const input = "Before\n```python\nresult = x**2\nmore code"
+    expect(trimUnclosedTrailingMarkdown(input)).toBe(input)
+  })
+
+  it("leaves inline backticks inside a fenced code block untouched", () => {
+    // Within a code fence, a backtick character is literal code
+    // punctuation, not an inline-code marker. Count parity must ignore
+    // these just as we already ignore the triple-fence backticks.
+    const input = "Shell example:\n```bash\necho `date`\n```\n"
+    expect(trimUnclosedTrailingMarkdown(input)).toBe(input)
+  })
+})
+
+describe("sanitizeHeadings", () => {
+  it("downgrades h1 at line start to h3", () => {
+    expect(sanitizeHeadings("# Title\nBody")).toBe("### Title\nBody")
+  })
+
+  it("downgrades h2 at line start to h3", () => {
+    expect(sanitizeHeadings("## Title\nBody")).toBe("### Title\nBody")
+  })
+
+  it("leaves h3 untouched", () => {
+    expect(sanitizeHeadings("### Title")).toBe("### Title")
+  })
+
+  it("leaves h4+ untouched", () => {
+    expect(sanitizeHeadings("#### Sub\n##### Deeper")).toBe("#### Sub\n##### Deeper")
+  })
+
+  it("is idempotent - running twice equals running once", () => {
+    const input = "# A\n## B\n### C"
+    const once = sanitizeHeadings(input)
+    expect(sanitizeHeadings(once)).toBe(once)
+  })
+
+  it("handles hashes mid-line without touching them", () => {
+    expect(sanitizeHeadings("Text with #hashtag and ##tag mid-sentence.")).toBe(
+      "Text with #hashtag and ##tag mid-sentence."
+    )
+  })
+
+  it("downgrades across multiple lines", () => {
+    const input = "# One\nsomething\n## Two\nmore"
+    expect(sanitizeHeadings(input)).toBe("### One\nsomething\n### Two\nmore")
+  })
+
+  it("demotes a lone # or ## at end of line (CommonMark empty heading)", () => {
+    // Per CommonMark, "# " followed by end-of-line is a valid empty h1
+    // (same for ##). The previous implementation left "#" alone at
+    // end-of-string but demoted "#\n" because its multiline regex
+    // treated the newline as the required whitespace - an accidental
+    // asymmetry. The fence-aware rewrite is uniform: both cases demote.
+    expect(sanitizeHeadings("#")).toBe("###")
+    expect(sanitizeHeadings("##")).toBe("###")
+    expect(sanitizeHeadings("#\n")).toBe("###\n")
+  })
+
+  it("does not touch '#foo' (no whitespace, not a valid heading)", () => {
+    // This is what the previous "lone #" test was really protecting
+    // against - a hash followed by non-whitespace is NOT a heading per
+    // CommonMark, so we must leave it alone.
+    expect(sanitizeHeadings("#foo")).toBe("#foo")
+    expect(sanitizeHeadings("##bar")).toBe("##bar")
+  })
+
+  // Long mode explicitly allows fenced code blocks. A bash comment
+  // like "# /usr/bin/env bash" or "## Build steps" inside a ```bash
+  // fence must stay literal - demoting it to "### ..." corrupts the
+  // code sample. sanitizeHeadings runs server-side on every
+  // accumulated chunk in /api/chat, so a fence-blind version would
+  // mutate code as it streams AND in the final settled view.
+  it("leaves '# comment' inside a fenced code block untouched", () => {
+    const input = "Intro\n```bash\n# /usr/bin/env bash\n# another comment\n```\nOutro"
+    expect(sanitizeHeadings(input)).toBe(input)
+  })
+
+  it("leaves '## subtitle' inside a fenced markdown block untouched", () => {
+    const input = "Here's the sample:\n```markdown\n# Title\n## Subtitle\n```\n"
+    expect(sanitizeHeadings(input)).toBe(input)
+  })
+
+  it("still demotes real headings outside fences while leaving fenced code alone", () => {
+    const input = [
+      "# Real heading",
+      "",
+      "```bash",
+      "# this is a comment",
+      "cd /tmp",
+      "```",
+      "",
+      "## Another real heading",
+    ].join("\n")
+    const expected = [
+      "### Real heading",
+      "",
+      "```bash",
+      "# this is a comment",
+      "cd /tmp",
+      "```",
+      "",
+      "### Another real heading",
+    ].join("\n")
+    expect(sanitizeHeadings(input)).toBe(expected)
+  })
+
+  it("handles a still-open fence (mid-stream) correctly", () => {
+    // Mid-stream: opening fence + code content, closer hasn't
+    // arrived. Everything after the opener is inside the fence
+    // and must not be rewritten.
+    const input = "Prose\n```python\n# main entry point\nx = 1"
+    expect(sanitizeHeadings(input)).toBe(input)
+  })
+})
 
 describe("cleanResponse", () => {
   it("strips inline citation markers", () => {
@@ -90,5 +440,53 @@ describe("cleanResponse", () => {
   it("removes stray trailing backslash-escaped fragments", () => {
     expect(cleanResponse("Some text\\nlt")).toBe("Some text")
     expect(cleanResponse("Answer\\xyz")).toBe("Answer")
+  })
+
+  // Models sometimes echo the word-limit instruction back to the user
+  // at the end of their response despite the prompt telling them not to
+  // include self-reported meta-annotations. Examples from real debates:
+  //   "That decides it precisely. (Word count: 398)"
+  //   "...self-filing risks 70% rejection rates. (54 words)"
+  //   "I believe this comprehensive view...\n(Word count: 75)"
+  // Strip these trailing parentheticals so the cleaned text ends at the
+  // last real sentence.
+  it("strips trailing '(N words)' annotation", () => {
+    expect(cleanResponse("Response text. (62 words)")).toBe("Response text.")
+  })
+
+  it("strips trailing '(Word count: N)' annotation", () => {
+    expect(cleanResponse("Response text. (Word count: 75)")).toBe(
+      "Response text."
+    )
+  })
+
+  it("strips trailing '(Word count: N)' on its own line", () => {
+    expect(cleanResponse("Line 1\nLine 2.\n\n(Word count: 398)")).toBe(
+      "Line 1\nLine 2."
+    )
+  })
+
+  it("strips trailing '(N words)' with no period before it", () => {
+    expect(cleanResponse("Everyone: hire a patent attorney (54 words)")).toBe(
+      "Everyone: hire a patent attorney"
+    )
+  })
+
+  it("strips trailing Korean '(N단어)' annotation", () => {
+    expect(cleanResponse("응답 내용입니다. (75단어)")).toBe("응답 내용입니다.")
+  })
+
+  it("leaves mid-text parentheticals with numbers + words alone", () => {
+    expect(
+      cleanResponse("The brief was 500 words (roughly 5 paragraphs) long.")
+    ).toBe("The brief was 500 words (roughly 5 paragraphs) long.")
+  })
+
+  it("leaves standalone numeric parentheticals alone (no 'words' suffix)", () => {
+    // (75) without 'words' is not a word-count annotation - could be
+    // a footnote, citation, year, etc. Leave it.
+    expect(cleanResponse("The year was important. (75)")).toBe(
+      "The year was important. (75)"
+    )
   })
 })

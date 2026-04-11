@@ -39,27 +39,62 @@ export const DEFAULT_PACING: PacingConfig = {
 }
 
 /**
- * Per-provider pacing. All four providers share the Claude ramp shape
- * (55 -> 220 cps ramp at pending >= 150 chars, 600 cps turbo drain after
- * stream end). The earlier flat non-Claude pacing at 95-110 cps was
- * slower than the provider backend burst rate, so a large buffer piled
- * up during the stream and the mid-debate force-complete snapped 70-90%
- * of the content in one frame when the next bubble took over. Matching
- * Claude's rate keeps the calm-then-fluent feel and lets the debate
- * engine drain each bubble fully before the next starts.
+ * Per-provider pacing. Three distinct configs tuned to each backend's
+ * streaming shape so a round-robin debate reads with one consistent
+ * on-screen cadence even though the providers deliver tokens very
+ * differently at the network layer.
+ *
+ * Claude streams smoothly and steadily at a relatively low effective
+ * rate - pending rarely grows past a handful of characters so the
+ * ramp (which kicks in above `rampThreshold` pending) almost never
+ * triggers. With a shared config Claude ends up reading noticeably
+ * slower than the others; we lift its baseCps and drop its
+ * rampThreshold so even small bursts lift the on-screen rate toward
+ * the shared max, and the steady stream never feels chuggy.
+ *
+ * Gemini and Perplexity send larger bursts at the network layer and
+ * fill the smooth-stream buffer quickly, then close the stream while
+ * the buffer is still draining. The tail drain at turbo is the "fast
+ * near the end" window users notice; lowering turboCps slows that
+ * window down without affecting the main stream.
+ *
+ * GPT emits tokens in even larger bursts than Gemini/Perplexity, so
+ * its ramp ratio pegs at 1.0 almost continuously. It needs the
+ * lowest max cap of the four to keep from running visibly faster
+ * than everyone else during the main stream, plus a higher ramp
+ * threshold so small early-stream bursts don't prematurely slam the
+ * rate up.
+ *
+ * Keep this docblock free of exact cps numbers - the numeric values
+ * below have shifted several times and inline numbers in the prose
+ * drift out of sync. Read the configs directly for current values.
  */
-const CLAUDE_LIKE_PACING: PacingConfig = {
-  baseCps: 55,
-  maxCps: 220,
-  rampThreshold: 150,
-  turboCps: 600,
+const CLAUDE_PACING: PacingConfig = {
+  baseCps: 95,
+  maxCps: 300,
+  rampThreshold: 80,
+  turboCps: 370,
+}
+
+const GEMINI_PERPLEXITY_PACING: PacingConfig = {
+  baseCps: 75,
+  maxCps: 300,
+  rampThreshold: 140,
+  turboCps: 280,
+}
+
+const GPT_PACING: PacingConfig = {
+  baseCps: 75,
+  maxCps: 240,
+  rampThreshold: 190,
+  turboCps: 250,
 }
 
 export const PROVIDER_PACING: Record<string, PacingConfig> = {
-  claude: CLAUDE_LIKE_PACING,
-  gemini: CLAUDE_LIKE_PACING,
-  perplexity: CLAUDE_LIKE_PACING,
-  gpt: CLAUDE_LIKE_PACING,
+  claude: CLAUDE_PACING,
+  gemini: GEMINI_PERPLEXITY_PACING,
+  perplexity: GEMINI_PERPLEXITY_PACING,
+  gpt: GPT_PACING,
 }
 
 export function getPacingForProvider(provider?: string | null): PacingConfig {

@@ -28,7 +28,14 @@ function getModel() {
     }
   }
   const vertexAI = new VertexAI(opts)
-  return vertexAI.getGenerativeModel({ model: "gemini-2.5-flash" })
+  // gemini-2.5-pro instead of -flash: document OCR is the "important
+  // documents" path where accuracy matters more than latency. Flash
+  // garbles dense Korean legal headers and mixed Hanja/Hangul overlays;
+  // Pro's larger context and stronger vision grounding recovers those
+  // cleanly. Users pay for the precision, and OCR already runs in the
+  // background with a progress indicator so the extra latency is
+  // invisible in practice.
+  return vertexAI.getGenerativeModel({ model: "gemini-2.5-pro" })
 }
 
 export async function POST(req: NextRequest) {

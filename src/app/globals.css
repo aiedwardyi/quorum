@@ -898,12 +898,15 @@ button:not(:disabled) {
   border-left-color: rgba(7, 54, 66, 0.2);
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* ---------------------------------------------------------------
  * Smoothed streaming polish
  * - Soft blinking caret that trails the typed text
  * - Pulsing glow ring around the model icon while it's "speaking"
  * Both honor prefers-reduced-motion.
- * ───────────────────────────────────────────────────────────── */
+ * NOTE: do not use box-drawing unicode (U+2500) in comments in this
+ * file - Lightning CSS (Tailwind v4) silently drops everything from
+ * such a comment to EOF, which is how the glow ring went missing.
+ * --------------------------------------------------------------- */
 
 .speak-caret {
   display: inline-block;

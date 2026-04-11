@@ -26,7 +26,7 @@ export default function ChatThread({
   onNewDiscussion?: () => void
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)
-  const isNearBottom = useRef(true)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   const hasMessages = messages.length > 0 || !!typingModel
 
@@ -43,15 +43,98 @@ export default function ChatThread({
   )
   const prevUserMessageCountRef = useRef(userMessageCount)
 
+  // Follow-scroll during content growth. The previous implementation
+  // piggybacked on the chunk-rate `messages` effect below, calling
+  // scrollIntoView on every new chunk. That worked when chunks arrived
+  // faster than the smooth-stream could drain them, but the moment the
+  // smooth-stream buffer filled up (turbo drain, late-in-response, GPT
+  // bursts) the hook started advancing many chars per frame BETWEEN
+  // chunks, and those frames never triggered a React re-render on
+  // ChatThread - only ChatBubble re-rendered from its internal
+  // useSmoothStream state. Result: the bubble visibly grew past the
+  // viewport bottom with no scroll follow, then snapped back to the
+  // bottom at the next chunk or when the response settled. Users saw
+  // "scroll follows for the first half, then loses track, then jumps
+  // to the bottom at the end".
+  //
+  // ResizeObserver sidesteps that by firing on every layout change of
+  // the content container - including the line-wraps produced by the
+  // smooth-stream drain between chunks. It self-gates on distance
+  // from the bottom BEFORE the growth: if the user was already near
+  // the bottom we follow; if they scrolled up to re-read something,
+  // the distance exceeds the 150px threshold and we leave them alone.
+  //
+  // Scroll implementation: we set `main.style.scrollBehavior = "auto"`
+  // once at observer install and then use plain `main.scrollTop =
+  // main.scrollHeight` on every fire. Two reasons we avoid
+  // `scrollTo({ behavior: "instant" })`:
+  //  1) `"instant"` is non-standard in older WebIDL enum enforcement -
+  //     some runtimes throw TypeError on invalid ScrollBehavior values.
+  //  2) Plain `scrollTop` writes respect the element's scroll-behavior
+  //     CSS, which is inherited as `smooth` from somewhere in the
+  //     Tailwind / browser defaults stack. Without an override every
+  //     scrollTop assignment would kick off a ~300ms smooth animation
+  //     with a stale target, the bubble would grow more while it was
+  //     chasing, and the viewport would compound the lag on every
+  //     fire (the exact regression the earlier fix round had to hunt
+  //     down).
+  // Inline-styling main's scroll-behavior to "auto" overrides the
+  // inherited CSS without touching any other element. The user-send
+  // smooth scroll and verdict-card smooth scroll both call
+  // scrollIntoView with an explicit `behavior: "smooth"` option, and
+  // per CSSOM spec an explicit behavior overrides the element's
+  // scroll-behavior - so those paths stay smooth even though the
+  // container is now in auto mode.
+  //
+  // Tracking `content.offsetHeight` (rather than main.scrollHeight)
+  // isolates the signal to the chat content - main.scrollHeight can
+  // briefly shrink when the streaming plain-text bubble flips to its
+  // ReactMarkdown render (paragraph margins collapse whitespace), and
+  // we do not want those shrinks to reset the growth baseline.
   useEffect(() => {
+    if (!hasMessages) return
     const main = bottomRef.current?.closest("main")
-    if (!main) return
-    const handleScroll = () => {
-      const distFromBottom = main.scrollHeight - main.scrollTop - main.clientHeight
-      isNearBottom.current = distFromBottom < 150
+    const content = contentRef.current
+    if (!main || !content) return
+    // Override the inherited `scroll-behavior: smooth` for the lifetime
+    // of this observer. Save whatever was there first so cleanup can
+    // restore it if the effect ever re-runs.
+    const prevScrollBehavior = main.style.scrollBehavior
+    main.style.scrollBehavior = "auto"
+    let prevContentH = content.offsetHeight
+    const ro = new ResizeObserver(() => {
+      const currContentH = content.offsetHeight
+      if (currContentH <= prevContentH) {
+        prevContentH = currContentH
+        return
+      }
+      // The gate has to use the PRE-growth distance from the bottom,
+      // not the post-growth one. main.scrollHeight inside this callback
+      // already reflects the new layout, so a naive
+      // `scrollHeight - scrollTop - clientHeight` gives us distance
+      // AFTER the growth. If a single observer fire represents a large
+      // growth (new bubble inserted, code block rendered, tab-resume
+      // catch-up flushes multiple line wraps), the post-growth distance
+      // can exceed 150 even though the user was sitting at the bottom
+      // when the growth started, and the follow-scroll would wrongly
+      // drop them. Subtracting the growth delta recovers the distance
+      // we had before the content grew, which is what the "was the
+      // user near the bottom?" check is actually asking.
+      const growthDelta = currContentH - prevContentH
+      prevContentH = currContentH
+      const preGrowthDistFromBottom =
+        main.scrollHeight - main.scrollTop - main.clientHeight - growthDelta
+      if (preGrowthDistFromBottom < 150) {
+        // Plain scrollTop write. The inline scroll-behavior override
+        // above ensures this lands instantly rather than animating.
+        main.scrollTop = main.scrollHeight
+      }
+    })
+    ro.observe(content)
+    return () => {
+      ro.disconnect()
+      main.style.scrollBehavior = prevScrollBehavior
     }
-    main.addEventListener("scroll", handleScroll)
-    return () => main.removeEventListener("scroll", handleScroll)
   }, [hasMessages])
 
   useEffect(() => {
@@ -75,24 +158,15 @@ export default function ChatThread({
       }
     }
 
-    // Always scroll to the bottom when the user just sent a new prompt,
-    // regardless of previous scroll position. Matches standard chat
-    // behavior (ChatGPT, Claude) - the user's prompt lands at the
-    // bottom and the first AI bubble streams into view. Also repins
-    // isNearBottom so follow-up chunks auto-scroll as they stream in.
+    // User just hit send: always scroll to bottom smoothly. Matches
+    // standard chat UX (ChatGPT, Claude) - the user's prompt lands at
+    // the bottom and the first AI bubble streams into view from there.
+    // Content-growth follow-scrolling during streaming is handled by
+    // the ResizeObserver effect above, not here.
     if (userJustSent) {
-      isNearBottom.current = true
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-      return
-    }
-
-    // Otherwise only auto-scroll during streaming if the user was
-    // already near the bottom; if they scrolled up to read something,
-    // don't yank them back.
-    if (isNearBottom.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }
-  }, [messages, typingModel, userMessageCount])
+  }, [messages, userMessageCount])
 
   if (messages.length === 0 && !typingModel) {
     return (
@@ -142,7 +216,7 @@ export default function ChatThread({
 
   return (
     <div className="px-4 py-6" role="log">
-      <div className="max-w-3xl mx-auto w-full flex flex-col">
+      <div ref={contentRef} className="max-w-3xl mx-auto w-full flex flex-col">
         {messages.map((msg) => (
           <ChatBubble
             key={msg.id}

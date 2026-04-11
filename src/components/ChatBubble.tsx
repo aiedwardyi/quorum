@@ -9,6 +9,10 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { useSmoothStream } from "@/hooks/useSmoothStream"
 import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
+import {
+  stripHeadingMarkersForPlainText,
+  trimUnclosedTrailingMarkdown,
+} from "@/lib/clean-response"
 import VerdictSkeleton from "@/components/VerdictSkeleton"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => <div className="h-48 w-full max-w-3xl mx-auto mt-8 mb-12 bg-muted rounded-[28px] animate-pulse" />,
@@ -406,13 +410,24 @@ export default function ChatBubble({
               ) : isActive ? (
                 // While the bubble is streaming or still draining the
                 // smoothed buffer, render plain text instead of
-                // ReactMarkdown. displayedText changes character by
-                // character at 60fps, and re-parsing markdown (with
-                // GFM enabled) on every rAF tick is a measurable CPU
-                // hit on long responses. The real markdown render
-                // takes over once isActive flips false, which is a
-                // single one-frame swap the user barely notices.
-                <div className="whitespace-pre-wrap">{displayedText}</div>
+                // ReactMarkdown. displayedText changes every frame
+                // during streaming; ReactMarkdown's GFM parser was
+                // fast enough in isolation, but in practice the layout
+                // cost of rebuilding the markdown tree delayed rAF
+                // callbacks below the smooth-stream tick rate. Once
+                // the rAF loop fell behind the stream buffer grew, the
+                // tick code caught up by flushing larger character
+                // counts per frame, and the user saw that as visibly
+                // chunky bursts instead of continuous typing. The
+                // non-monotonic bubble height from the bursty render
+                // also broke auto-scroll follow. Plain text here keeps
+                // the typing smooth; ReactMarkdown takes over the
+                // instant isActive flips false at settle.
+                <div className="whitespace-pre-wrap">
+                  {stripHeadingMarkersForPlainText(
+                    trimUnclosedTrailingMarkdown(displayedText)
+                  )}
+                </div>
               ) : (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayedText}</ReactMarkdown>
               )}

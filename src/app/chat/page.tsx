@@ -16,7 +16,10 @@ import { ChevronDown } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
 import { incrementDebateCount } from "@/components/LoginGate"
 
-const DEFAULT_MODELS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
+// Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
+// last so gemini-2.5-pro's slower TTFT is hidden behind the three
+// faster providers.
+const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
 
 export default function ChatPage() {
   return (

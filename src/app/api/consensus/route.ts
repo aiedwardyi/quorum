@@ -99,8 +99,13 @@ export async function POST(req: NextRequest) {
       }
     }
     const vertexAI = new VertexAI(opts)
+    // gemini-2.5-pro instead of -flash: the verdict synthesis is the
+    // single decision the user walks away with, and the reasoning
+    // quality difference between Pro and Flash on multi-model debate
+    // analysis is worth the latency. Eddie: "for important documents
+    // and decisions, precision matters more than speed."
     const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       safetySettings: [
         {
           category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -115,7 +120,13 @@ export async function POST(req: NextRequest) {
 
     console.log(`[verdict] Generating verdict for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}`)
 
-    const VERDICT_TIMEOUT_MS = 30_000
+    // 120s - gemini-2.5-pro verdict synthesis on a 2-round debate with
+    // 8 AI messages to analyze legitimately runs over a minute. The
+    // first bump (30 -> 60) still tripped for Eddie mid-test, so give
+    // it a full 2 minutes of headroom. Users see the analyzing spinner
+    // and verdict skeleton card during this time, so the longer wait
+    // is visible-but-acceptable UX.
+    const VERDICT_TIMEOUT_MS = 120_000
     const result = await Promise.race([
       model.generateContent({
         systemInstruction: {
@@ -140,24 +151,75 @@ export async function POST(req: NextRequest) {
       ),
     ])
 
+    const generateElapsed = Date.now() - startTime
+    console.log(`[verdict] Vertex responded in ${generateElapsed}ms`)
+
     const raw =
       result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
     if (!raw) {
+      // Empty responses are usually a safety filter trip or a Pro
+      // thinking-only response with no output tokens. Log the full
+      // candidate shape so we can see finishReason/safetyRatings when
+      // this recurs.
+      const candidate = result.response.candidates?.[0]
+      console.error(`[verdict] Empty response. finishReason=${candidate?.finishReason}`, {
+        safetyRatings: candidate?.safetyRatings,
+        promptFeedback: result.response.promptFeedback,
+      })
       throw new Error("Gemini returned an empty response")
     }
 
-    const cleaned = raw
-      .replace(/```json\s*/gi, "")
-      .replace(/```\s*/g, "")
-      .trim()
+    // Log ONLY metadata in production - the raw-response preview
+    // echoes model output which frequently contains user document
+    // content, legal text, or other sensitive inputs. In dev we keep
+    // the preview for parse-debugging; in prod only length and the
+    // Vertex finishReason ship to CloudWatch / equivalent.
+    const candidate = result.response.candidates?.[0]
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[verdict] Raw response length=${raw.length}, finishReason=${candidate?.finishReason ?? "unknown"}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`
+      )
+    } else {
+      console.log(
+        `[verdict] Raw response length=${raw.length}, finishReason=${candidate?.finishReason ?? "unknown"}`
+      )
+    }
+
+    // Try to extract a JSON object from the response, even if Pro
+    // wrapped it in thinking text or markdown prose. Strategy:
+    //   1. Strip markdown code fences (```json ... ``` wrappers).
+    //   2. If the result isn't pure JSON, find the first `{` and the
+    //      last `}` and slice between them - this tolerates a preamble
+    //      like "Here's my analysis:" or a trailing summary comment
+    //      without needing a repair round-trip.
+    const extractJson = (text: string): string => {
+      const stripped = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+      if (stripped.startsWith("{") && stripped.endsWith("}")) return stripped
+      const first = stripped.indexOf("{")
+      const last = stripped.lastIndexOf("}")
+      if (first < 0 || last < 0 || last <= first) return stripped
+      return stripped.slice(first, last + 1)
+    }
+
+    const cleaned = extractJson(raw)
 
     let parsed: unknown
     try {
       parsed = JSON.parse(cleaned)
     } catch (jsonErr) {
-      // Gemini sometimes returns malformed JSON - retry once with repair prompt
-      console.warn(`[verdict] JSON parse failed, retrying: ${jsonErr instanceof Error ? jsonErr.message : jsonErr}`)
+      // First-pass parse failed. Ask Vertex to repair it, then extract
+      // again. The cleaned/retry previews contain model output which
+      // can echo user documents and legal text - gate them to dev so
+      // they never land in production server logs.
+      const parseErrMsg = jsonErr instanceof Error ? jsonErr.message : String(jsonErr)
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          `[verdict] JSON parse failed: ${parseErrMsg}. Cleaned preview=${cleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+        )
+      } else {
+        console.warn(`[verdict] JSON parse failed: ${parseErrMsg}`)
+      }
       const retryResult = await Promise.race([
         model.generateContent({
           contents: [
@@ -168,15 +230,38 @@ export async function POST(req: NextRequest) {
           ],
         }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("JSON retry timed out")), 15_000)
+          setTimeout(() => reject(new Error("JSON retry timed out")), 30_000)
         ),
       ])
       const retryRaw = retryResult.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
-      const retryCleaned = retryRaw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
-      parsed = JSON.parse(retryCleaned)
+      const retryCleaned = extractJson(retryRaw)
+      try {
+        parsed = JSON.parse(retryCleaned)
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr)
+        if (process.env.NODE_ENV === "development") {
+          console.error(
+            `[verdict] Retry parse ALSO failed: ${retryMsg}. Retry preview=${retryCleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+          )
+        } else {
+          console.error(`[verdict] Retry parse ALSO failed: ${retryMsg}`)
+        }
+        throw retryErr
+      }
     }
 
-    const verdict = validateVerdictResult(parsed)
+    let verdict
+    try {
+      verdict = validateVerdictResult(parsed)
+    } catch (validationErr) {
+      const valMsg = validationErr instanceof Error ? validationErr.message : String(validationErr)
+      console.error(
+        `[verdict] Validation failed: ${valMsg}. Parsed keys=${
+          parsed && typeof parsed === "object" ? Object.keys(parsed as object).join(",") : typeof parsed
+        }`
+      )
+      throw validationErr
+    }
 
     const elapsed = Date.now() - startTime
     console.log(`[verdict] Generated in ${elapsed}ms, confidence=${verdict.confidence}`)
