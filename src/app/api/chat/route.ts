@@ -242,7 +242,8 @@ Do NOT include citations, references, footnotes, URLs, or source numbers like [1
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
 ${getUrlCapabilityInstruction(provider)} However, when the user's message includes document text (between "--- File:" markers), that content HAS ALREADY BEEN EXTRACTED and is part of the message - read and analyze it directly.
 NEVER give a lazy one-sentence answer. Even in short mode, provide a substantive response with reasoning. "That depends" or "It varies" alone is not acceptable.
-Do NOT roleplay as the user or quote what the user said. Only respond as yourself.`
+Do NOT roleplay as the user or quote what the user said. Only respond as yourself.
+Do NOT include a word count, character count, or any meta-annotation in your response. NEVER write "(62 words)", "(Word count: 75)", "(75단어)", or similar self-report of the response length.`
 }
 
 function getStreamFn(provider: Provider) {
@@ -404,18 +405,22 @@ export async function POST(request: Request) {
             closeController()
             return
           }
+          // Route provider failures through the `error` channel rather
+          // than streaming them as bubble content. The old path wrote
+          // `${DISPLAY_NAMES[provider]} encountered an error: ${raw}`
+          // into a chat chunk, so upstream garbage like
+          // "[VertexAI.ClientError]: got status: 499 Client Closed
+          // Request. {"error":{"code":499,..}}" leaked verbatim into
+          // the user-visible bubble. On the client side, data.error
+          // throws into callModel's catch, which now substitutes the
+          // friendly "stepped out for a snack break" system message.
+          // The raw detail still lands in the server log for debugging.
           const msg = error instanceof Error ? error.message : "Unknown error"
-          const sanitized = msg.replace(/sk-[a-zA-Z0-9-_]+/g, "sk-***").replace(/pplx-[a-zA-Z0-9-_]+/g, "pplx-***")
-          const friendlyError = `${DISPLAY_NAMES[provider]} encountered an error: ${sanitized}`
-
-          // Send error as a chat bubble so the debate can continue with other models
-          enqueueEvent({ chunk: friendlyError })
-          enqueueEvent({
-            done: true,
-            sender: provider,
-            displayName: DISPLAY_NAMES[provider],
-            content: friendlyError,
-          })
+          const sanitized = msg
+            .replace(/sk-[a-zA-Z0-9-_]+/g, "sk-***")
+            .replace(/pplx-[a-zA-Z0-9-_]+/g, "pplx-***")
+          console.error(`[chat/${provider}] stream failed:`, sanitized)
+          enqueueEvent({ error: sanitized })
           closeController()
         } finally {
           request.signal.removeEventListener("abort", forwardAbort)
