@@ -9,6 +9,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { useSmoothStream } from "@/hooks/useSmoothStream"
 import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
+import { trimUnclosedTrailingMarkdown } from "@/lib/clean-response"
 import VerdictSkeleton from "@/components/VerdictSkeleton"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => <div className="h-48 w-full max-w-3xl mx-auto mt-8 mb-12 bg-muted rounded-[28px] animate-pulse" />,
@@ -403,18 +404,24 @@ export default function ChatBubble({
             >
               {isUser ? (
                 message.content
-              ) : isActive ? (
-                // While the bubble is streaming or still draining the
-                // smoothed buffer, render plain text instead of
-                // ReactMarkdown. displayedText changes character by
-                // character at 60fps, and re-parsing markdown (with
-                // GFM enabled) on every rAF tick is a measurable CPU
-                // hit on long responses. The real markdown render
-                // takes over once isActive flips false, which is a
-                // single one-frame swap the user barely notices.
-                <div className="whitespace-pre-wrap">{displayedText}</div>
               ) : (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayedText}</ReactMarkdown>
+                // Always render markdown, even mid-stream. The prior
+                // "plain text during stream, ReactMarkdown at settle"
+                // split caused a visible flash where **bold**, ##
+                // headings, and GFM tables rendered as literal chars
+                // until the bubble settled, then suddenly reflowed
+                // into formatted nodes. Parsing 1-3KB of markdown at
+                // 60fps is sub-millisecond per tick so the earlier CPU
+                // concern no longer outweighs the UX cost.
+                //
+                // During streaming we also trim any trailing unclosed
+                // inline markers (**, `) from the visible text so the
+                // user never briefly sees a lone opening marker. The
+                // bolded span appears in its final form the moment
+                // its closing marker streams in.
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {isActive ? trimUnclosedTrailingMarkdown(displayedText) : displayedText}
+                </ReactMarkdown>
               )}
               {showCaret && <span className="speak-caret" aria-hidden="true" />}
             </div>

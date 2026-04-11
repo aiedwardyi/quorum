@@ -15,6 +15,43 @@ export function sanitizeHeadings(text: string): string {
   return text.replace(/^#{1,2}(?=\s)/gm, "###")
 }
 
+/**
+ * Hides unclosed trailing inline-markdown markers from a streaming view of
+ * text. During smoothed streaming the visible substring can end mid-pair
+ * like "Hello **wo" where the closing `**` has not arrived yet. ReactMarkdown
+ * would render the unclosed `**` literally ("Hello **wo"), flashing the
+ * asterisks until the closing marker streams in. Instead, we slice the
+ * visible text at the start of the unclosed marker so the user sees
+ * "Hello " frozen there, then the full bolded span appears the moment
+ * the closing `**` streams in. Same trick for ` ` (inline code).
+ *
+ * We intentionally do NOT trim single `*` (italic) because `*` shows up
+ * as bullets and mid-word (shouldn't/won't) in ways that would create
+ * false positives. Bold and inline code are the high-signal cases.
+ *
+ * Only for the streaming view - do not use on settled content.
+ */
+export function trimUnclosedTrailingMarkdown(text: string): string {
+  let out = text
+  // Unclosed ** (bold). Count pairs; if odd, slice before the last open.
+  const boldMatches = [...out.matchAll(/\*\*/g)]
+  if (boldMatches.length % 2 === 1) {
+    const lastOpen = boldMatches[boldMatches.length - 1]
+    if (typeof lastOpen.index === "number") {
+      out = out.slice(0, lastOpen.index).trimEnd()
+    }
+  }
+  // Unclosed ` (inline code). Same idea, single backtick.
+  const tickMatches = [...out.matchAll(/`/g)]
+  if (tickMatches.length % 2 === 1) {
+    const lastOpen = tickMatches[tickMatches.length - 1]
+    if (typeof lastOpen.index === "number") {
+      out = out.slice(0, lastOpen.index).trimEnd()
+    }
+  }
+  return out
+}
+
 // Strips citation markers [1], [2][3], trailing "Refs:" / "References:" blocks,
 // HTML entities, stray tags, and escaped control sequences that Perplexity and
 // other models sometimes include in responses. Also demotes out-of-spec `#`

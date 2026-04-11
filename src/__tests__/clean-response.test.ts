@@ -1,5 +1,51 @@
 import { describe, it, expect } from "vitest"
-import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
+import {
+  cleanResponse,
+  sanitizeHeadings,
+  trimUnclosedTrailingMarkdown,
+} from "@/lib/clean-response"
+
+describe("trimUnclosedTrailingMarkdown", () => {
+  it("hides a lone unclosed ** at the end", () => {
+    expect(trimUnclosedTrailingMarkdown("Hello **wo")).toBe("Hello")
+  })
+
+  it("keeps balanced ** pairs intact", () => {
+    expect(trimUnclosedTrailingMarkdown("Hello **world** bye")).toBe(
+      "Hello **world** bye"
+    )
+  })
+
+  it("keeps partially-closed ** followed by a new unclosed pair", () => {
+    // Two complete pairs + a third unclosed one: count = 5 (odd)
+    expect(
+      trimUnclosedTrailingMarkdown("a **b** c **d** e **f")
+    ).toBe("a **b** c **d** e")
+  })
+
+  it("hides a lone unclosed backtick at the end", () => {
+    expect(trimUnclosedTrailingMarkdown("run `npm te")).toBe("run")
+  })
+
+  it("keeps balanced backticks intact", () => {
+    expect(trimUnclosedTrailingMarkdown("run `npm test` now")).toBe(
+      "run `npm test` now"
+    )
+  })
+
+  it("handles both unclosed ** and unclosed `", () => {
+    // ** is odd (3) AND ` is odd (1). Both get stripped.
+    expect(
+      trimUnclosedTrailingMarkdown("a **b** c **d** e **f with `code")
+    ).toBe("a **b** c **d** e")
+  })
+
+  it("is a no-op on plain text with no markers", () => {
+    expect(trimUnclosedTrailingMarkdown("nothing to see here")).toBe(
+      "nothing to see here"
+    )
+  })
+})
 
 describe("sanitizeHeadings", () => {
   it("downgrades h1 at line start to h3", () => {

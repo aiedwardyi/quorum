@@ -603,7 +603,28 @@ export function useDebateEngine(config: {
               // Guard: if user stopped during fetch, let handleStop own the verdict
               if (stopRef.current || stoppingRef.current) {
                 logDebate("verdict:skipped-stopped", {})
-              } else if (res.ok && sessionIdRef.current === thisSession) {
+              } else if (!res.ok) {
+                // Surface the server's error detail to the browser console
+                // so a user running dev can see *why* the verdict failed
+                // ("Verdict response is not an object", "confidence out of
+                // range", timeout, etc.). The UI still shows the generic
+                // analysisFailed message.
+                try {
+                  const errBody = await res.json()
+                  console.error("[debate] verdict failed:", {
+                    status: res.status,
+                    error: errBody?.error,
+                    detail: errBody?.detail,
+                  })
+                } catch {
+                  console.error("[debate] verdict failed with status", res.status)
+                }
+                dispatch({
+                  type: "UPDATE_MESSAGE",
+                  id: analyzingMsg.id,
+                  content: SYSTEM_MESSAGES.analysisFailed(locale),
+                })
+              } else if (sessionIdRef.current === thisSession) {
                 const result = await res.json()
 
                 if (!isValidVerdict(result)) {
@@ -638,12 +659,6 @@ export function useDebateEngine(config: {
                   dispatch({ type: "SET_VERDICT", result })
                   dispatch({ type: "SHOW_SUMMARY" })
                 }
-              } else if (!res.ok) {
-                dispatch({
-                  type: "UPDATE_MESSAGE",
-                  id: analyzingMsg.id,
-                  content: SYSTEM_MESSAGES.analysisFailed(locale),
-                })
               }
             } catch (err) {
               console.error("Final verdict failed:", err)
