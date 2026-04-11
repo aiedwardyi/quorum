@@ -117,13 +117,33 @@ export default function ChatBubble({
   const contentRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [copied, setCopied] = useState(false)
+  // Timeout id for the "Copied" flash reset. Stored in a ref so we can
+  // cancel it on unmount or on a second click before the first flash
+  // has finished - otherwise a setState on an unmounted component can
+  // fire and React logs a warning, and a quick double-click can leave
+  // two timers racing.
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current != null) {
+        clearTimeout(copyResetTimerRef.current)
+        copyResetTimerRef.current = null
+      }
+    }
+  }, [])
   const isAI = !["user", "system", "verdict"].includes(message.sender)
 
   const handleCopy = () => {
     if (!message.content) return
     const markSuccess = () => {
+      if (copyResetTimerRef.current != null) {
+        clearTimeout(copyResetTimerRef.current)
+      }
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      copyResetTimerRef.current = setTimeout(() => {
+        copyResetTimerRef.current = null
+        setCopied(false)
+      }, 1500)
     }
     // Modern async Clipboard API - only available in secure contexts
     // (https, localhost) and recent browsers. Guard both the namespace

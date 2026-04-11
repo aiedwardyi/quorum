@@ -83,8 +83,13 @@ describe("drain-registry", () => {
     expect(resolvedCount).toBe(2)
   })
 
-  it("reportDrained is a no-op for unknown ids and does not leak", async () => {
-    // Should not throw, and a waiter registered later is not short-circuited.
+  it("reportDrained can be called before any waiter, and a pre-drain marker for one id does not short-circuit a wait on a different id", async () => {
+    // reportDrained is not a no-op for unknown ids - it intentionally
+    // records them into preDrained so a subsequent waitForDrain for
+    // the same id resolves instantly. This test confirms two things:
+    // (1) calling it first does not throw, and (2) the pre-drain
+    // marker is scoped by id, so a waiter on a different id still has
+    // to run down its normal timeout path.
     expect(() => reportDrained("nope")).not.toThrow()
     _resetDrainRegistry()
     const p = waitForDrain("later", 40)
