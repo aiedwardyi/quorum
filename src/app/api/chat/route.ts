@@ -18,11 +18,11 @@ const DISPLAY_NAMES: Record<Provider, string> = {
 function getResponseLengthInstruction(length: ResponseLength): string {
   switch (length) {
     case "short":
-      return "STRICT LIMIT: Your response MUST be under 75 words."
+      return "STRICT LIMIT: Your response MUST be under 75 words. Hard cap, do not exceed."
     case "long":
-      return "Give detailed responses — aim for around 300 words."
+      return "Give a detailed response of around 250 words. Hard cap at 320 words, do not exceed."
     default:
-      return "Be concise — keep responses under 150 words."
+      return "Be concise. Target 120 words, hard cap at 170 words, do not exceed."
   }
 }
 
@@ -71,7 +71,7 @@ function stripUnmatchedPair(text: string, token: string): string {
   return `${text.slice(0, lastIndex)}${text.slice(lastIndex + token.length)}`
 }
 
-function polishTruncatedShortResponse(text: string, wordLimit: number): string {
+function polishTruncatedResponse(text: string, wordLimit: number): string {
   let result = text.trimEnd()
 
   // Already ends cleanly - enforce word limit, but re-check if clamping broke the ending
@@ -112,7 +112,7 @@ function getSystemPrompt(provider: Provider, locale: Locale, responseLength: Res
   const isKorean = locale === "ko" || forceKorean
   const shortLimitBlock = responseLength === "short" ? `${lengthLine}\n\n` : ""
 
-  return `${shortLimitBlock}${isKorean ? "CRITICAL LANGUAGE REQUIREMENT: You MUST respond ENTIRELY in Korean (한국어). Every single word of your response - including names, technical terms, and explanations - must be written in Korean. Do NOT use any English words except for proper nouns that have no Korean equivalent. The user's document is in Korean and they expect a Korean response. If you respond in English, the response is wrong.\n\n" : "IMPORTANT: Detect the primary language of the user's message and any attached document content. If the user's content is predominantly in Korean (한국어), Japanese, Chinese, or another non-English language, respond ENTIRELY in that same language. Match the user's language - do not translate to English unless their content is in English.\n\n"}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
+  return `${shortLimitBlock}${isKorean ? "CRITICAL LANGUAGE REQUIREMENT: You MUST respond ENTIRELY in Korean (한국어). Every single word of your response - including names, technical terms, and explanations - must be written in Korean. Do NOT use any English words except for proper nouns that have no Korean equivalent. The user's document is in Korean and they expect a Korean response. If you respond in English, the response is wrong.\n\nDo NOT switch languages mid-response. Stay in Korean from first character to last.\n\n" : "CRITICAL LANGUAGE REQUIREMENT: You MUST respond ENTIRELY in English. Every sentence, every bullet, every summary line must be in English. Do NOT insert Korean, Japanese, Chinese, or any other language anywhere in your response - not even for a 'key points' recap or a translated quote. If you see non-English text in prior AI responses, IGNORE their language choice and respond in English regardless. Do NOT switch languages mid-response. Stay in English from first character to last.\n\n"}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
 Your name is ${DISPLAY_NAMES[provider]}. Always speak as yourself in first person.
 Do NOT introduce yourself or state your name. Jump straight into the topic.
 NEVER speak as another model. NEVER prefix your response with any name like "[Gemini]:" or "[Claude]:".
@@ -120,8 +120,9 @@ The human is the decision-maker. Respond to the full conversation naturally.
 If you disagree with another model, say so directly and explain why.
 If you changed your mind based on new points, say that too.
 ${lengthLine}
-This is a discussion, not an essay. Write in plain text only.
-Do NOT use markdown formatting like headers (#), horizontal rules (---), or bold (**text**).
+This is a discussion, not an essay. Write in plain text with light markdown only.
+Do NOT use headers (#) or horizontal rules (---).
+Use **bold** sparingly to highlight at most 2-3 key phrases per response, and only when it genuinely helps the reader scan. Never bold more than 3 spans. Do NOT bold whole sentences. Do NOT bold generic filler words. If nothing is truly important, use zero bolds.
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
 ${getUrlCapabilityInstruction(provider)} However, when the user's message includes document text (between "--- File:" markers), that content HAS ALREADY BEEN EXTRACTED and is part of the message - read and analyze it directly.
@@ -173,14 +174,35 @@ export async function POST(request: Request) {
     }
 
     const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
-    const forceKorean = validatedLocale !== "ko" && isPredominantlyKorean(inputMessages)
+    // CRITICAL: only consider the USER's own messages when detecting the
+    // conversation language. Otherwise one AI that hallucinates a Korean
+    // summary mid-response tips the ratio and forces every subsequent
+    // provider in the debate to respond entirely in Korean - the
+    // cascading Korean drift bug Eddie hit on 2026-04-11.
+    const userOnlyMessages = inputMessages.filter((m) => m.sender === "user")
+    const forceKorean = validatedLocale !== "ko" && isPredominantlyKorean(userOnlyMessages)
     const streamFn = getStreamFn(provider)
     const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength, forceKorean)
     const maxTokens = getMaxTokens(validatedResponseLength)
-    const wordLimit = validatedResponseLength === "short" ? 75 : null
+    // Hard word caps per response length. These sit behind the prompt
+    // instruction as a belt-and-suspenders guard: when a provider (Gemini
+    // especially) decides to run 2x longer than requested, the server
+    // clamps the stream mid-flight instead of letting the oversized
+    // bubble dominate the debate feed.
+    const wordLimit =
+      validatedResponseLength === "short"
+        ? 75
+        : validatedResponseLength === "medium"
+          ? 170
+          : 320
     const encoder = new TextEncoder()
     let fullContent = ""
-    let truncatedShortResponse = false
+    // Whether any clampToWordLimit pass actually truncated the stream.
+    // We only call polishTruncatedResponse when this is true, because
+    // polishing can strip unmatched markdown pairs and trailing
+    // connector words, which would unintentionally mutate normal
+    // (non-truncated) responses in medium/long mode.
+    let wasTruncated = false
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -219,13 +241,13 @@ export async function POST(request: Request) {
           for await (const chunk of streamFn(systemPrompt, inputMessages, providerSignal, maxTokens)) {
             if (request.signal?.aborted) break
             const nextContent = fullContent + chunk
-            const limited = wordLimit ? clampToWordLimit(nextContent, wordLimit) : { text: nextContent, truncated: false }
+            const limited = clampToWordLimit(nextContent, wordLimit)
             const nextChunk = limited.text.slice(fullContent.length)
 
             fullContent = limited.text
             if (!nextChunk) {
               if (limited.truncated) {
-                truncatedShortResponse = true
+                wasTruncated = true
                 abortProvider()
                 break
               }
@@ -235,15 +257,15 @@ export async function POST(request: Request) {
             enqueueEvent({ chunk: nextChunk })
 
             if (limited.truncated) {
-              truncatedShortResponse = true
+              wasTruncated = true
               abortProvider()
               break
             }
           }
 
           if (!request.signal?.aborted) {
-            if (wordLimit) {
-              fullContent = polishTruncatedShortResponse(fullContent, wordLimit)
+            if (wasTruncated) {
+              fullContent = polishTruncatedResponse(fullContent, wordLimit)
             }
 
             // Empty-stream guard: providers occasionally close the stream
@@ -263,7 +285,7 @@ export async function POST(request: Request) {
           }
           closeController()
         } catch (error) {
-          if (request.signal?.aborted || (providerAbortController.signal.aborted && truncatedShortResponse)) {
+          if (request.signal?.aborted || (providerAbortController.signal.aborted && wasTruncated)) {
             closeController()
             return
           }
