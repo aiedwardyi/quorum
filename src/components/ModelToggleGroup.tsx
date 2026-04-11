@@ -1,7 +1,6 @@
 "use client"
 
 import { useId } from "react"
-import { motion } from "framer-motion"
 import type { Provider, Locale } from "@/types"
 import { cn } from "@/lib/utils"
 import { MODEL_INFO } from "@/lib/model-info"
@@ -119,11 +118,11 @@ export default function ModelToggleGroup({
         const info = MODEL_INFO[model]
         return (
           <div key={model} className="relative group/model">
-            <motion.button
+            {/* Pure CSS hover/tap scale - framer-motion is forbidden in
+                components that render during streaming (desync causes an
+                insertBefore DOM crash that trips the error boundary). */}
+            <button
               type="button"
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
               onClick={() => {
                 if (isDisabled) return
                 onToggle(model)
@@ -132,7 +131,9 @@ export default function ModelToggleGroup({
               aria-label={info.name}
               disabled={isDisabled}
               className={cn(
-                "flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg transition-colors duration-200",
+                "flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg",
+                "transition-[transform,background-color,color] duration-200 ease-out",
+                "hover:scale-[1.08] active:scale-[0.92] disabled:hover:scale-100 disabled:active:scale-100",
                 "bg-zinc-100/70 dark:bg-zinc-800/40",
                 active
                   ? cn(activeColors[model], activeHoverBg[model])
@@ -141,7 +142,7 @@ export default function ModelToggleGroup({
               )}
             >
               <ModelGlyph provider={model} active={active} />
-            </motion.button>
+            </button>
             <div
               className={cn(
                 "absolute top-full mt-2 z-50 px-3 py-2 rounded-lg pointer-events-none opacity-0 group-hover/model:opacity-100 transition-opacity delay-150 hidden sm:block",
