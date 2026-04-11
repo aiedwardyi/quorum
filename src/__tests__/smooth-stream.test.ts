@@ -125,10 +125,11 @@ describe("computeNextDisplayedLength", () => {
     })
 
     it("Claude, Gemini, Perplexity share the same ramp shape", () => {
-      // Claude, Gemini, and Perplexity all stream at backend rates that
-      // the 55 -> 220 ramp (pending >= 150) and 280 cps turbo drain suit
-      // well. They're aligned on exact pacing so a round-robin debate
-      // reads as one consistent typing cadence across those three.
+      // Claude, Gemini, and Perplexity are intentionally aligned on
+      // the same pacing config so a round-robin debate reads as one
+      // consistent typing cadence across those three. Exact numeric
+      // values live in smooth-stream.ts; this test asserts equality
+      // rather than specific values so retuning doesn't break it.
       const { claude, gemini, perplexity } = PROVIDER_PACING
       for (const pacing of [gemini, perplexity]) {
         expect(pacing.baseCps).toBe(claude.baseCps)
@@ -140,11 +141,15 @@ describe("computeNextDisplayedLength", () => {
 
     it("GPT uses a slower config to match the others' perceptual speed", () => {
       // GPT's backend emits tokens in much larger bursts than Claude/
-      // Gemini/Perplexity, so the smooth-stream buffer fills fast and
-      // GPT sits at peak ramp (220 cps) almost the whole stream while
-      // the others hover near 120-150 cps in practice. Capping GPT's
-      // max at 180 and raising its ramp threshold brings its sustained
-      // on-screen rate down so all four feel alike.
+      // Gemini/Perplexity, so the smooth-stream buffer fills faster
+      // and its ramp ratio pegs at 1.0 far more often. If GPT shared
+      // the same max cap it would sit at peak speed almost the whole
+      // stream while the others hover well below their ceiling, and
+      // the perceptual mismatch would read as "GPT types way faster."
+      // Capping GPT's max below the shared cap and raising its ramp
+      // threshold brings its sustained on-screen rate down into line.
+      // The test asserts relationships, not specific values, so the
+      // config can be retuned without breaking it.
       const { claude, gpt } = PROVIDER_PACING
       expect(gpt.baseCps).toBe(claude.baseCps)
       expect(gpt.maxCps).toBeLessThan(claude.maxCps)

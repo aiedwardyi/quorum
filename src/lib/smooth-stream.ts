@@ -39,21 +39,31 @@ export const DEFAULT_PACING: PacingConfig = {
 }
 
 /**
- * Per-provider pacing. Claude, Gemini, and Perplexity share the Claude
- * ramp shape (55 -> 220 cps ramp at pending >= 150 chars, 280 cps turbo
- * drain). Turbo used to sit at 600 cps, but at 60fps that's ~10 chars
- * per frame, which reads as visibly chunky "finishing" on every bubble.
- * Drain-aware handoff already waits for the bubble to type through, so
- * we don't need turbo to be that aggressive.
+ * Per-provider pacing. Claude, Gemini, and Perplexity share one ramp
+ * shape; GPT gets its own slower config.
  *
- * GPT gets its own slower config. Its backend emits tokens in much
- * larger bursts than the others, which fills the smooth-stream buffer
- * faster and pushes the ramp ratio to 1.0 far more often than Claude
- * or Gemini. With the shared 220 max GPT sat at peak speed almost the
- * whole stream, while Claude/Gemini hovered nearer 120-150 cps, and
- * the perceptual mismatch read as "GPT types way faster than the
- * others." Capping GPT's max at 180 and raising its ramp threshold to
- * 200 brings its sustained rate into alignment with the rest.
+ * GPT's backend emits tokens in much larger bursts than the others,
+ * which fills the smooth-stream buffer faster and pushes the ramp
+ * ratio to 1.0 far more often. If GPT shared the same max as the
+ * others it would sit at peak cps almost the whole stream while
+ * Claude/Gemini/Perplexity hovered well below their ceiling, and the
+ * perceptual mismatch would read as "GPT types way faster than
+ * everyone else." Capping GPT's max a step below the shared cap and
+ * raising its ramp threshold brings its sustained on-screen rate into
+ * alignment with the rest so a round-robin debate reads as one even
+ * cadence.
+ *
+ * The Claude-like turbo cap used to sit at 600 cps, but at 60fps
+ * that's ~10 chars per frame, which reads as visibly chunky
+ * "finishing" on every bubble tail. Drain-aware handoff already waits
+ * for the bubble to type through its buffer, so turbo doesn't need
+ * to be that aggressive - the current values drain the tail cleanly
+ * without the chunky look.
+ *
+ * Keep this docblock free of exact cps numbers - the numeric values
+ * below have shifted over several tuning passes and inline numbers in
+ * the prose drifted out of sync. Read the configs directly for the
+ * current values.
  */
 const CLAUDE_LIKE_PACING: PacingConfig = {
   baseCps: 75,

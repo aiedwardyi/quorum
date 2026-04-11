@@ -410,17 +410,19 @@ export default function ChatBubble({
               ) : isActive ? (
                 // While the bubble is streaming or still draining the
                 // smoothed buffer, render plain text instead of
-                // ReactMarkdown. displayedText changes 60 times a
-                // second; ReactMarkdown's GFM parser was fast enough
-                // in isolation, but in practice the layout cost of
-                // rebuilding the markdown tree delayed rAF callbacks
-                // to ~10fps. The smooth-stream tick compensated by
-                // adding ~22 chars per tick (220 cps * 100ms clamp),
-                // which the user saw as fast chunked bursts rather
-                // than smooth typing, and the non-monotonic bubble
-                // height broke auto-scroll follow. Plain text here
-                // keeps the typing smooth; ReactMarkdown takes over
-                // the instant isActive flips false at settle.
+                // ReactMarkdown. displayedText changes every frame
+                // during streaming; ReactMarkdown's GFM parser was
+                // fast enough in isolation, but in practice the layout
+                // cost of rebuilding the markdown tree delayed rAF
+                // callbacks below the smooth-stream tick rate. Once
+                // the rAF loop fell behind the stream buffer grew, the
+                // tick code caught up by flushing larger character
+                // counts per frame, and the user saw that as visibly
+                // chunky bursts instead of continuous typing. The
+                // non-monotonic bubble height from the bursty render
+                // also broke auto-scroll follow. Plain text here keeps
+                // the typing smooth; ReactMarkdown takes over the
+                // instant isActive flips false at settle.
                 <div className="whitespace-pre-wrap">
                   {stripHeadingMarkersForPlainText(
                     trimUnclosedTrailingMarkdown(displayedText)
