@@ -1,4 +1,43 @@
 /**
+ * Fence-boundary detector used by every helper in this file that needs
+ * to skip content inside triple-backtick fenced code blocks. CommonMark
+ * allows 0-3 leading spaces of indentation before the opening/closing
+ * fence, so the regex accepts the same.
+ */
+const FENCE_LINE = /^[ \t]{0,3}```/
+
+/**
+ * Walks `text` line-by-line, calls `transform(line)` on every line that
+ * is NOT inside a triple-backtick fenced code block, and returns the
+ * reassembled string with the transformed lines and all fence-interior
+ * lines left byte-for-byte untouched. Preserves both `\n` and `\r\n`
+ * separators so whitespace-pre-wrap rendering lands on the right line.
+ *
+ * Used by sanitizeHeadings and stripHeadingMarkersForPlainText so both
+ * functions share the exact same fence-detection logic. A bash comment
+ * `# /usr/bin/env bash` inside a fenced block is literal code, not a
+ * markdown heading, and must survive every pass we make over the text.
+ * trimUnclosedTrailingMarkdown uses collectMarkerIndicesOutsideFences
+ * below for the same reason, but it needs marker offsets instead of a
+ * line transform so it gets its own helper.
+ */
+function mapLinesOutsideFences(text: string, transform: (line: string) => string): string {
+  const parts = text.split(/(\r?\n)/)
+  let inFence = false
+  for (let i = 0; i < parts.length; i += 2) {
+    const line = parts[i]
+    const isFenceBoundary = FENCE_LINE.test(line)
+    if (!inFence && !isFenceBoundary) {
+      parts[i] = transform(line)
+    }
+    if (isFenceBoundary) {
+      inFence = !inFence
+    }
+  }
+  return parts.join("")
+}
+
+/**
  * Demotes `# Title` and `## Title` at line start to `### Title`. The app's
  * system prompt forbids `#` and `##` so they don't compete with the UI's
  * own headers, but models drift. Sanitizing client-side guarantees that
@@ -6,13 +45,21 @@
  * chat bubble, and the sanitizer runs per-chunk during streaming so the
  * hash chars never flash as plain text before ReactMarkdown catches them.
  *
- * The regex only matches `#` or `##` followed by whitespace, so `###+`
- * headings are untouched. Idempotent - running it on already-sanitized
- * text is a no-op. Chunk-boundary safe because it always runs on the
- * accumulated content.
+ * The regex only matches `#` or `##` followed by whitespace or end-of-
+ * line, so `###+` headings are untouched. Idempotent - running it on
+ * already-sanitized text is a no-op. Chunk-boundary safe because it
+ * always runs on the accumulated content.
+ *
+ * Fence-aware: lines inside a triple-backtick fenced code block are
+ * never rewritten. Long mode explicitly allows fenced code, and a bash
+ * comment like `# /usr/bin/env bash` or `## Build steps` inside a fence
+ * must stay literal - demoting it to `### ...` corrupts the code sample
+ * both during streaming AND in the settled ReactMarkdown view.
  */
 export function sanitizeHeadings(text: string): string {
-  return text.replace(/^#{1,2}(?=\s)/gm, "###")
+  return mapLinesOutsideFences(text, (line) =>
+    line.replace(/^#{1,2}(?=\s|$)/, "###")
+  )
 }
 
 /**
@@ -36,39 +83,19 @@ export function sanitizeHeadings(text: string): string {
  *  2) Lines where the heading content begins on the next line (`###\n...`)
  *     which CommonMark accepts as an empty h3 but our strip previously
  *     missed, so the hashes stayed visible until settle.
- * `$` in multiline mode matches end-of-line and end-of-string; `[ \t]+`
- * only consumes spaces/tabs so we do not eat the newline that separates
- * the heading line from the next paragraph.
+ * `[ \t]+` only consumes spaces/tabs so we do not eat newlines, and the
+ * `$` alternative covers "bare hashes at end of line" like the
+ * per-character streaming window and the "empty h3" CommonMark case.
  *
- * Fence-aware: lines inside a triple-backtick fenced code block are
- * NEVER rewritten. A shell comment like `### build steps` or a C
- * preprocessor line like `#include <stdio.h>` inside a code fence
- * must stay literal during streaming, because ReactMarkdown at settle
- * will render the fenced block verbatim and the hashes would visibly
- * "reappear" the instant the bubble flips to its settled view. Fence
- * detection uses CommonMark's indented-fence rule: 0-3 leading spaces
- * before the opening ```.
+ * Fence-aware via mapLinesOutsideFences: shell comments, preprocessor
+ * directives, or markdown-in-markdown examples inside code fences stay
+ * literal during streaming (they would visibly "reappear" when
+ * ReactMarkdown renders the fenced block verbatim at settle otherwise).
  */
-const FENCE_LINE = /^[ \t]{0,3}```/
-const HEADING_MARKER = /^#{1,6}(?:[ \t]+|$)/
-
 export function stripHeadingMarkersForPlainText(text: string): string {
-  // Split keeps the newline separators so we can reassemble faithfully
-  // (text might use \n or \r\n, and preserving both matters for
-  // whitespace-pre-wrap rendering to land on the right line).
-  const parts = text.split(/(\r?\n)/)
-  let inFence = false
-  for (let i = 0; i < parts.length; i += 2) {
-    const line = parts[i]
-    const isFenceBoundary = FENCE_LINE.test(line)
-    if (!inFence && !isFenceBoundary) {
-      parts[i] = line.replace(HEADING_MARKER, "")
-    }
-    if (isFenceBoundary) {
-      inFence = !inFence
-    }
-  }
-  return parts.join("")
+  return mapLinesOutsideFences(text, (line) =>
+    line.replace(/^#{1,6}(?:[ \t]+|$)/, "")
+  )
 }
 
 /**

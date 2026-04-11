@@ -283,9 +283,71 @@ describe("sanitizeHeadings", () => {
     expect(sanitizeHeadings(input)).toBe("### One\nsomething\n### Two\nmore")
   })
 
-  it("does not touch a lone # with no following whitespace", () => {
-    expect(sanitizeHeadings("#")).toBe("#")
-    expect(sanitizeHeadings("##")).toBe("##")
+  it("demotes a lone # or ## at end of line (CommonMark empty heading)", () => {
+    // Per CommonMark, "# " followed by end-of-line is a valid empty h1
+    // (same for ##). The previous implementation left "#" alone at
+    // end-of-string but demoted "#\n" because its multiline regex
+    // treated the newline as the required whitespace - an accidental
+    // asymmetry. The fence-aware rewrite is uniform: both cases demote.
+    expect(sanitizeHeadings("#")).toBe("###")
+    expect(sanitizeHeadings("##")).toBe("###")
+    expect(sanitizeHeadings("#\n")).toBe("###\n")
+  })
+
+  it("does not touch '#foo' (no whitespace, not a valid heading)", () => {
+    // This is what the previous "lone #" test was really protecting
+    // against - a hash followed by non-whitespace is NOT a heading per
+    // CommonMark, so we must leave it alone.
+    expect(sanitizeHeadings("#foo")).toBe("#foo")
+    expect(sanitizeHeadings("##bar")).toBe("##bar")
+  })
+
+  // Long mode explicitly allows fenced code blocks. A bash comment
+  // like "# /usr/bin/env bash" or "## Build steps" inside a ```bash
+  // fence must stay literal - demoting it to "### ..." corrupts the
+  // code sample. sanitizeHeadings runs server-side on every
+  // accumulated chunk in /api/chat, so a fence-blind version would
+  // mutate code as it streams AND in the final settled view.
+  it("leaves '# comment' inside a fenced code block untouched", () => {
+    const input = "Intro\n```bash\n# /usr/bin/env bash\n# another comment\n```\nOutro"
+    expect(sanitizeHeadings(input)).toBe(input)
+  })
+
+  it("leaves '## subtitle' inside a fenced markdown block untouched", () => {
+    const input = "Here's the sample:\n```markdown\n# Title\n## Subtitle\n```\n"
+    expect(sanitizeHeadings(input)).toBe(input)
+  })
+
+  it("still demotes real headings outside fences while leaving fenced code alone", () => {
+    const input = [
+      "# Real heading",
+      "",
+      "```bash",
+      "# this is a comment",
+      "cd /tmp",
+      "```",
+      "",
+      "## Another real heading",
+    ].join("\n")
+    const expected = [
+      "### Real heading",
+      "",
+      "```bash",
+      "# this is a comment",
+      "cd /tmp",
+      "```",
+      "",
+      "### Another real heading",
+    ].join("\n")
+    expect(sanitizeHeadings(input)).toBe(expected)
+  })
+
+  it("handles a still-open fence (mid-stream) correctly", () => {
+    // Mid-stream: opening fence + code content, closer hasn't
+    // arrived. Everything after the opener is inside the fence
+    // and must not be rewritten.
+    const input = "Prose\n```python\n# main entry point\nx = 1"
+    expect(sanitizeHeadings(input)).toBe(input)
   })
 })
 
