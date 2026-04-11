@@ -75,5 +75,6 @@ Rules:
 - minorityView: the single strongest counterargument. If all models agreed, write "No significant dissent."
 - oppositeCase: one sentence describing when the user should ignore this recommendation and do the opposite.
 - Return ONLY the JSON object. No markdown fences, no explanation, no preamble.
+- CRITICAL SCHEMA RULE: Every element inside any array field MUST be a PLAIN STRING. Do NOT wrap list items in objects like {"label": "X", "text": "Y"} or {"title": "X", "description": "Y"}. If you want a labeled point, write it as one flat string: "Label - Explanation here." The schema is fixed and any non-string array element is a failure.
 - If previous verdicts are included in the context, maintain consistency with them unless the continued discussion provides strong, specific new evidence that changes the answer. Stability matters: do not reverse a recommendation without clear justification from the new discussion.${localeRule}`
 }
