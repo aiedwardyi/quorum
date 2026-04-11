@@ -404,24 +404,25 @@ export default function ChatBubble({
             >
               {isUser ? (
                 message.content
+              ) : isActive ? (
+                // While the bubble is streaming or still draining the
+                // smoothed buffer, render plain text instead of
+                // ReactMarkdown. displayedText changes 60 times a
+                // second; ReactMarkdown's GFM parser was fast enough
+                // in isolation, but in practice the layout cost of
+                // rebuilding the markdown tree delayed rAF callbacks
+                // to ~10fps. The smooth-stream tick compensated by
+                // adding ~22 chars per tick (220 cps * 100ms clamp),
+                // which the user saw as fast chunked bursts rather
+                // than smooth typing, and the non-monotonic bubble
+                // height broke auto-scroll follow. Plain text here
+                // keeps the typing smooth; ReactMarkdown takes over
+                // the instant isActive flips false at settle.
+                <div className="whitespace-pre-wrap">
+                  {trimUnclosedTrailingMarkdown(displayedText)}
+                </div>
               ) : (
-                // Always render markdown, even mid-stream. The prior
-                // "plain text during stream, ReactMarkdown at settle"
-                // split caused a visible flash where **bold**, ##
-                // headings, and GFM tables rendered as literal chars
-                // until the bubble settled, then suddenly reflowed
-                // into formatted nodes. Parsing 1-3KB of markdown at
-                // 60fps is sub-millisecond per tick so the earlier CPU
-                // concern no longer outweighs the UX cost.
-                //
-                // During streaming we also trim any trailing unclosed
-                // inline markers (**, `) from the visible text so the
-                // user never briefly sees a lone opening marker. The
-                // bolded span appears in its final form the moment
-                // its closing marker streams in.
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {isActive ? trimUnclosedTrailingMarkdown(displayedText) : displayedText}
-                </ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayedText}</ReactMarkdown>
               )}
               {showCaret && <span className="speak-caret" aria-hidden="true" />}
             </div>
