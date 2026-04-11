@@ -120,7 +120,12 @@ export async function POST(req: NextRequest) {
 
     console.log(`[verdict] Generating verdict for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}`)
 
-    const VERDICT_TIMEOUT_MS = 30_000
+    // 60s - gemini-2.5-pro is noticeably slower than -flash on the
+    // verdict synthesis, especially after a 2-round debate with 8 AI
+    // messages to analyze. The old 30s cap was tripping on Pro and
+    // surfacing as "Could not complete analysis" even when the model
+    // was still producing a valid verdict.
+    const VERDICT_TIMEOUT_MS = 60_000
     const result = await Promise.race([
       model.generateContent({
         systemInstruction: {
