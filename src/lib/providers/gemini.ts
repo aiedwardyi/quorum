@@ -15,15 +15,14 @@ function getModel() {
     }
   }
   const vertexAI = new VertexAI(opts)
-  // gemini-2.5-pro instead of -flash: Gemini is a first-class debate
-  // participant, and the response quality difference between Pro and
-  // Flash is visible in reasoning-heavy prompts (legal analysis,
-  // multi-source synthesis, structured comparisons). Users are paying
-  // for a premium AI panel; a slightly slower Gemini is an acceptable
-  // trade for noticeably better contributions. The smooth-stream
-  // per-provider pacing already tolerates the larger token bursts.
+  // gemini-2.5-flash for the chat path: Pro's 10-15s TTFT was the
+  // dominant contributor to users reporting the debate feels slow,
+  // and Flash cuts that by a large margin with only a modest quality
+  // dip on conversational turns. The consensus/verdict route keeps
+  // its own gemini-2.5-pro instance for the final synthesis, where
+  // reasoning quality matters more than latency.
   return vertexAI.getGenerativeModel({
-    model: "gemini-2.5-pro",
+    model: "gemini-2.5-flash",
     safetySettings: [
       {
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,

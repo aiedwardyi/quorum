@@ -17,8 +17,9 @@ import { useThreadPersistence } from "@/hooks/useThreadPersistence"
 import { incrementDebateCount } from "@/components/LoginGate"
 
 // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
-// last so gemini-2.5-pro's slower TTFT is hidden behind the three
-// faster providers.
+// last historically because Pro's TTFT was slowest; chat now runs on
+// 2.5 Flash which is much faster, but we keep the order for now until
+// we re-validate rotation timing end-to-end.
 const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
 
 export default function ChatPage() {
