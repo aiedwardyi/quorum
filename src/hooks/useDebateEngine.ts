@@ -237,6 +237,11 @@ export function useDebateEngine(config: {
   const stoppingRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
   const sessionIdRef = useRef(0)
+  // Flipped synchronously right before the final/stop SET_VERDICT dispatch.
+  // The mid-debate fire-and-forget consensus call checks this before
+  // dispatching its own SET_VERDICT, so a slow mid-debate response cannot
+  // overwrite the final verdict with an intermediate confidence value.
+  const finalVerdictLandedRef = useRef(false)
   const messagesRef = useRef<Message[]>([])
   const maxRoundsRef = useRef(maxRounds)
   const handleSendRef = useRef<
@@ -457,6 +462,10 @@ export function useDebateEngine(config: {
             if (sessionIdRef.current !== sessionId) return
             const result = await res.json()
             if (sessionIdRef.current !== sessionId) return
+            // Drop if the final (or stop) verdict has already landed -
+            // otherwise a slow mid-debate response would clobber the
+            // real result with an intermediate confidence value.
+            if (finalVerdictLandedRef.current) return
             if (isValidVerdict(result)) {
               dispatch({ type: "SET_VERDICT", result })
             }
@@ -492,6 +501,7 @@ export function useDebateEngine(config: {
       stopRef.current = false
       stoppingRef.current = false
       abortRef.current = null
+      finalVerdictLandedRef.current = false
 
       // Clear any lingering "Analyzing discussion..." dividers from a
       // prior stop-interrupted debate. If the user hit Stop mid-verdict
@@ -618,6 +628,9 @@ export function useDebateEngine(config: {
                     timestamp: new Date(),
                     verdictData: result,
                   }
+                  // Block any late-resolving mid-debate consensus
+                  // dispatch from clobbering the final result.
+                  finalVerdictLandedRef.current = true
                   dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
                   dispatch({ type: "SET_VERDICT", result })
                   dispatch({ type: "SHOW_SUMMARY" })
@@ -730,6 +743,10 @@ export function useDebateEngine(config: {
             timestamp: new Date(),
             verdictData: result,
           }
+          // Same guard as the normal final-verdict path: prevents any
+          // late mid-debate consensus response from clobbering the stop
+          // verdict with an intermediate confidence.
+          finalVerdictLandedRef.current = true
           dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
           dispatch({ type: "SET_VERDICT", result })
           dispatch({ type: "SHOW_SUMMARY" })
