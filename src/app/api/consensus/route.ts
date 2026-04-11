@@ -99,8 +99,13 @@ export async function POST(req: NextRequest) {
       }
     }
     const vertexAI = new VertexAI(opts)
+    // gemini-2.5-pro instead of -flash: the verdict synthesis is the
+    // single decision the user walks away with, and the reasoning
+    // quality difference between Pro and Flash on multi-model debate
+    // analysis is worth the latency. Eddie: "for important documents
+    // and decisions, precision matters more than speed."
     const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       safetySettings: [
         {
           category: HarmCategory.HARM_CATEGORY_HARASSMENT,

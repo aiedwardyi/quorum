@@ -15,7 +15,7 @@ async function testProviders() {
   console.log("=== Testing Quorum Provider Wrappers ===\n")
 
   // Test Gemini
-  console.log("🔵 Testing Gemini (gemini-2.5-flash)...")
+  console.log("🔵 Testing Gemini (gemini-2.5-pro)...")
   try {
     const geminiResponse = await queryGemini(
       "You are a helpful assistant. Respond briefly.",
