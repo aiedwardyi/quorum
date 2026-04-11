@@ -22,9 +22,14 @@ const WATERMARK_CHAR_THRESHOLD = 30
 // documents are not re-OCR'd.
 const IMAGE_HEAVY_OPS_THRESHOLD = 4
 // Sparse-text pages with at least one image are treated as image-driven (single
-// big poster + caption layouts). Threshold is kept tight so cover pages of
-// regular text PDFs are not pulled into the OCR queue.
-const SPARSE_TEXT_WITH_IMAGE_THRESHOLD = 100
+// big poster + caption layouts, or scanned pages where pdf.js only recovers a
+// watermark/header overlay). Was 100, bumped to 300 so Korean court watermark
+// headers (which typically run ~140-200 chars: court name + case number +
+// submission date + personal-info warning + submitter + timestamps) also get
+// queued for OCR. Regular text-PDF pages have thousands of characters of body
+// text, so 300 still gives plenty of headroom for legit short-content pages
+// like a divider or a blank chapter opener.
+const SPARSE_TEXT_WITH_IMAGE_THRESHOLD = 300
 // Above this character count a page is considered text-dense and we skip the
 // image detection pass entirely. Avoids paying for getOperatorList on long
 // text-only pages where the outcome cannot flip.
@@ -104,6 +109,13 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
   const pages: Array<string | null> = Array(pageLimit).fill(null)
   const ocrPageIndices: number[] = []
   const seen = new Set<string>()
+  // Track the first page a given text was seen on so we can retroactively
+  // queue the first occurrence for OCR when a later page repeats the same
+  // text. Without this, a scanned Korean legal PDF where every page only
+  // exposes the court's download-stamp header to pdf.js would add page 1
+  // to `pages`, then silently drop pages 2..N via the `seen` dedup and
+  // never OCR anything - leaving the user with nothing but the header.
+  const textFirstPage = new Map<string, number>()
   let totalLength = 0
 
   options?.onProgress?.('Reading PDF...', 2)
@@ -114,9 +126,16 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
   //   2. The page has many image operators - a graphical/poster layout where the
   //      content of interest (prices, schedules, charts) is rendered as image text
   //      that pdf.js cannot read.
-  //   3. The page has at least one image AND the extracted text is sparse, which
-  //      catches sparse cover and schedule pages without dragging in normal text
-  //      PDFs that just have a header logo.
+  //   3. The page has at least one image AND the extracted text is sparse
+  //      (< SPARSE_TEXT_WITH_IMAGE_THRESHOLD), which catches cover pages,
+  //      schedule pages, and scanned pages where only a watermark/header
+  //      overlay made it through pdf.js's text extraction.
+  //   4. The page's extracted text is identical to text we already saw on an
+  //      earlier page. Identical full-page text across multiple pages is
+  //      almost always a watermark / download stamp on a scanned document;
+  //      the body content is a bitmap that pdf.js missed, and the earlier
+  //      occurrence is almost certainly the same kind of scanned page. Both
+  //      the current page AND its first sighting get queued.
   // Text-dense pages skip the image detection pass entirely, so the cost of
   // getOperatorList is only paid on pages where it can actually change the result.
   for (let i = 1; i <= pageLimit; i++) {
@@ -173,9 +192,26 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
       continue
     }
 
-    if (seen.has(trimmed)) continue
+    // Repeated full-page text = watermark/header stamp on a scanned doc.
+    // Queue BOTH this page and the first occurrence for OCR, and keep the
+    // watermark as a fallback on both in case OCR fails. Previously we
+    // returned early via `continue` here, which silently dropped the
+    // repeated page AND missed the fact that the first occurrence was
+    // also a scanned page under the same watermark.
+    if (seen.has(trimmed)) {
+      const firstPageNumber = textFirstPage.get(trimmed)
+      if (firstPageNumber !== undefined && !ocrPageIndices.includes(firstPageNumber)) {
+        ocrPageIndices.push(firstPageNumber)
+      }
+      if (!ocrPageIndices.includes(i)) {
+        ocrPageIndices.push(i)
+      }
+      pages[pageIndex] = trimmed
+      continue
+    }
 
     seen.add(trimmed)
+    textFirstPage.set(trimmed, i)
     pages[pageIndex] = trimmed
     totalLength += trimmed.length
     if (totalLength >= MAX_FILE_CHARS) break
