@@ -51,9 +51,21 @@ export function sanitizeHeadings(text: string): string {
  * We strip 1-6 hashes because sanitizeHeadings has already demoted `#`
  * and `##` to `###`, but a raw chunk may temporarily still contain
  * unsanitized forms depending on ordering.
+ *
+ * The tail alternation `(?:[ \t]+|$)` is critical. An earlier version
+ * required `\s+` after the hashes, which missed two cases:
+ *  1) The per-character streaming window where `displayedText` ends at
+ *     exactly "###" with no trailing space yet - 1-3 frames per heading
+ *     where the bare hashes flashed on screen.
+ *  2) Lines where the heading content begins on the next line (`###\n...`)
+ *     which CommonMark accepts as an empty h3 but our strip previously
+ *     missed, so the hashes stayed visible until settle.
+ * `$` in multiline mode matches end-of-line and end-of-string; `[ \t]+`
+ * only consumes spaces/tabs so we do not eat the newline that separates
+ * the heading line from the next paragraph.
  */
 export function stripHeadingMarkersForPlainText(text: string): string {
-  return text.replace(/^#{1,6}\s+/gm, "")
+  return text.replace(/^#{1,6}(?:[ \t]+|$)/gm, "")
 }
 
 export function trimUnclosedTrailingMarkdown(text: string): string {

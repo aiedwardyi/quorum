@@ -35,6 +35,42 @@ describe("stripHeadingMarkersForPlainText", () => {
       "Just a normal sentence."
     )
   })
+
+  // Covers the per-char streaming flash window: during smoothed streaming
+  // the visible substring is sliced char-by-char, so there is a 1-3 frame
+  // moment where the buffer ends at exactly "###" with no trailing space
+  // yet. The earlier \s+ requirement missed these frames and the raw
+  // hashes flashed on screen. With the (?:[ \t]+|$) alternation an EOS
+  // match also strips the leading hashes.
+  it("strips bare '###' at end of string (no trailing space yet)", () => {
+    expect(stripHeadingMarkersForPlainText("Some body\n###")).toBe("Some body\n")
+  })
+
+  it("strips '###' followed by newline with no intervening space", () => {
+    expect(stripHeadingMarkersForPlainText("###\nBody")).toBe("\nBody")
+  })
+
+  it("strips '#' alone at end of string", () => {
+    expect(stripHeadingMarkersForPlainText("Prose line\n#")).toBe("Prose line\n")
+  })
+
+  it("leaves '#foo' at line start alone (not a heading per CommonMark)", () => {
+    expect(stripHeadingMarkersForPlainText("#foo\nnext")).toBe("#foo\nnext")
+  })
+
+  it("leaves 7+ hashes alone (not a valid heading level)", () => {
+    expect(stripHeadingMarkersForPlainText("####### Not a heading")).toBe(
+      "####### Not a heading"
+    )
+  })
+
+  it("strips '###' with multiple spaces before text", () => {
+    expect(stripHeadingMarkersForPlainText("###   Title")).toBe("Title")
+  })
+
+  it("strips '###' followed by a tab", () => {
+    expect(stripHeadingMarkersForPlainText("###\tTitle")).toBe("Title")
+  })
 })
 
 describe("trimUnclosedTrailingMarkdown", () => {
