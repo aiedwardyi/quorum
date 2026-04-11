@@ -2,8 +2,40 @@ import { describe, it, expect } from "vitest"
 import {
   cleanResponse,
   sanitizeHeadings,
+  stripHeadingMarkersForPlainText,
   trimUnclosedTrailingMarkdown,
 } from "@/lib/clean-response"
+
+describe("stripHeadingMarkersForPlainText", () => {
+  it("removes ### markers and keeps the heading text", () => {
+    expect(stripHeadingMarkersForPlainText("### Economic Factors\nBody")).toBe(
+      "Economic Factors\nBody"
+    )
+  })
+
+  it("removes #### markers", () => {
+    expect(stripHeadingMarkersForPlainText("#### Subsection\nText")).toBe(
+      "Subsection\nText"
+    )
+  })
+
+  it("removes any 1-6 hash marker for plain-text display", () => {
+    const input = "# A\n## B\n### C\n#### D\n##### E\n###### F"
+    expect(stripHeadingMarkersForPlainText(input)).toBe("A\nB\nC\nD\nE\nF")
+  })
+
+  it("leaves mid-line hashes alone", () => {
+    expect(stripHeadingMarkersForPlainText("tag #hashtag here")).toBe(
+      "tag #hashtag here"
+    )
+  })
+
+  it("is a no-op on plain prose", () => {
+    expect(stripHeadingMarkersForPlainText("Just a normal sentence.")).toBe(
+      "Just a normal sentence."
+    )
+  })
+})
 
 describe("trimUnclosedTrailingMarkdown", () => {
   it("removes just the unclosed ** markers, keeps the content", () => {

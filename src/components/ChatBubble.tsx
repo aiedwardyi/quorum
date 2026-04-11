@@ -9,7 +9,10 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { useSmoothStream } from "@/hooks/useSmoothStream"
 import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
-import { trimUnclosedTrailingMarkdown } from "@/lib/clean-response"
+import {
+  stripHeadingMarkersForPlainText,
+  trimUnclosedTrailingMarkdown,
+} from "@/lib/clean-response"
 import VerdictSkeleton from "@/components/VerdictSkeleton"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => <div className="h-48 w-full max-w-3xl mx-auto mt-8 mb-12 bg-muted rounded-[28px] animate-pulse" />,
@@ -419,7 +422,9 @@ export default function ChatBubble({
                 // keeps the typing smooth; ReactMarkdown takes over
                 // the instant isActive flips false at settle.
                 <div className="whitespace-pre-wrap">
-                  {trimUnclosedTrailingMarkdown(displayedText)}
+                  {stripHeadingMarkersForPlainText(
+                    trimUnclosedTrailingMarkdown(displayedText)
+                  )}
                 </div>
               ) : (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayedText}</ReactMarkdown>

@@ -80,6 +80,7 @@ export default function ChatThread({
     // behavior (ChatGPT, Claude) - the user's prompt lands at the
     // bottom and the first AI bubble streams into view. Also repins
     // isNearBottom so follow-up chunks auto-scroll as they stream in.
+    // Smooth behavior is fine here because it's a single one-off call.
     if (userJustSent) {
       isNearBottom.current = true
       bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -88,9 +89,16 @@ export default function ChatThread({
 
     // Otherwise only auto-scroll during streaming if the user was
     // already near the bottom; if they scrolled up to read something,
-    // don't yank them back.
+    // don't yank them back. Use behavior:"auto" here because this
+    // effect fires on every streamed chunk - a smooth-scroll animation
+    // started on one chunk gets interrupted by the next chunk's call
+    // and, because the target keeps moving, the animation never
+    // catches up. The user would see the viewport freeze in place and
+    // then "snap to bottom" only after the stream fully ended (which
+    // is exactly the regression we are fixing). Instant scrolls stay
+    // glued to the latest content frame-by-frame.
     if (isNearBottom.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+      bottomRef.current?.scrollIntoView({ behavior: "auto" })
     }
   }, [messages, typingModel, userMessageCount])
 

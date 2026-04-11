@@ -39,6 +39,23 @@ export function sanitizeHeadings(text: string): string {
  *
  * Only for the streaming view - do not use on settled content.
  */
+/**
+ * Strips leading heading markers (`### `, `#### `, etc.) from each line for
+ * the streaming PLAIN-TEXT view. ReactMarkdown would render these as h3/h4
+ * nodes once the bubble settles, but during streaming the bubble renders
+ * the raw string and the hashes would show as literal characters. Stripping
+ * the markers means the heading text types in as regular prose, and when
+ * the bubble settles ReactMarkdown reparses the underlying content (which
+ * still has the markers) and promotes it to the real heading element.
+ *
+ * We strip 1-6 hashes because sanitizeHeadings has already demoted `#`
+ * and `##` to `###`, but a raw chunk may temporarily still contain
+ * unsanitized forms depending on ordering.
+ */
+export function stripHeadingMarkersForPlainText(text: string): string {
+  return text.replace(/^#{1,6}\s+/gm, "")
+}
+
 export function trimUnclosedTrailingMarkdown(text: string): string {
   let out = text
   // Unclosed ** (bold). Count pairs; if odd, delete the last opening marker.
