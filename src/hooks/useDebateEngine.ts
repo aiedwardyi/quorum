@@ -770,7 +770,18 @@ export function useDebateEngine(config: {
           dispatch({ type: "SHOW_SUMMARY" })
         })
         .catch((err) => {
-          console.error("Stop verdict failed:", err)
+          // logDebate (dev-only console.log) instead of console.error so
+          // Next.js's red-box dev overlay does NOT trigger. This path is
+          // an expected failure mode when the user hits Stop right as
+          // the debate is finishing: handleStop fires its own consensus
+          // fetch, and if the backend races with the in-flight fetch from
+          // the normal flow (or just 500s under load), we gracefully fall
+          // back to the analysisFailed divider. The UI fallback is
+          // already shown below - no need to scare the user in dev mode
+          // with a full-screen error overlay for a handled rejection.
+          logDebate("stop-verdict:failed", {
+            error: err instanceof Error ? err.message : String(err),
+          })
           dispatch({
             type: "UPDATE_MESSAGE",
             id: analyzingMsg.id,
