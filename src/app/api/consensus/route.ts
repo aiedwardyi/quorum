@@ -170,7 +170,21 @@ export async function POST(req: NextRequest) {
       throw new Error("Gemini returned an empty response")
     }
 
-    console.log(`[verdict] Raw response length=${raw.length}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`)
+    // Log ONLY metadata in production - the raw-response preview
+    // echoes model output which frequently contains user document
+    // content, legal text, or other sensitive inputs. In dev we keep
+    // the preview for parse-debugging; in prod only length and the
+    // Vertex finishReason ship to CloudWatch / equivalent.
+    const candidate = result.response.candidates?.[0]
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[verdict] Raw response length=${raw.length}, finishReason=${candidate?.finishReason ?? "unknown"}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`
+      )
+    } else {
+      console.log(
+        `[verdict] Raw response length=${raw.length}, finishReason=${candidate?.finishReason ?? "unknown"}`
+      )
+    }
 
     // Try to extract a JSON object from the response, even if Pro
     // wrapped it in thinking text or markdown prose. Strategy:
@@ -195,12 +209,17 @@ export async function POST(req: NextRequest) {
       parsed = JSON.parse(cleaned)
     } catch (jsonErr) {
       // First-pass parse failed. Ask Vertex to repair it, then extract
-      // again. Log both so we can see what Pro is returning in the
-      // wild when this recurs.
+      // again. The cleaned/retry previews contain model output which
+      // can echo user documents and legal text - gate them to dev so
+      // they never land in production server logs.
       const parseErrMsg = jsonErr instanceof Error ? jsonErr.message : String(jsonErr)
-      console.warn(
-        `[verdict] JSON parse failed: ${parseErrMsg}. Cleaned preview=${cleaned.slice(0, 300).replace(/\n/g, "\\n")}`
-      )
+      if (process.env.NODE_ENV === "development") {
+        console.warn(
+          `[verdict] JSON parse failed: ${parseErrMsg}. Cleaned preview=${cleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+        )
+      } else {
+        console.warn(`[verdict] JSON parse failed: ${parseErrMsg}`)
+      }
       const retryResult = await Promise.race([
         model.generateContent({
           contents: [
@@ -220,9 +239,13 @@ export async function POST(req: NextRequest) {
         parsed = JSON.parse(retryCleaned)
       } catch (retryErr) {
         const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr)
-        console.error(
-          `[verdict] Retry parse ALSO failed: ${retryMsg}. Retry preview=${retryCleaned.slice(0, 300).replace(/\n/g, "\\n")}`
-        )
+        if (process.env.NODE_ENV === "development") {
+          console.error(
+            `[verdict] Retry parse ALSO failed: ${retryMsg}. Retry preview=${retryCleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+          )
+        } else {
+          console.error(`[verdict] Retry parse ALSO failed: ${retryMsg}`)
+        }
         throw retryErr
       }
     }

@@ -39,9 +39,36 @@ export function sanitizeHeadings(text: string): string {
  * `$` in multiline mode matches end-of-line and end-of-string; `[ \t]+`
  * only consumes spaces/tabs so we do not eat the newline that separates
  * the heading line from the next paragraph.
+ *
+ * Fence-aware: lines inside a triple-backtick fenced code block are
+ * NEVER rewritten. A shell comment like `### build steps` or a C
+ * preprocessor line like `#include <stdio.h>` inside a code fence
+ * must stay literal during streaming, because ReactMarkdown at settle
+ * will render the fenced block verbatim and the hashes would visibly
+ * "reappear" the instant the bubble flips to its settled view. Fence
+ * detection uses CommonMark's indented-fence rule: 0-3 leading spaces
+ * before the opening ```.
  */
+const FENCE_LINE = /^[ \t]{0,3}```/
+const HEADING_MARKER = /^#{1,6}(?:[ \t]+|$)/
+
 export function stripHeadingMarkersForPlainText(text: string): string {
-  return text.replace(/^#{1,6}(?:[ \t]+|$)/gm, "")
+  // Split keeps the newline separators so we can reassemble faithfully
+  // (text might use \n or \r\n, and preserving both matters for
+  // whitespace-pre-wrap rendering to land on the right line).
+  const parts = text.split(/(\r?\n)/)
+  let inFence = false
+  for (let i = 0; i < parts.length; i += 2) {
+    const line = parts[i]
+    const isFenceBoundary = FENCE_LINE.test(line)
+    if (!inFence && !isFenceBoundary) {
+      parts[i] = line.replace(HEADING_MARKER, "")
+    }
+    if (isFenceBoundary) {
+      inFence = !inFence
+    }
+  }
+  return parts.join("")
 }
 
 /**

@@ -71,6 +71,52 @@ describe("stripHeadingMarkersForPlainText", () => {
   it("strips '###' followed by a tab", () => {
     expect(stripHeadingMarkersForPlainText("###\tTitle")).toBe("Title")
   })
+
+  // Fenced code blocks can contain lines that look like headings (shell
+  // comments, preprocessor directives, markdown examples). The streaming
+  // plain-text view must NOT rewrite those lines, or users will see the
+  // hashes briefly disappear and then reappear the moment ReactMarkdown
+  // takes over and renders the code block verbatim at settle.
+  it("leaves lines inside triple-backtick fences untouched", () => {
+    const input = "Intro text\n```\n### code comment\n#include <stdio.h>\n```\nOutro"
+    expect(stripHeadingMarkersForPlainText(input)).toBe(input)
+  })
+
+  it("strips headings outside fences but preserves ones inside", () => {
+    const input = [
+      "### Real heading",
+      "",
+      "```",
+      "### not a heading (code comment)",
+      "```",
+      "",
+      "#### Another real heading",
+    ].join("\n")
+    const expected = [
+      "Real heading",
+      "",
+      "```",
+      "### not a heading (code comment)",
+      "```",
+      "",
+      "Another real heading",
+    ].join("\n")
+    expect(stripHeadingMarkersForPlainText(input)).toBe(expected)
+  })
+
+  it("handles a fence that opens but has not yet closed (mid-stream)", () => {
+    // Mid-stream: opening fence, content inside, closing fence hasn't
+    // arrived yet. Everything after the opener is inside the fence.
+    const input = "Prose\n```bash\n### comment in code\necho hi"
+    // Real heading "Prose" has no markers to strip; the fenced content
+    // must stay literal.
+    expect(stripHeadingMarkersForPlainText(input)).toBe(input)
+  })
+
+  it("handles indented fence markers (up to 3 leading spaces, CommonMark)", () => {
+    const input = "   ```\n### inside indented fence\n   ```"
+    expect(stripHeadingMarkersForPlainText(input)).toBe(input)
+  })
 })
 
 describe("trimUnclosedTrailingMarkdown", () => {
