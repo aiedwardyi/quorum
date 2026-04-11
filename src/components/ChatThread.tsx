@@ -90,10 +90,23 @@ export default function ChatThread({
         prevContentH = currContentH
         return
       }
+      // The gate has to use the PRE-growth distance from the bottom,
+      // not the post-growth one. main.scrollHeight inside this callback
+      // already reflects the new layout, so a naive
+      // `scrollHeight - scrollTop - clientHeight` gives us distance
+      // AFTER the growth. If a single observer fire represents a large
+      // growth (new bubble inserted, code block rendered, tab-resume
+      // catch-up flushes multiple line wraps), the post-growth distance
+      // can exceed 150 even though the user was sitting at the bottom
+      // when the growth started, and the follow-scroll would wrongly
+      // drop them. Subtracting the growth delta recovers the distance
+      // we had before the content grew, which is what the "was the
+      // user near the bottom?" check is actually asking.
+      const growthDelta = currContentH - prevContentH
       prevContentH = currContentH
-      const distFromBottom =
-        main.scrollHeight - main.scrollTop - main.clientHeight
-      if (distFromBottom < 150) {
+      const preGrowthDistFromBottom =
+        main.scrollHeight - main.scrollTop - main.clientHeight - growthDelta
+      if (preGrowthDistFromBottom < 150) {
         main.scrollTo({ top: main.scrollHeight, behavior: "instant" })
       }
     })

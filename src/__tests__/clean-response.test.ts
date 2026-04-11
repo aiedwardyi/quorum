@@ -128,6 +128,42 @@ describe("trimUnclosedTrailingMarkdown", () => {
     // Visible text length grows in lockstep with displayedText
     expect(next.length).toBe(prev.length + 1)
   })
+
+  // Regression: without fence-awareness, the backtick counter treated
+  // triple-backtick fences as odd inline-code markers. Mid-stream of a
+  // fenced code block the opening ``` alone made the count 3 (odd),
+  // stripping one backtick and flickering the fence down to `` for a
+  // frame before the closing fence arrived and the count went even.
+  it("leaves an opening '```' fence alone (fence chars are not inline code)", () => {
+    // 3 backticks total, all part of one opening fence. No single-
+    // backtick inline markers in the view; nothing to strip.
+    expect(trimUnclosedTrailingMarkdown("Here's code:\n```js\nconst x")).toBe(
+      "Here's code:\n```js\nconst x"
+    )
+  })
+
+  it("leaves '```' alone when only the fence is visible", () => {
+    expect(trimUnclosedTrailingMarkdown("Here's code:\n```")).toBe(
+      "Here's code:\n```"
+    )
+  })
+
+  it("handles inline '`code`' alongside a fenced block", () => {
+    // Two inline backticks (even, not stripped) plus one opening fence
+    // (three backticks, skipped). Count of non-fence backticks is 2.
+    expect(
+      trimUnclosedTrailingMarkdown("Run `npm test` then:\n```bash\nrun")
+    ).toBe("Run `npm test` then:\n```bash\nrun")
+  })
+
+  it("still strips an unclosed inline backtick when a fence is present", () => {
+    // Inline `cmd with one unclosed backtick; the fence is balanced.
+    // The fence backticks must be ignored so we correctly identify the
+    // single `cmd backtick as odd and strip it.
+    expect(
+      trimUnclosedTrailingMarkdown("Before\n```\nconst x\n```\nInline `cmd")
+    ).toBe("Before\n```\nconst x\n```\nInline cmd")
+  })
 })
 
 describe("sanitizeHeadings", () => {

@@ -16,30 +16,6 @@ export function sanitizeHeadings(text: string): string {
 }
 
 /**
- * Strips an unclosed trailing inline-markdown marker from a streaming view
- * of text, without touching the content after it. During smoothed streaming
- * the visible substring can end mid-pair like "Hello **wor" where the
- * closing `**` has not arrived yet. If we passed the raw substring to
- * ReactMarkdown it would render "**wor" literally, flashing asterisks until
- * the closing marker arrives. Instead we remove JUST the two characters of
- * the unclosed `**` (or one ` backtick), so the user sees "Hello wor" as
- * plain text while the word types in, and the moment the closing `**`
- * streams in, that word flips to bold without any character bursts.
- *
- * Important: we DELETE only the marker itself, not the content that
- * follows. An earlier version sliced from the marker to end-of-string,
- * which hid every char after the opening `**` until the closer arrived,
- * and then revealed them all at once. That looked like a typing burst and
- * confused the scroll-follow effect because the bubble height jumped
- * non-monotonically.
- *
- * We intentionally do NOT trim single `*` (italic) because `*` shows up
- * as bullets and mid-word in ways that would create false positives.
- * Bold and inline code are the high-signal cases.
- *
- * Only for the streaming view - do not use on settled content.
- */
-/**
  * Strips leading heading markers (`### `, `#### `, etc.) from each line for
  * the streaming PLAIN-TEXT view. ReactMarkdown would render these as h3/h4
  * nodes once the bubble settles, but during streaming the bubble renders
@@ -68,6 +44,40 @@ export function stripHeadingMarkersForPlainText(text: string): string {
   return text.replace(/^#{1,6}(?:[ \t]+|$)/gm, "")
 }
 
+/**
+ * Strips an unclosed trailing inline-markdown marker from a streaming view
+ * of text, without touching the content after it. During smoothed streaming
+ * the visible substring can end mid-pair like "Hello **wor" where the
+ * closing `**` has not arrived yet. Rendered as-is, the bubble would show
+ * "Hello **wor" with the asterisks flashing as literal characters until
+ * the closer arrives. Instead we remove JUST the two characters of the
+ * unclosed `**` (or the single unclosed `` ` ``), so the user sees
+ * "Hello wor" as plain text while the word types in, and the moment the
+ * closing `**` streams in, that word flips to bold in the settled
+ * ReactMarkdown render.
+ *
+ * Important: we DELETE only the marker itself, not the content that
+ * follows. An earlier version sliced from the marker to end-of-string,
+ * which hid every char after the opening `**` until the closer arrived,
+ * and then revealed them all at once. That looked like a typing burst and
+ * confused the scroll-follow effect because the bubble height jumped
+ * non-monotonically.
+ *
+ * We intentionally do NOT trim single `*` (italic) because `*` shows up
+ * as bullets and mid-word in ways that would create false positives.
+ * Bold and inline code are the high-signal cases.
+ *
+ * Fenced code blocks (``` ```) are excluded from the backtick count. Each
+ * triple-backtick run is treated as one atomic fence marker, not three
+ * individual inline-code markers. Without this, a mid-stream opening fence
+ * (three backticks, no close yet) would be seen as an odd inline-code
+ * count, the strip would delete the last backtick, and the rendered plain
+ * text would briefly show `` (double backtick) until the closing fence
+ * arrived and the count went even again. Collapsing the fence into the
+ * skip set preserves the visual fence as-is on every frame.
+ *
+ * Only for the streaming view - do not use on settled content.
+ */
 export function trimUnclosedTrailingMarkdown(text: string): string {
   let out = text
   // Unclosed ** (bold). Count pairs; if odd, delete the last opening marker.
@@ -78,8 +88,21 @@ export function trimUnclosedTrailingMarkdown(text: string): string {
       out = out.slice(0, lastOpen.index) + out.slice(lastOpen.index + 2)
     }
   }
-  // Unclosed ` (inline code). Same idea, single backtick.
-  const tickMatches = [...out.matchAll(/`/g)]
+  // Unclosed ` (inline code). Count single backticks that are NOT part of
+  // a triple-backtick fence. Fence positions are pre-collected into a Set
+  // and then filtered out of the plain backtick match list so a partially
+  // streamed fence does not flip the parity of the inline-code counter.
+  const fencePositions = new Set<number>()
+  for (const m of out.matchAll(/```/g)) {
+    if (typeof m.index === "number") {
+      fencePositions.add(m.index)
+      fencePositions.add(m.index + 1)
+      fencePositions.add(m.index + 2)
+    }
+  }
+  const tickMatches = [...out.matchAll(/`/g)].filter(
+    (m) => typeof m.index === "number" && !fencePositions.has(m.index)
+  )
   if (tickMatches.length % 2 === 1) {
     const lastOpen = tickMatches[tickMatches.length - 1]
     if (typeof lastOpen.index === "number") {
