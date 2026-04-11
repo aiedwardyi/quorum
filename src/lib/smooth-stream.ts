@@ -56,17 +56,17 @@ export const DEFAULT_PACING: PacingConfig = {
  * 200 brings its sustained rate into alignment with the rest.
  */
 const CLAUDE_LIKE_PACING: PacingConfig = {
-  baseCps: 65,
-  maxCps: 260,
+  baseCps: 75,
+  maxCps: 300,
   rampThreshold: 140,
-  turboCps: 320,
+  turboCps: 370,
 }
 
 const GPT_PACING: PacingConfig = {
-  baseCps: 65,
-  maxCps: 210,
+  baseCps: 75,
+  maxCps: 240,
   rampThreshold: 190,
-  turboCps: 290,
+  turboCps: 330,
 }
 
 export const PROVIDER_PACING: Record<string, PacingConfig> = {
