@@ -107,7 +107,13 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
 
   const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES)
   const pages: Array<string | null> = Array(pageLimit).fill(null)
-  const ocrPageIndices: number[] = []
+  // Use a Set instead of an array so the dedup-to-OCR branch can push the
+  // retroactively-discovered first-page-number without worrying about
+  // duplicates, and so the final MAX_OCR_PAGES slice is deterministic
+  // regardless of insertion order. Converted to a sorted array below so
+  // the earliest pages are always processed first and never clipped by
+  // the slice cap even if they were added late.
+  const ocrPageSet = new Set<number>()
   const seen = new Set<string>()
   // Track the first page a given text was seen on so we can retroactively
   // queue the first occurrence for OCR when a later page repeats the same
@@ -150,13 +156,13 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     const pageIndex = i - 1
 
     if (!trimmed) {
-      ocrPageIndices.push(i)
+      ocrPageSet.add(i)
       continue
     }
 
     if (trimmed.length < WATERMARK_CHAR_THRESHOLD) {
       pages[pageIndex] = trimmed
-      ocrPageIndices.push(i)
+      ocrPageSet.add(i)
       continue
     }
 
@@ -188,7 +194,7 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     if (isImagePage) {
       // Stash the extracted text as a fallback in case OCR fails for this page.
       pages[pageIndex] = trimmed
-      ocrPageIndices.push(i)
+      ocrPageSet.add(i)
       continue
     }
 
@@ -200,12 +206,10 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     // also a scanned page under the same watermark.
     if (seen.has(trimmed)) {
       const firstPageNumber = textFirstPage.get(trimmed)
-      if (firstPageNumber !== undefined && !ocrPageIndices.includes(firstPageNumber)) {
-        ocrPageIndices.push(firstPageNumber)
+      if (firstPageNumber !== undefined) {
+        ocrPageSet.add(firstPageNumber)
       }
-      if (!ocrPageIndices.includes(i)) {
-        ocrPageIndices.push(i)
-      }
+      ocrPageSet.add(i)
       pages[pageIndex] = trimmed
       continue
     }
@@ -218,7 +222,7 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
   }
 
   // If no OCR candidates, return whatever text we got.
-  if (ocrPageIndices.length === 0) {
+  if (ocrPageSet.size === 0) {
     return { text: joinPDFPages(pages), usedOCR: false }
   }
 
@@ -226,6 +230,14 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
   if (totalLength >= MAX_FILE_CHARS) {
     return { text: joinPDFPages(pages), usedOCR: false }
   }
+
+  // Sort ascending so the earliest pages always win the MAX_OCR_PAGES
+  // slice. If we pushed in insertion order instead, a retroactively-
+  // added first-occurrence page number could sit at the tail of a full
+  // queue and get clipped off, defeating the dedup-to-OCR repair.
+  // Sorting guarantees "earliest 10 pages in the document" regardless
+  // of which branch added them when.
+  const ocrPageIndices = [...ocrPageSet].sort((a, b) => a - b)
 
   // OCR short/empty pages via the server-side OCR endpoint.
   const ocrTargets = ocrPageIndices.slice(0, MAX_OCR_PAGES)
