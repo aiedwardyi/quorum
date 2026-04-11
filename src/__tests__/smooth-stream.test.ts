@@ -124,16 +124,13 @@ describe("computeNextDisplayedLength", () => {
       expect(getPacingForProvider("gpt")).toBe(PROVIDER_PACING.gpt)
     })
 
-    it("all four providers now share the Claude ramp shape", () => {
-      // The earlier flat non-Claude pacing at 95-110 cps was slower than
-      // each provider's backend burst rate, so a large buffer piled up
-      // during streaming and the mid-debate handoff snapped 70-90% of
-      // non-Claude content in one frame. The debate engine now awaits
-      // drain between models, and all four providers share the Claude
-      // 55 -> 220 ramp with a 280 cps turbo drain so the typing feel
-      // matches across providers.
-      const { claude, gemini, perplexity, gpt } = PROVIDER_PACING
-      for (const pacing of [gemini, perplexity, gpt]) {
+    it("Claude, Gemini, Perplexity share the same ramp shape", () => {
+      // Claude, Gemini, and Perplexity all stream at backend rates that
+      // the 55 -> 220 ramp (pending >= 150) and 280 cps turbo drain suit
+      // well. They're aligned on exact pacing so a round-robin debate
+      // reads as one consistent typing cadence across those three.
+      const { claude, gemini, perplexity } = PROVIDER_PACING
+      for (const pacing of [gemini, perplexity]) {
         expect(pacing.baseCps).toBe(claude.baseCps)
         expect(pacing.maxCps).toBe(claude.maxCps)
         expect(pacing.rampThreshold).toBe(claude.rampThreshold)
@@ -141,16 +138,28 @@ describe("computeNextDisplayedLength", () => {
       }
     })
 
-    it("tick with any provider pacing advances the same at saturation", () => {
-      // With all four sharing CLAUDE_LIKE_PACING, a saturated tick should
-      // produce the same advance regardless of provider.
+    it("GPT uses a slower config to match the others' perceptual speed", () => {
+      // GPT's backend emits tokens in much larger bursts than Claude/
+      // Gemini/Perplexity, so the smooth-stream buffer fills fast and
+      // GPT sits at peak ramp (220 cps) almost the whole stream while
+      // the others hover near 120-150 cps in practice. Capping GPT's
+      // max at 180 and raising its ramp threshold brings its sustained
+      // on-screen rate down so all four feel alike.
+      const { claude, gpt } = PROVIDER_PACING
+      expect(gpt.baseCps).toBe(claude.baseCps)
+      expect(gpt.maxCps).toBeLessThan(claude.maxCps)
+      expect(gpt.rampThreshold).toBeGreaterThan(claude.rampThreshold)
+      expect(gpt.turboCps).toBeLessThan(claude.turboCps)
+    })
+
+    it("saturated GPT tick advances fewer chars than saturated Claude tick", () => {
       const claudeAdvance = computeNextDisplayedLength({
         displayed: 0, target: 10000, dtMs: 100, pacing: PROVIDER_PACING.claude,
       })
       const gptAdvance = computeNextDisplayedLength({
         displayed: 0, target: 10000, dtMs: 100, pacing: PROVIDER_PACING.gpt,
       })
-      expect(gptAdvance).toBe(claudeAdvance)
+      expect(gptAdvance).toBeLessThan(claudeAdvance)
     })
 
     it("all providers still honor truncation and minimum advance", () => {

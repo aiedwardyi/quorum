@@ -39,14 +39,21 @@ export const DEFAULT_PACING: PacingConfig = {
 }
 
 /**
- * Per-provider pacing. All four providers share the Claude ramp shape
- * (55 -> 220 cps ramp at pending >= 150 chars, 280 cps turbo drain after
- * stream end). Turbo used to sit at 600 cps, but at 60fps that's ~10
- * chars per frame, which reads as visibly chunky "finishing" on every
- * bubble. Drain-aware handoff already waits for the bubble to type
- * through, so we don't need turbo to be that aggressive - 280 cps is
- * ~4.7 chars per frame, still distinctly faster than the main ramp but
- * smooth enough that individual character additions aren't jarring.
+ * Per-provider pacing. Claude, Gemini, and Perplexity share the Claude
+ * ramp shape (55 -> 220 cps ramp at pending >= 150 chars, 280 cps turbo
+ * drain). Turbo used to sit at 600 cps, but at 60fps that's ~10 chars
+ * per frame, which reads as visibly chunky "finishing" on every bubble.
+ * Drain-aware handoff already waits for the bubble to type through, so
+ * we don't need turbo to be that aggressive.
+ *
+ * GPT gets its own slower config. Its backend emits tokens in much
+ * larger bursts than the others, which fills the smooth-stream buffer
+ * faster and pushes the ramp ratio to 1.0 far more often than Claude
+ * or Gemini. With the shared 220 max GPT sat at peak speed almost the
+ * whole stream, while Claude/Gemini hovered nearer 120-150 cps, and
+ * the perceptual mismatch read as "GPT types way faster than the
+ * others." Capping GPT's max at 180 and raising its ramp threshold to
+ * 200 brings its sustained rate into alignment with the rest.
  */
 const CLAUDE_LIKE_PACING: PacingConfig = {
   baseCps: 55,
@@ -55,11 +62,18 @@ const CLAUDE_LIKE_PACING: PacingConfig = {
   turboCps: 280,
 }
 
+const GPT_PACING: PacingConfig = {
+  baseCps: 55,
+  maxCps: 180,
+  rampThreshold: 200,
+  turboCps: 260,
+}
+
 export const PROVIDER_PACING: Record<string, PacingConfig> = {
   claude: CLAUDE_LIKE_PACING,
   gemini: CLAUDE_LIKE_PACING,
   perplexity: CLAUDE_LIKE_PACING,
-  gpt: CLAUDE_LIKE_PACING,
+  gpt: GPT_PACING,
 }
 
 export function getPacingForProvider(provider?: string | null): PacingConfig {
