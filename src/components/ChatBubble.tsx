@@ -160,23 +160,26 @@ export default function ChatBubble({
     // Legacy fallback for non-secure contexts and old browsers.
     // document.execCommand('copy') is deprecated but still widely
     // supported and is the standard escape hatch for environments
-    // where the async clipboard API is blocked.
+    // where the async clipboard API is blocked. Wrap the copy
+    // operation in try/finally so the temporary textarea is removed
+    // even if focus/select/execCommand throws - without the finally,
+    // an exception after appendChild would leak the node into the DOM.
+    const ta = document.createElement("textarea")
+    ta.value = message.content
+    ta.setAttribute("readonly", "")
+    ta.style.position = "fixed"
+    ta.style.top = "0"
+    ta.style.left = "0"
+    ta.style.opacity = "0"
+    document.body.appendChild(ta)
     try {
-      const ta = document.createElement("textarea")
-      ta.value = message.content
-      ta.setAttribute("readonly", "")
-      ta.style.position = "fixed"
-      ta.style.top = "0"
-      ta.style.left = "0"
-      ta.style.opacity = "0"
-      document.body.appendChild(ta)
       ta.focus()
       ta.select()
-      const ok = document.execCommand("copy")
-      document.body.removeChild(ta)
-      if (ok) markSuccess()
+      if (document.execCommand("copy")) markSuccess()
     } catch {
       // Give up quietly - the button just won't flash "Copied".
+    } finally {
+      if (ta.parentNode) ta.parentNode.removeChild(ta)
     }
   }
   // Force-complete this bubble's smoothed stream when the analyzing
@@ -208,7 +211,6 @@ export default function ChatBubble({
   const [contentStable, setContentStable] = useState(() => !isActive)
   useEffect(() => {
     if (isActive) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setContentStable(false)
       return
     }
@@ -245,9 +247,7 @@ export default function ChatBubble({
   useEffect(() => {
     // Intentional imperative sync: once the bubble meets the collapse
     // criteria even once, remember it so it stays collapsed across
-    // later debate sessions. The rule's generic "derive from props"
-    // guidance does not apply because this is latching behavior.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // later debate sessions.
     if (baseShouldCollapse) setHasBeenCollapsed(true)
   }, [baseShouldCollapse])
   // The final collapse gate: either the normal conditions hold, OR this
@@ -433,38 +433,46 @@ export default function ChatBubble({
                 </span>
               </button>
             )}
+          </div>
+        )}
+        {(showCopyButton || (isAI && expanded && isOverflowing && responseLength !== "short")) && (
+          // Unified actions row below the bubble. Show less (when
+          // expanded) and Copy live side by side so the layout stays
+          // tidy whether the bubble is collapsed or expanded. Both
+          // buttons share the same ghost-style, muted-until-hover
+          // treatment to feel like a group.
+          <div
+            className={cn(
+              "mt-1.5 flex items-center gap-1",
+              isUser ? "justify-end" : "justify-start"
+            )}
+          >
             {isAI && expanded && isOverflowing && responseLength !== "short" && (
               <button
+                type="button"
                 onClick={() => setExpanded(false)}
-                className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors px-4"
+                className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-medium text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all duration-150 cursor-pointer opacity-60 group-hover:opacity-100 focus-visible:opacity-100"
               >
                 {showLessText[locale]}
               </button>
             )}
+            {showCopyButton && (
+              <button
+                type="button"
+                onClick={handleCopy}
+                aria-label={copied ? copyText.copied : copyText.copy}
+                title={copied ? copyText.copied : copyText.copy}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all duration-150 cursor-pointer opacity-60 group-hover:opacity-100 focus-visible:opacity-100"
+              >
+                {copied ? (
+                  <Check className="w-3 h-3" />
+                ) : (
+                  <Copy className="w-3 h-3" />
+                )}
+                <span>{copied ? copyText.copied : copyText.copy}</span>
+              </button>
+            )}
           </div>
-        )}
-        {showCopyButton && (
-          <button
-            type="button"
-            onClick={handleCopy}
-            aria-label={copied ? copyText.copied : copyText.copy}
-            title={copied ? copyText.copied : copyText.copy}
-            className={cn(
-              "mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all duration-150 cursor-pointer",
-              // Low-opacity at rest, full opacity on bubble hover or
-              // when the button has focus. On touch devices where
-              // hover doesn't exist, the idle opacity keeps it
-              // discoverable without being loud.
-              "opacity-50 group-hover:opacity-100 focus-visible:opacity-100"
-            )}
-          >
-            {copied ? (
-              <Check className="w-3 h-3" />
-            ) : (
-              <Copy className="w-3 h-3" />
-            )}
-            <span>{copied ? copyText.copied : copyText.copy}</span>
-          </button>
         )}
       </div>
     </div>

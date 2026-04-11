@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { computeNextDisplayedLength, getPacingForProvider } from "@/lib/smooth-stream"
 import { reportDrained } from "@/lib/drain-registry"
 
@@ -60,7 +60,11 @@ export function useSmoothStream(
   // is installed by the layout effect below.
   const tickRef = useRef<(ts: number) => void>(() => {})
 
-  const fireDrainIfDone = () => {
+  // Stable callback - useCallback with an empty dep array is safe
+  // here because the body only reads refs and calls a module-level
+  // function (reportDrained). Stable identity lets the tick installer
+  // below run exactly once instead of once per render.
+  const fireDrainIfDone = useCallback(() => {
     const id = messageIdRef.current
     if (!id) return
     if (isStreamingRef.current) return
@@ -68,20 +72,27 @@ export function useSmoothStream(
     if (drainedReportedForRef.current === id) return
     drainedReportedForRef.current = id
     reportDrained(id)
-  }
+  }, [])
 
-  // Mirror the latest render inputs into refs and (re)install the tick
-  // function. Layout effects run synchronously after the commit phase
-  // and before the browser paints, which matches the original
-  // render-time mirroring in timing: by the time any rAF tick fires
-  // (post-paint), these refs and tickRef are already up to date.
+  // Mirror the latest render inputs into refs. The dep array keeps
+  // this from firing during the 60fps displayedLength churn - those
+  // re-renders already update displayedLengthRef directly from inside
+  // the tick and the forceComplete/reducedMotion/truncation effects,
+  // so we don't need to mirror displayedLength here.
   useLayoutEffect(() => {
     targetRef.current = targetText
     isStreamingRef.current = isStreaming
-    displayedLengthRef.current = displayedLength
     pacingRef.current = getPacingForProvider(provider)
     messageIdRef.current = messageId ?? null
+  }, [targetText, isStreaming, provider, messageId])
 
+  // Install the rAF tick once on mount. The closure below reads only
+  // refs and the stable fireDrainIfDone callback, so a single install
+  // is correct for the lifetime of the component. Re-installing this
+  // function on every render (the previous behavior) was running a
+  // layout effect every animation frame during streaming and adding
+  // avoidable main-thread work.
+  useLayoutEffect(() => {
     tickRef.current = (ts: number) => {
       const last = lastTsRef.current ?? ts
       const dtMs = ts - last
@@ -105,12 +116,12 @@ export function useSmoothStream(
         setDisplayedLength(next)
       }
 
-      // Only keep the rAF loop running while there is pending content to
-      // render. If we caught up but the network stream is still open,
-      // stop the loop - the targetText effect will restart it when the
-      // next chunk arrives. The earlier `stillBehind || isStreaming`
-      // condition kept the loop spinning at 60fps doing no work during
-      // provider stalls between chunks.
+      // Only keep the rAF loop running while there is pending content
+      // to render. If we caught up but the network stream is still
+      // open, stop the loop - the targetText effect will restart it
+      // when the next chunk arrives. The earlier
+      // `stillBehind || isStreaming` condition kept the loop spinning
+      // at 60fps doing no work during provider stalls between chunks.
       const stillBehind = targetRef.current.length > displayedLengthRef.current
       if (stillBehind) {
         rafRef.current = requestAnimationFrame((t) => tickRef.current(t))
@@ -122,7 +133,7 @@ export function useSmoothStream(
         }
       }
     }
-  })
+  }, [fireDrainIfDone])
 
   // Detect reduced-motion preference.
   useEffect(() => {
@@ -162,7 +173,7 @@ export function useSmoothStream(
       lastTsRef.current = null
       rafRef.current = requestAnimationFrame((t) => tickRef.current(t))
     }
-  }, [targetText])
+  }, [targetText, fireDrainIfDone])
 
   // When isStreaming flips false and there's still buffered content to
   // drain but no rAF is currently scheduled (e.g. the hook had caught up
@@ -179,7 +190,7 @@ export function useSmoothStream(
     }
     lastTsRef.current = null
     rafRef.current = requestAnimationFrame((t) => tickRef.current(t))
-  }, [isStreaming, targetText])
+  }, [isStreaming, targetText, fireDrainIfDone])
 
   // When forceComplete flips true, snap instantly to the full target and
   // cancel any pending rAF. Driven by ChatThread when the analyzing phase
@@ -202,7 +213,7 @@ export function useSmoothStream(
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDisplayedLength(targetText.length)
     fireDrainIfDone()
-  }, [forceComplete, targetText])
+  }, [forceComplete, targetText, fireDrainIfDone])
 
   // Cancel any pending frame on unmount.
   useEffect(() => {
