@@ -6,8 +6,11 @@ import {
 } from "@/lib/clean-response"
 
 describe("trimUnclosedTrailingMarkdown", () => {
-  it("hides a lone unclosed ** at the end", () => {
-    expect(trimUnclosedTrailingMarkdown("Hello **wo")).toBe("Hello")
+  it("removes just the unclosed ** markers, keeps the content", () => {
+    // "Hello **wo" -> "Hello wo": chars after the marker are preserved
+    // so the bubble types smoothly and doesn't dump a word at the moment
+    // the closing ** arrives.
+    expect(trimUnclosedTrailingMarkdown("Hello **wo")).toBe("Hello wo")
   })
 
   it("keeps balanced ** pairs intact", () => {
@@ -17,14 +20,16 @@ describe("trimUnclosedTrailingMarkdown", () => {
   })
 
   it("keeps partially-closed ** followed by a new unclosed pair", () => {
-    // Two complete pairs + a third unclosed one: count = 5 (odd)
+    // Two complete pairs + a third unclosed one: count = 5 (odd).
+    // Only the LAST (unclosed) ** marker gets stripped; its content
+    // stays in place.
     expect(
       trimUnclosedTrailingMarkdown("a **b** c **d** e **f")
-    ).toBe("a **b** c **d** e")
+    ).toBe("a **b** c **d** e f")
   })
 
-  it("hides a lone unclosed backtick at the end", () => {
-    expect(trimUnclosedTrailingMarkdown("run `npm te")).toBe("run")
+  it("removes an unclosed backtick and keeps the code chars visible", () => {
+    expect(trimUnclosedTrailingMarkdown("run `npm te")).toBe("run npm te")
   })
 
   it("keeps balanced backticks intact", () => {
@@ -34,16 +39,26 @@ describe("trimUnclosedTrailingMarkdown", () => {
   })
 
   it("handles both unclosed ** and unclosed `", () => {
-    // ** is odd (3) AND ` is odd (1). Both get stripped.
+    // ** is odd (3) and ` is odd (1). Both markers stripped, content kept.
     expect(
       trimUnclosedTrailingMarkdown("a **b** c **d** e **f with `code")
-    ).toBe("a **b** c **d** e")
+    ).toBe("a **b** c **d** e f with code")
   })
 
   it("is a no-op on plain text with no markers", () => {
     expect(trimUnclosedTrailingMarkdown("nothing to see here")).toBe(
       "nothing to see here"
     )
+  })
+
+  it("is monotonic: removing a marker never shortens visible content", () => {
+    // displayedText grows char-by-char; after trim the output should
+    // never shrink relative to the previous tick (aside from the single
+    // marker bytes that are hidden).
+    const prev = trimUnclosedTrailingMarkdown("Hello **wor")
+    const next = trimUnclosedTrailingMarkdown("Hello **worl")
+    // Visible text length grows in lockstep with displayedText
+    expect(next.length).toBe(prev.length + 1)
   })
 })
 

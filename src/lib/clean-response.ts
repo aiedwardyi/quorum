@@ -16,29 +16,37 @@ export function sanitizeHeadings(text: string): string {
 }
 
 /**
- * Hides unclosed trailing inline-markdown markers from a streaming view of
- * text. During smoothed streaming the visible substring can end mid-pair
- * like "Hello **wo" where the closing `**` has not arrived yet. ReactMarkdown
- * would render the unclosed `**` literally ("Hello **wo"), flashing the
- * asterisks until the closing marker streams in. Instead, we slice the
- * visible text at the start of the unclosed marker so the user sees
- * "Hello " frozen there, then the full bolded span appears the moment
- * the closing `**` streams in. Same trick for ` ` (inline code).
+ * Strips an unclosed trailing inline-markdown marker from a streaming view
+ * of text, without touching the content after it. During smoothed streaming
+ * the visible substring can end mid-pair like "Hello **wor" where the
+ * closing `**` has not arrived yet. If we passed the raw substring to
+ * ReactMarkdown it would render "**wor" literally, flashing asterisks until
+ * the closing marker arrives. Instead we remove JUST the two characters of
+ * the unclosed `**` (or one ` backtick), so the user sees "Hello wor" as
+ * plain text while the word types in, and the moment the closing `**`
+ * streams in, that word flips to bold without any character bursts.
+ *
+ * Important: we DELETE only the marker itself, not the content that
+ * follows. An earlier version sliced from the marker to end-of-string,
+ * which hid every char after the opening `**` until the closer arrived,
+ * and then revealed them all at once. That looked like a typing burst and
+ * confused the scroll-follow effect because the bubble height jumped
+ * non-monotonically.
  *
  * We intentionally do NOT trim single `*` (italic) because `*` shows up
- * as bullets and mid-word (shouldn't/won't) in ways that would create
- * false positives. Bold and inline code are the high-signal cases.
+ * as bullets and mid-word in ways that would create false positives.
+ * Bold and inline code are the high-signal cases.
  *
  * Only for the streaming view - do not use on settled content.
  */
 export function trimUnclosedTrailingMarkdown(text: string): string {
   let out = text
-  // Unclosed ** (bold). Count pairs; if odd, slice before the last open.
+  // Unclosed ** (bold). Count pairs; if odd, delete the last opening marker.
   const boldMatches = [...out.matchAll(/\*\*/g)]
   if (boldMatches.length % 2 === 1) {
     const lastOpen = boldMatches[boldMatches.length - 1]
     if (typeof lastOpen.index === "number") {
-      out = out.slice(0, lastOpen.index).trimEnd()
+      out = out.slice(0, lastOpen.index) + out.slice(lastOpen.index + 2)
     }
   }
   // Unclosed ` (inline code). Same idea, single backtick.
@@ -46,7 +54,7 @@ export function trimUnclosedTrailingMarkdown(text: string): string {
   if (tickMatches.length % 2 === 1) {
     const lastOpen = tickMatches[tickMatches.length - 1]
     if (typeof lastOpen.index === "number") {
-      out = out.slice(0, lastOpen.index).trimEnd()
+      out = out.slice(0, lastOpen.index) + out.slice(lastOpen.index + 1)
     }
   }
   return out
