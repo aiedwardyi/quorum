@@ -4,7 +4,7 @@ import { Suspense, useCallback, useRef, useEffect, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { THEMES } from "@/types"
 import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
-import { useDebateEngine } from "@/hooks/useDebateEngine"
+import { useDebateEngine, SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
 import ConsensusMeter from "@/components/ConsensusMeter"
@@ -398,7 +398,7 @@ function ChatPageContent() {
       }
 
       // Rebuild client messages from DB records
-      const messages: Message[] = thread.messages.map((m: { id: string; sender: string; displayName: string; content: string; createdAt: string }) => ({
+      const rawMessages: Message[] = thread.messages.map((m: { id: string; sender: string; displayName: string; content: string; createdAt: string }) => ({
         id: `db-${m.id}`,
         sender: m.sender as Message["sender"],
         displayName: m.displayName,
@@ -406,9 +406,13 @@ function ChatPageContent() {
         timestamp: new Date(m.createdAt),
       }))
 
-      // Inject verdict data into verdict messages
+      // Inject verdict data into verdict messages using the original
+      // indices from the DB record. Verdict.afterMessageIndex was
+      // captured against the full message list (including the
+      // analyzing divider that we are about to strip below), so the
+      // lookup must run on rawMessages, not on the filtered list.
       for (const verdict of thread.verdicts) {
-        const verdictMsg = messages.find(
+        const verdictMsg = rawMessages.find(
           (m, i) => m.sender === "verdict" && i >= verdict.afterMessageIndex
         )
         if (verdictMsg) {
@@ -425,6 +429,24 @@ function ChatPageContent() {
           }
         }
       }
+
+      // Strip stale "Analyzing discussion..." system dividers. These
+      // were persisted during the live debate (saveMessages is
+      // append-only and the post-verdict UPDATE_MESSAGE that clears
+      // them to empty content never gets written back to the DB). On
+      // a completed thread the analyzing phase is over, so rendering
+      // the divider plus its VerdictSkeleton above the real verdict
+      // card is a stale-state artifact. For in-progress threads, the
+      // engine cannot resume the pending consensus request anyway, so
+      // the divider is also stale there.
+      const messages: Message[] = rawMessages.filter(
+        (m) =>
+          !(
+            m.sender === "system" &&
+            (m.content === SYSTEM_MESSAGES.analyzing("en") ||
+              m.content === SYSTEM_MESSAGES.analyzing("ko"))
+          )
+      )
 
       // Find the last verdict for the state
       const lastVerdict = thread.verdicts[thread.verdicts.length - 1]

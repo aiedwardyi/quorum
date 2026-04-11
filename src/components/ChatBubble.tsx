@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect } from "react"
+import { Copy, Check } from "lucide-react"
 import { Message, Provider, Locale, ResponseLength } from "@/types"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
@@ -16,6 +17,10 @@ const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
 const thinkingText = { en: "is thinking...", ko: "생각 중..." }
 const showLessText = { en: "Show less", ko: "접기" }
 const showMoreText = { en: "...", ko: "..." }
+const copyLabels = {
+  en: { copy: "Copy", copied: "Copied" },
+  ko: { copy: "복사", copied: "복사됨" },
+}
 
 const modelColors: Record<string, string> = {
   gemini: "text-blue-600 dark:text-blue-400",
@@ -111,7 +116,19 @@ export default function ChatBubble({
   const [expanded, setExpanded] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
+  const [copied, setCopied] = useState(false)
   const isAI = !["user", "system", "verdict"].includes(message.sender)
+
+  const handleCopy = () => {
+    if (!message.content) return
+    navigator.clipboard
+      .writeText(message.content)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      })
+      .catch(() => {})
+  }
   // Force-complete this bubble's smoothed stream when the analyzing
   // phase has begun and this bubble is not the currently typing one.
   // The verdict skeleton card is about to render in the same region
@@ -262,8 +279,16 @@ export default function ChatBubble({
   const isUser = message.sender === "user"
   const isEmpty = !isUser && !message.content
 
+  // The copy button is rendered on every non-empty user/AI bubble once
+  // the content has settled (not during live streaming). System
+  // dividers and verdict cards are skipped - the verdict has its own
+  // copy surface in SummaryCard, and system dividers have no copyable
+  // content.
+  const showCopyButton = !isEmpty && !isActive && !!message.content
+  const copyText = copyLabels[locale]
+
   return (
-    <div className={cn("flex w-full mb-4 animate-bubble-in", isUser ? "justify-end" : "justify-start")}>
+    <div className={cn("group flex w-full mb-4 animate-bubble-in", isUser ? "justify-end" : "justify-start")}>
       <div className={cn("flex flex-col min-w-0 max-w-[85%] sm:max-w-[75%]", isUser ? "items-end" : "items-start")}>
         <div className="flex items-center gap-2 mb-1.5 px-1">
           {!isUser && (
@@ -357,6 +382,29 @@ export default function ChatBubble({
               </button>
             )}
           </div>
+        )}
+        {showCopyButton && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            aria-label={copied ? copyText.copied : copyText.copy}
+            title={copied ? copyText.copied : copyText.copy}
+            className={cn(
+              "mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-all duration-150 cursor-pointer",
+              // Low-opacity at rest, full opacity on bubble hover or
+              // when the button has focus. On touch devices where
+              // hover doesn't exist, the idle opacity keeps it
+              // discoverable without being loud.
+              "opacity-50 group-hover:opacity-100 focus-visible:opacity-100"
+            )}
+          >
+            {copied ? (
+              <Check className="w-3 h-3" />
+            ) : (
+              <Copy className="w-3 h-3" />
+            )}
+            <span>{copied ? copyText.copied : copyText.copy}</span>
+          </button>
         )}
       </div>
     </div>
