@@ -121,13 +121,43 @@ export default function ChatBubble({
 
   const handleCopy = () => {
     if (!message.content) return
-    navigator.clipboard
-      .writeText(message.content)
-      .then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
-      })
-      .catch(() => {})
+    const markSuccess = () => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
+    // Modern async Clipboard API - only available in secure contexts
+    // (https, localhost) and recent browsers. Guard both the namespace
+    // and writeText because navigator.clipboard can itself be undefined
+    // in non-secure contexts, and accessing .writeText on undefined
+    // would throw TypeError before entering the promise chain.
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(message.content)
+        .then(markSuccess)
+        .catch(() => {})
+      return
+    }
+    // Legacy fallback for non-secure contexts and old browsers.
+    // document.execCommand('copy') is deprecated but still widely
+    // supported and is the standard escape hatch for environments
+    // where the async clipboard API is blocked.
+    try {
+      const ta = document.createElement("textarea")
+      ta.value = message.content
+      ta.setAttribute("readonly", "")
+      ta.style.position = "fixed"
+      ta.style.top = "0"
+      ta.style.left = "0"
+      ta.style.opacity = "0"
+      document.body.appendChild(ta)
+      ta.focus()
+      ta.select()
+      const ok = document.execCommand("copy")
+      document.body.removeChild(ta)
+      if (ok) markSuccess()
+    } catch {
+      // Give up quietly - the button just won't flash "Copied".
+    }
   }
   // Force-complete this bubble's smoothed stream when the analyzing
   // phase has begun and this bubble is not the currently typing one.
@@ -353,6 +383,16 @@ export default function ChatBubble({
             >
               {isUser ? (
                 message.content
+              ) : isActive ? (
+                // While the bubble is streaming or still draining the
+                // smoothed buffer, render plain text instead of
+                // ReactMarkdown. displayedText changes character by
+                // character at 60fps, and re-parsing markdown (with
+                // GFM enabled) on every rAF tick is a measurable CPU
+                // hit on long responses. The real markdown render
+                // takes over once isActive flips false, which is a
+                // single one-frame swap the user barely notices.
+                <div className="whitespace-pre-wrap">{displayedText}</div>
               ) : (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayedText}</ReactMarkdown>
               )}
