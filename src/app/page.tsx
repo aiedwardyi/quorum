@@ -153,7 +153,10 @@ export default function Home() {
   const [theme, setTheme] = useState<Theme>("dark")
   const [locale, setLocale] = useState<Locale>("ko")
   const [prompt, setPrompt] = useState("")
-  const [selectedModels, setSelectedModels] = useState<Provider[]>(["gemini", "perplexity", "claude", "gpt"])
+  // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts and chat/page.tsx.
+  // Gemini sits last so gemini-2.5-pro's slower TTFT is hidden behind the
+  // three faster providers.
+  const [selectedModels, setSelectedModels] = useState<Provider[]>(["perplexity", "claude", "gpt", "gemini"])
   const [responseLength, setResponseLength] = useState<ResponseLength>("short")
   const [rounds, setRounds] = useState<number>(1)
   const sendHint = "Ctrl/⌘+Enter"
