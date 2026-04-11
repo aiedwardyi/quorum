@@ -1,11 +1,14 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useLayoutEffect } from "react"
 import { Message, Provider, Locale, ResponseLength } from "@/types"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { useSmoothStream } from "@/hooks/useSmoothStream"
+import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
+import VerdictSkeleton from "@/components/VerdictSkeleton"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => <div className="h-48 w-full max-w-3xl mx-auto mt-8 mb-12 bg-muted rounded-[28px] animate-pulse" />,
 })
@@ -87,12 +90,20 @@ const ModelIcon = ({ provider, className }: { provider: Provider; className?: st
 export default function ChatBubble({
   message,
   isTyping,
+  isDebating,
+  forceCompleteForAnalysis,
   locale = "en",
   responseLength = "short",
   onNewDiscussion,
 }: {
   message: Message
   isTyping?: boolean
+  isDebating?: boolean
+  /** True when the debate has entered the analyzing phase and this
+   *  bubble is NOT the currently typing one. Tells the smoothed stream
+   *  hook to snap instantly so the verdict skeleton card can take over
+   *  without overlapping a tail-draining bubble. */
+  forceCompleteForAnalysis?: boolean
   locale?: Locale
   responseLength?: ResponseLength
   onNewDiscussion?: () => void
@@ -101,45 +112,148 @@ export default function ChatBubble({
   const contentRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const isAI = !["user", "system", "verdict"].includes(message.sender)
-  const shouldCollapse = isAI && responseLength !== "short" && !isTyping && !expanded
-
+  // Force-complete this bubble's smoothed stream when the analyzing
+  // phase has begun and this bubble is not the currently typing one.
+  // The verdict skeleton card is about to render in the same region
+  // and we do not want the tail drain to overlap it.
+  const shouldForceComplete = isAI && !isTyping && !!forceCompleteForAnalysis
+  const displayedText = useSmoothStream(
+    message.content ?? "",
+    !!isTyping,
+    isAI ? message.sender : null,
+    shouldForceComplete,
+    isAI ? message.id : null
+  )
+  const isStillDraining = displayedText.length < (message.content?.length ?? 0)
+  // "Active" = either the engine is streaming this bubble, or the smooth
+  // stream is still draining post-stream chunks.
+  const isActive = !!isTyping || isStillDraining
+  // Debounced "content has settled" signal. Goes false instantly when
+  // isActive flips true (so the caret/glow respond immediately), and only
+  // flips true after isActive has been false for STABLE_DELAY_MS continuously.
+  // This absorbs the inevitable micro-flickers from the engine and rAF
+  // (for example: typingModel briefly null between models, or rAF momentarily
+  // catching up between chunks). Without it, the collapse clamp toggles on
+  // and off mid-stream.
+  // Initialized true for hydrated/historical messages so they collapse on
+  // first paint instead of waiting for the debounce timer.
+  const STABLE_DELAY_MS = 500
+  const [contentStable, setContentStable] = useState(() => !isActive)
   useEffect(() => {
-    if (isAI && responseLength !== "short" && !isTyping && contentRef.current && message.content) {
-      const el = contentRef.current
-      // Temporarily apply collapsed height to measure true overflow
-      const prev = el.style.maxHeight
-      const prevOverflow = el.style.overflow
-      el.style.maxHeight = "6em"
-      el.style.overflow = "hidden"
-      const overflows = el.scrollHeight > el.clientHeight + 4
-      el.style.maxHeight = prev
-      el.style.overflow = prevOverflow
-      setIsOverflowing(o => o === overflows ? o : overflows)
+    if (isActive) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setContentStable(false)
+      return
     }
-  }, [message.content, isAI, responseLength, isTyping])
+    const t = setTimeout(() => setContentStable(true), STABLE_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [isActive])
+
+  const showCaret = isAI && isActive
+  // Arm the collapse transition only after the user has had a moment to
+  // register the verdict card. Without this grace window, the collapse
+  // fires the instant isDebating flips false, stealing focus from the
+  // verdict and making the layout feel like it's twitching. 1.2s is long
+  // enough to read "Round complete" and see the verdict's first frame.
+  //
+  // Once armed, collapseArmed STAYS true - never re-disarms. Otherwise
+  // when the user sends a new prompt and isDebating flips true again for
+  // the new debate, every historical bubble from previous sessions would
+  // un-collapse, expanding the whole thread and moving the viewport.
+  const POST_DEBATE_GRACE_MS = 1200
+  const [collapseArmed, setCollapseArmed] = useState(() => !isDebating)
+  useEffect(() => {
+    if (isDebating) return
+    if (collapseArmed) return
+    const t = setTimeout(() => setCollapseArmed(true), POST_DEBATE_GRACE_MS)
+    return () => clearTimeout(t)
+  }, [isDebating, collapseArmed])
+  // Track "has this bubble been collapsed at least once". Once true, the
+  // bubble remains collapsed even if isDebating flips true again for a
+  // subsequent debate session - historical responses stay condensed and
+  // only the new debate's bubbles are fully expanded.
+  const [hasBeenCollapsed, setHasBeenCollapsed] = useState(false)
+  const baseShouldCollapse =
+    isAI && responseLength !== "short" && contentStable && !isDebating && collapseArmed && !expanded
+  useEffect(() => {
+    // Intentional imperative sync: once the bubble meets the collapse
+    // criteria even once, remember it so it stays collapsed across
+    // later debate sessions. The rule's generic "derive from props"
+    // guidance does not apply because this is latching behavior.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (baseShouldCollapse) setHasBeenCollapsed(true)
+  }, [baseShouldCollapse])
+  // The final collapse gate: either the normal conditions hold, OR this
+  // bubble has been collapsed before (sticky). `expanded` (user clicked
+  // "Show more") always wins.
+  const shouldCollapse =
+    isAI && responseLength !== "short" && !expanded && (baseShouldCollapse || hasBeenCollapsed)
+
+  // Measure overflow once the bubble's content has been stable long enough
+  // that we can trust it isn't about to grow again. Also gated on !isDebating
+  // so the measurement runs only after the entire debate ends, avoiding
+  // mid-debate re-measures triggered by adjacent bubbles' state changes.
+  useLayoutEffect(() => {
+    if (!contentStable || isDebating || !isAI || responseLength === "short") return
+    if (!contentRef.current || !message.content) return
+    const el = contentRef.current
+    // Temporarily strip any wrapping maxHeight so we read the natural
+    // unclamped height. We turn the transition off first so the snap-back
+    // doesn't animate visibly.
+    const prevMax = el.style.maxHeight
+    const prevOverflow = el.style.overflow
+    const prevTransition = el.style.transition
+    el.style.transition = "none"
+    el.style.maxHeight = "none"
+    el.style.overflow = "visible"
+    const naturalHeight = el.scrollHeight
+    el.style.maxHeight = prevMax
+    el.style.overflow = prevOverflow
+    // Force a reflow before restoring the transition so the snap-back
+    // doesn't animate visibly.
+    void el.offsetHeight
+    el.style.transition = prevTransition
+    // 6em at the bubble's 15px font ≈ 90px. Add a small buffer for padding.
+    // Anything taller than ~5 lines (around 110px including padding) overflows.
+    const COLLAPSED_PX = 110
+    const overflows = naturalHeight > COLLAPSED_PX
+    setIsOverflowing(o => (o === overflows ? o : overflows))
+  }, [message.content, contentStable, isDebating, isAI, responseLength])
 
   if (message.sender === "system") {
-    const isAnalyzing = message.content === "Analyzing discussion..." || message.content === "토론 분석 중..."
+    // Empty-content system messages are used as a "cleared" sentinel by
+    // the debate engine when a prior analyzing divider needs to be
+    // removed after the verdict arrives. Don't render them.
+    if (!message.content) return null
+
+    // Match against SYSTEM_MESSAGES.analyzing for both locales so the
+    // canonical copy in useDebateEngine is the single source of truth.
+    const isAnalyzing =
+      message.content === SYSTEM_MESSAGES.analyzing("en") ||
+      message.content === SYSTEM_MESSAGES.analyzing("ko")
 
     return (
-      <div className="my-6 flex w-full items-center gap-3 animate-bubble-in">
-        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-        <span
-          className={cn(
-            "shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400",
-            isAnalyzing && "animate-pulse"
-          )}
-        >
-          {message.content}
-        </span>
-        <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-      </div>
+      <>
+        <div className="my-6 flex w-full items-center gap-3 animate-bubble-in">
+          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+          <span
+            className={cn(
+              "shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400",
+              isAnalyzing && "animate-pulse"
+            )}
+          >
+            {message.content}
+          </span>
+          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+        </div>
+        {isAnalyzing && <VerdictSkeleton locale={locale} />}
+      </>
     )
   }
 
   if (message.sender === "verdict" && message.verdictData) {
     return (
-      <div className="w-full">
+      <div className="w-full" data-message-id={message.id}>
         <SummaryCard result={message.verdictData} locale={locale} inline onNewDiscussion={onNewDiscussion} />
       </div>
     )
@@ -153,7 +267,22 @@ export default function ChatBubble({
       <div className={cn("flex flex-col min-w-0 max-w-[85%] sm:max-w-[75%]", isUser ? "items-end" : "items-start")}>
         <div className="flex items-center gap-2 mb-1.5 px-1">
           {!isUser && (
-            <span className={cn(modelColors[message.sender] ?? "text-zinc-500")}>
+            <span
+              className={cn(
+                "icon-holder",
+                modelColors[message.sender] ?? "text-zinc-500",
+                // Keep the speak-glow ring on while the bubble is
+                // visibly active - either the network stream is open
+                // (isTyping) or the smoothed stream is still draining
+                // the post-stream buffer (isStillDraining). Gating on
+                // isTyping alone made the ring disappear the instant
+                // the network closed, even though the caret was still
+                // typing through the buffered tail.
+                isActive && "speaking"
+              )}
+              data-provider={message.sender}
+            >
+              <span className="ring" aria-hidden="true" />
               <ModelIcon provider={message.sender as Provider} />
             </span>
           )}
@@ -195,16 +324,14 @@ export default function ChatBubble({
                       modelBackgrounds[message.sender] ?? "bg-zinc-50 dark:bg-zinc-900/50"
                     )
               )}
-              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.3s ease" } : isAI && responseLength !== "short" ? { maxHeight: "9999px", transition: isTyping ? "none" : "max-height 0.3s ease" } : undefined}
+              style={shouldCollapse ? { maxHeight: "6em", overflow: "hidden", transition: "max-height 0.65s cubic-bezier(0.22, 1, 0.36, 1)" } : isAI && responseLength !== "short" ? { maxHeight: "9999px", transition: (isTyping || isStillDraining) ? "none" : "max-height 0.65s cubic-bezier(0.22, 1, 0.36, 1)" } : undefined}
             >
               {isUser ? (
                 message.content
               ) : (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayedText}</ReactMarkdown>
               )}
-              {isTyping && (
-                <span className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-current animate-pulse" />
-              )}
+              {showCaret && <span className="speak-caret" aria-hidden="true" />}
             </div>
             {shouldCollapse && isOverflowing && (
               <button

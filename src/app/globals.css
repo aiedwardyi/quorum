@@ -897,3 +897,116 @@ button:not(:disabled) {
 .solarized .chat-markdown blockquote {
   border-left-color: rgba(7, 54, 66, 0.2);
 }
+
+/* ─────────────────────────────────────────────────────────────
+ * Smoothed streaming polish
+ * - Soft blinking caret that trails the typed text
+ * - Pulsing glow ring around the model icon while it's "speaking"
+ * Both honor prefers-reduced-motion.
+ * ───────────────────────────────────────────────────────────── */
+
+.speak-caret {
+  display: inline-block;
+  width: 7px;
+  height: 16px;
+  margin-left: 2px;
+  vertical-align: -3px;
+  background: currentColor;
+  border-radius: 1px;
+  animation: caret-blink 1s steps(1, end) infinite;
+}
+
+@keyframes caret-blink {
+  0%, 50%   { opacity: 0.85; }
+  51%, 100% { opacity: 0; }
+}
+
+.icon-holder {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-holder .ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 0 0 transparent;
+  /* No transition: snap on/off cleanly so the previous bubble's glow
+     never lingers into the next bubble's speaking window. */
+}
+
+.icon-holder.speaking .ring {
+  animation: speak-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes speak-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--speak-glow), 0 0 0 0 transparent;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px var(--speak-glow-soft),
+      0 0 14px 2px var(--speak-glow);
+    transform: scale(1.08);
+  }
+}
+
+/* Per-provider glow tints (set via data-provider on .icon-holder) */
+.icon-holder[data-provider="claude"]     { --speak-glow: rgba(234, 124, 58, 0.35); --speak-glow-soft: rgba(234, 124, 58, 0.18); }
+.icon-holder[data-provider="gemini"]     { --speak-glow: rgba( 49, 134, 255, 0.35); --speak-glow-soft: rgba( 49, 134, 255, 0.18); }
+.icon-holder[data-provider="perplexity"] { --speak-glow: rgba( 20, 184, 166, 0.35); --speak-glow-soft: rgba( 20, 184, 166, 0.18); }
+.icon-holder[data-provider="gpt"]        { --speak-glow: rgba( 16, 185, 129, 0.35); --speak-glow-soft: rgba( 16, 185, 129, 0.18); }
+
+/* Verdict skeleton shimmer - used by VerdictSkeleton during the final
+ * consensus fetch to fill the "Analyzing discussion..." dead time. Pure
+ * CSS per the no-framer-motion-during-streaming rule. */
+.verdict-skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.verdict-skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: verdict-skeleton-sweep 1.6s ease-in-out infinite;
+}
+.dark .verdict-skeleton-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+}
+@keyframes verdict-skeleton-sweep {
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(120%); }
+}
+
+/* Verdict skeleton rotating phrase fade */
+.animate-verdict-phrase {
+  animation: verdict-phrase-fade 0.5s ease-out;
+}
+@keyframes verdict-phrase-fade {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speak-caret { animation: none; opacity: 0.6; }
+  .icon-holder.speaking .ring { animation: none; box-shadow: none; }
+  .verdict-skeleton-shimmer::after { animation: none; }
+  .animate-verdict-phrase { animation: none; }
+}

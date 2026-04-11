@@ -4,6 +4,7 @@ import { useReducer, useCallback, useRef, useEffect } from "react"
 import type { Message, Provider, VerdictResult, Locale, ResponseLength } from "@/types"
 import { cleanResponse } from "@/lib/clean-response"
 import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
+import { waitForDrain } from "@/lib/drain-registry"
 
 /* ---- Constants ---- */
 
@@ -29,7 +30,10 @@ const SYSTEM_DISPLAY_NAMES: Record<Locale, string> = {
   ko: "시스템",
 }
 
-const SYSTEM_MESSAGES = {
+// Exported so ChatThread can detect the analyzing divider by content
+// without hardcoding the literal strings (which silently breaks the
+// moment the copy changes here).
+export const SYSTEM_MESSAGES = {
   round: (locale: Locale, round: number) =>
     locale === "ko" ? `라운드 ${round}` : `Round ${round}`,
   analyzing: (locale: Locale) =>
@@ -413,30 +417,53 @@ export function useDebateEngine(config: {
       for (const model of activeModels) {
         if (stopRef.current || sessionIdRef.current !== sessionId) break
         const result = await callModel(model, msgs, sessionId)
-        if (result) msgs = [...msgs, result]
+        if (result) {
+          msgs = [...msgs, result]
+          // Wait for the smoothed display to finish drawing this bubble
+          // before we fetch the next model. callModel resolves when the
+          // network stream closes, which is typically several seconds
+          // before the smoothing hook has caught up. Without this wait,
+          // the next bubble would start streaming and ChatThread used to
+          // force-complete the previous one, dumping 70-90% of its
+          // content in a single frame. Now the next bubble waits until
+          // the previous one has visibly typed through. The registry's
+          // internal 8s safety timeout keeps a stuck bubble (cancelled
+          // request, unmounted component) from blocking the whole debate.
+          if (!stopRef.current && sessionIdRef.current === sessionId) {
+            await waitForDrain(result.id)
+          }
+        }
       }
 
       if (stopRef.current || sessionIdRef.current !== sessionId) {
         return { msgs, done: true }
       }
 
-      // Mid-debate confidence check (not the final verdict)
+      // Mid-debate confidence check (not the final verdict). Fire and
+      // forget - the result only updates the ConsensusMeter's confidence
+      // badge which can arrive whenever. Awaiting this blocked the start
+      // of the next round for ~1-2 seconds per round, which felt like
+      // dead time to users. The session guard inside the .then() discards
+      // stale results from cancelled/superseded debates.
       if (getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
-        try {
-          const res = await fetch("/api/consensus", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: getConsensusMessages(msgs), locale, responseLength }),
-          })
-          if (res.ok && sessionIdRef.current === sessionId) {
+        const consensusMsgs = getConsensusMessages(msgs)
+        fetch("/api/consensus", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: consensusMsgs, locale, responseLength }),
+        })
+          .then(async (res) => {
+            if (!res.ok) return
+            if (sessionIdRef.current !== sessionId) return
             const result = await res.json()
+            if (sessionIdRef.current !== sessionId) return
             if (isValidVerdict(result)) {
               dispatch({ type: "SET_VERDICT", result })
             }
-          }
-        } catch (err) {
-          console.error("Verdict check failed:", err)
-        }
+          })
+          .catch((err) => {
+            console.error("Mid-debate verdict check failed:", err)
+          })
       }
 
       return { msgs, done: false }
@@ -465,6 +492,21 @@ export function useDebateEngine(config: {
       stopRef.current = false
       stoppingRef.current = false
       abortRef.current = null
+
+      // Clear any lingering "Analyzing discussion..." dividers from a
+      // prior stop-interrupted debate. If the user hit Stop mid-verdict
+      // and then started a new debate, the previous analyzing divider
+      // (and its skeleton card) would otherwise stay in the thread
+      // animating forever underneath the new debate's content.
+      for (const m of messagesRef.current) {
+        if (
+          m.sender === "system" &&
+          (m.content === SYSTEM_MESSAGES.analyzing("en") ||
+            m.content === SYSTEM_MESSAGES.analyzing("ko"))
+        ) {
+          dispatch({ type: "UPDATE_MESSAGE", id: m.id, content: "" })
+        }
+      }
 
       const userMsg: Message = {
         id: createMessageId("user"),
@@ -559,6 +601,14 @@ export function useDebateEngine(config: {
                     content: SYSTEM_MESSAGES.analysisFailed(locale),
                   })
                 } else {
+                  // Clear the "Analyzing discussion..." divider (and its
+                  // skeleton card) now that the real verdict is ready.
+                  // ChatBubble renders empty-content system messages as null.
+                  dispatch({
+                    type: "UPDATE_MESSAGE",
+                    id: analyzingMsg.id,
+                    content: "",
+                  })
                   // Add verdict as inline message
                   const verdictMsg: Message = {
                     id: createMessageId("verdict"),
@@ -665,6 +715,13 @@ export function useDebateEngine(config: {
             logDebate("stop-verdict:invalid", {})
             throw new Error("Invalid verdict data")
           }
+          // Clear the analyzing divider + skeleton now that the real
+          // verdict (from the Stop flow) is ready.
+          dispatch({
+            type: "UPDATE_MESSAGE",
+            id: analyzingMsg.id,
+            content: "",
+          })
           const verdictMsg: Message = {
             id: createMessageId("verdict"),
             sender: "verdict",

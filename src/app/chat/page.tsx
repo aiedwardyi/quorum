@@ -56,6 +56,10 @@ function ChatPageContent() {
   const isDebatingRef = useRef(state.isDebating)
   const allowBackRef = useRef(false)
   const guardPushedRef = useRef(false)
+  // When true, popstate handlers skip everything so a confirmed leave
+  // flow can navigate (router.replace) without re-triggering the
+  // back-confirmation dialog.
+  const leavingRef = useRef(false)
   isDebatingRef.current = state.isDebating
 
   useEffect(() => {
@@ -76,6 +80,7 @@ function ChatPageContent() {
     guardPushedRef.current = true
 
     const handlePopState = () => {
+      if (leavingRef.current) return
       if (allowBackRef.current) {
         allowBackRef.current = false
         return
@@ -540,6 +545,7 @@ function ChatPageContent() {
           <ChatThread
             messages={state.messages}
             typingModel={state.typingModel}
+            isDebating={state.isDebating}
             locale={locale}
             activeModels={state.activeModels}
             responseLength={responseLength}
@@ -585,9 +591,19 @@ function ChatPageContent() {
         onConfirm={() => {
           setShowBackConfirm(false)
           handleStop()
-          allowBackRef.current = true
+          // Leaving flag so the popstate listener ignores the navigation
+          // we are about to trigger and never re-shows the dialog.
+          leavingRef.current = true
           guardPushedRef.current = false
-          router.back()
+          // Navigate directly to home via Next.js router instead of
+          // counting history entries and calling history.go(-N). The
+          // previous history.go(-2) approach assumed exactly two guard
+          // entries had been pushed, which held during Gemini's thinking
+          // phase but broke once additional renders pushed more entries
+          // after the first bubble finished streaming, leaving the user
+          // stranded on a middle chat entry that required a second
+          // back-click. router.replace is independent of stack depth.
+          router.replace("/")
         }}
         onCancel={() => setShowBackConfirm(false)}
         destructive

@@ -67,11 +67,14 @@ export async function POST(req: NextRequest) {
 
     const discussionMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
 
-    // Match the chat route's behavior: if the discussion is predominantly Korean,
-    // force the verdict prompt into Korean even when the UI locale is English.
-    // Otherwise the verdict (recommendedAnswer, reasons, etc.) comes back in
-    // English while the chat replies are Korean - jarring for the user.
-    const effectiveLocale: Locale = isPredominantlyKorean(discussionMessages) ? "ko" : locale
+    // Match the chat route's behavior: if the USER'S OWN messages are
+    // predominantly Korean, force the verdict prompt into Korean even
+    // when the UI locale is English. We intentionally ignore AI responses
+    // here so a single hallucinated Korean span in one AI's reply can't
+    // cascade the whole verdict into Korean - same class of bug that
+    // hit the chat route on 2026-04-11.
+    const userOnlyMessages = discussionMessages.filter((m) => m.sender === "user")
+    const effectiveLocale: Locale = isPredominantlyKorean(userOnlyMessages) ? "ko" : locale
 
     // Extract previous verdict recommendations for context
     const previousVerdicts = messages
