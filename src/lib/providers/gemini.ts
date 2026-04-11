@@ -37,11 +37,41 @@ function getModel() {
   })
 }
 
+// Pack the entire debate into one user message with [DisplayName]:
+// speaker labels, matching how Claude, GPT, and Perplexity format
+// the thread.
+//
+// The earlier implementation sent each message as its own turn with
+// role "user" for user messages and role "model" for AI responses.
+// That confuses Vertex's multi-turn semantics in a group-chat context:
+// Vertex's `model` role means "this was ME (Gemini) speaking in a
+// previous turn", so when we include Perplexity / Claude / GPT
+// responses as `role: "model"`, Gemini thinks IT said all of them.
+// The symptom surfaced the moment we moved Gemini to the end of the
+// default rotation - its first round-2 turn now sees three prior
+// `model` entries and Gemini's identity collapses. The bubble came
+// back as "Gemini, what do you think?" (Gemini addressing itself)
+// and then cascaded into Perplexity/Claude doing the same in the
+// next round because they saw Gemini's confused output and mirrored
+// it.
+//
+// Packing everything into a single labeled user message makes the
+// speaker-attribution explicit in-text, and Gemini just responds as
+// itself per the system prompt. No more identity bleed.
 function buildContents(messages: Message[]) {
-  return messages.map((msg) => ({
-    role: msg.sender === "user" ? "user" : "model",
-    parts: [{ text: msg.content }],
-  }))
+  const thread = messages
+    .map((m) => `[${m.displayName}]: ${m.content}`)
+    .join("\n\n")
+  return [
+    {
+      role: "user" as const,
+      parts: [
+        {
+          text: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
+        },
+      ],
+    },
+  ]
 }
 
 // Non-streaming (used by consensus check later)
