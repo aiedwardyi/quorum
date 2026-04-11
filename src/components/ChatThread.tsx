@@ -64,14 +64,27 @@ export default function ChatThread({
   // the bottom we follow; if they scrolled up to re-read something,
   // the distance exceeds the 150px threshold and we leave them alone.
   //
-  // The scroll uses `behavior: "instant"` to override the `main`
-  // element's inherited `scroll-behavior: smooth` (comes from Tailwind
-  // / browser defaults). Without the override, every scrollTop write
-  // kicks off a ~300ms smooth animation with a stale target; by the
-  // time the animation completes the bubble has grown more and the
-  // viewport sits that much further behind, compounding the lag on
-  // every subsequent fire. Instant scrolls snap each frame, staying
-  // glued to the newest content.
+  // Scroll implementation: we set `main.style.scrollBehavior = "auto"`
+  // once at observer install and then use plain `main.scrollTop =
+  // main.scrollHeight` on every fire. Two reasons we avoid
+  // `scrollTo({ behavior: "instant" })`:
+  //  1) `"instant"` is non-standard in older WebIDL enum enforcement -
+  //     some runtimes throw TypeError on invalid ScrollBehavior values.
+  //  2) Plain `scrollTop` writes respect the element's scroll-behavior
+  //     CSS, which is inherited as `smooth` from somewhere in the
+  //     Tailwind / browser defaults stack. Without an override every
+  //     scrollTop assignment would kick off a ~300ms smooth animation
+  //     with a stale target, the bubble would grow more while it was
+  //     chasing, and the viewport would compound the lag on every
+  //     fire (the exact regression the earlier fix round had to hunt
+  //     down).
+  // Inline-styling main's scroll-behavior to "auto" overrides the
+  // inherited CSS without touching any other element. The user-send
+  // smooth scroll and verdict-card smooth scroll both call
+  // scrollIntoView with an explicit `behavior: "smooth"` option, and
+  // per CSSOM spec an explicit behavior overrides the element's
+  // scroll-behavior - so those paths stay smooth even though the
+  // container is now in auto mode.
   //
   // Tracking `content.offsetHeight` (rather than main.scrollHeight)
   // isolates the signal to the chat content - main.scrollHeight can
@@ -83,6 +96,11 @@ export default function ChatThread({
     const main = bottomRef.current?.closest("main")
     const content = contentRef.current
     if (!main || !content) return
+    // Override the inherited `scroll-behavior: smooth` for the lifetime
+    // of this observer. Save whatever was there first so cleanup can
+    // restore it if the effect ever re-runs.
+    const prevScrollBehavior = main.style.scrollBehavior
+    main.style.scrollBehavior = "auto"
     let prevContentH = content.offsetHeight
     const ro = new ResizeObserver(() => {
       const currContentH = content.offsetHeight
@@ -107,11 +125,16 @@ export default function ChatThread({
       const preGrowthDistFromBottom =
         main.scrollHeight - main.scrollTop - main.clientHeight - growthDelta
       if (preGrowthDistFromBottom < 150) {
-        main.scrollTo({ top: main.scrollHeight, behavior: "instant" })
+        // Plain scrollTop write. The inline scroll-behavior override
+        // above ensures this lands instantly rather than animating.
+        main.scrollTop = main.scrollHeight
       }
     })
     ro.observe(content)
-    return () => ro.disconnect()
+    return () => {
+      ro.disconnect()
+      main.style.scrollBehavior = prevScrollBehavior
+    }
   }, [hasMessages])
 
   useEffect(() => {

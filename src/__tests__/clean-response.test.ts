@@ -210,6 +210,43 @@ describe("trimUnclosedTrailingMarkdown", () => {
       trimUnclosedTrailingMarkdown("Before\n```\nconst x\n```\nInline `cmd")
     ).toBe("Before\n```\nconst x\n```\nInline cmd")
   })
+
+  // Fenced code block contents must stay byte-for-byte stable during
+  // streaming, including bold markers (`**` can be legitimate code like
+  // Python `x**2` or `**kwargs`). Stripping them in the plain-text view
+  // and then "re-adding" them when ReactMarkdown renders the code block
+  // verbatim at settle causes a visible mutation flicker in code.
+  it("leaves '**' inside a fenced code block untouched", () => {
+    const input = "Use exponents:\n```python\nresult = x**2\n```\n"
+    expect(trimUnclosedTrailingMarkdown(input)).toBe(input)
+  })
+
+  it("still strips an unclosed '**' outside fences when a fence is present", () => {
+    // The fence contains `x**2` (1 `**`), the prose has an unclosed
+    // `**bol`. Without fence-awareness the total `**` count would be
+    // 2 (even, no strip) and the unclosed prose marker would flash.
+    // With fence-awareness, fence contents are ignored and the prose
+    // count is 1 (odd), so the unclosed prose `**` gets stripped.
+    const input = "Intro\n```py\nresult = x**2\n```\nAnd **bol"
+    const expected = "Intro\n```py\nresult = x**2\n```\nAnd bol"
+    expect(trimUnclosedTrailingMarkdown(input)).toBe(expected)
+  })
+
+  it("leaves 'x**2' alone mid-stream with a still-open fence", () => {
+    // Mid-stream: opening fence, code content, closing fence hasn't
+    // arrived yet. The entire tail is inside an unclosed fence; no
+    // marker inside it should be touched.
+    const input = "Before\n```python\nresult = x**2\nmore code"
+    expect(trimUnclosedTrailingMarkdown(input)).toBe(input)
+  })
+
+  it("leaves inline backticks inside a fenced code block untouched", () => {
+    // Within a code fence, a backtick character is literal code
+    // punctuation, not an inline-code marker. Count parity must ignore
+    // these just as we already ignore the triple-fence backticks.
+    const input = "Shell example:\n```bash\necho `date`\n```\n"
+    expect(trimUnclosedTrailingMarkdown(input)).toBe(input)
+  })
 })
 
 describe("sanitizeHeadings", () => {

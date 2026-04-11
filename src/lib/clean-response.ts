@@ -72,6 +72,44 @@ export function stripHeadingMarkersForPlainText(text: string): string {
 }
 
 /**
+ * Collects global offsets of every match of `pattern` that occurs on a
+ * line OUTSIDE a triple-backtick fenced code block. Fence detection uses
+ * the same line-based walk as stripHeadingMarkersForPlainText (CommonMark
+ * indented-fence rule, 0-3 leading spaces before the opening ```). Returns
+ * the indices in document order so the caller can take the "last" entry
+ * without having to re-sort.
+ *
+ * Used by trimUnclosedTrailingMarkdown to count only the markers that
+ * would actually render as markdown at settle, so fenced code content
+ * (where `**`, `` ` ``, `x**2`, `` `date` ``, etc. are literal code and
+ * not markdown markers) stays byte-for-byte stable during streaming.
+ */
+function collectMarkerIndicesOutsideFences(text: string, marker: RegExp): number[] {
+  const parts = text.split(/(\r?\n)/)
+  const indices: number[] = []
+  let inFence = false
+  let offset = 0
+  for (let i = 0; i < parts.length; i++) {
+    const segment = parts[i]
+    if (i % 2 === 0) {
+      // Content line
+      const isFenceBoundary = FENCE_LINE.test(segment)
+      if (isFenceBoundary) {
+        inFence = !inFence
+      } else if (!inFence) {
+        for (const match of segment.matchAll(marker)) {
+          if (typeof match.index === "number") {
+            indices.push(offset + match.index)
+          }
+        }
+      }
+    }
+    offset += segment.length
+  }
+  return indices
+}
+
+/**
  * Strips an unclosed trailing inline-markdown marker from a streaming view
  * of text, without touching the content after it. During smoothed streaming
  * the visible substring can end mid-pair like "Hello **wor" where the
@@ -94,47 +132,35 @@ export function stripHeadingMarkersForPlainText(text: string): string {
  * as bullets and mid-word in ways that would create false positives.
  * Bold and inline code are the high-signal cases.
  *
- * Fenced code blocks (``` ```) are excluded from the backtick count. Each
- * triple-backtick run is treated as one atomic fence marker, not three
- * individual inline-code markers. Without this, a mid-stream opening fence
- * (three backticks, no close yet) would be seen as an odd inline-code
- * count, the strip would delete the last backtick, and the rendered plain
- * text would briefly show `` (double backtick) until the closing fence
- * arrived and the count went even again. Collapsing the fence into the
- * skip set preserves the visual fence as-is on every frame.
+ * Fenced code blocks (``` ```) are fully excluded from both the `**` and
+ * backtick counts. Content inside a fence is literal code that the
+ * settled ReactMarkdown render will display verbatim, so a Python
+ * `x**2`, a shell `` `date` ``, or a JavaScript `**kwargs` comment inside
+ * a fence must stay byte-for-byte stable during streaming. Without the
+ * fence skip, the plain-text view would temporarily mutate code content
+ * and then have the marker "reappear" the instant the bubble flips to
+ * its settled render.
  *
  * Only for the streaming view - do not use on settled content.
  */
 export function trimUnclosedTrailingMarkdown(text: string): string {
   let out = text
-  // Unclosed ** (bold). Count pairs; if odd, delete the last opening marker.
-  const boldMatches = [...out.matchAll(/\*\*/g)]
-  if (boldMatches.length % 2 === 1) {
-    const lastOpen = boldMatches[boldMatches.length - 1]
-    if (typeof lastOpen.index === "number") {
-      out = out.slice(0, lastOpen.index) + out.slice(lastOpen.index + 2)
-    }
+  // Unclosed ** (bold). Count pairs outside fenced code; if odd, delete
+  // the last opening marker.
+  const boldIndices = collectMarkerIndicesOutsideFences(out, /\*\*/g)
+  if (boldIndices.length % 2 === 1) {
+    const lastOpen = boldIndices[boldIndices.length - 1]
+    out = out.slice(0, lastOpen) + out.slice(lastOpen + 2)
   }
-  // Unclosed ` (inline code). Count single backticks that are NOT part of
-  // a triple-backtick fence. Fence positions are pre-collected into a Set
-  // and then filtered out of the plain backtick match list so a partially
-  // streamed fence does not flip the parity of the inline-code counter.
-  const fencePositions = new Set<number>()
-  for (const m of out.matchAll(/```/g)) {
-    if (typeof m.index === "number") {
-      fencePositions.add(m.index)
-      fencePositions.add(m.index + 1)
-      fencePositions.add(m.index + 2)
-    }
-  }
-  const tickMatches = [...out.matchAll(/`/g)].filter(
-    (m) => typeof m.index === "number" && !fencePositions.has(m.index)
-  )
-  if (tickMatches.length % 2 === 1) {
-    const lastOpen = tickMatches[tickMatches.length - 1]
-    if (typeof lastOpen.index === "number") {
-      out = out.slice(0, lastOpen.index) + out.slice(lastOpen.index + 1)
-    }
+  // Unclosed ` (inline code). Count single backticks outside fenced code;
+  // if odd, delete the last opening marker. `collectMarkerIndicesOutsideFences`
+  // already skips the fence markers themselves AND anything on a fenced
+  // line, so we do not need the earlier fence-position filtering that
+  // only handled triple-backtick sequences.
+  const tickIndices = collectMarkerIndicesOutsideFences(out, /`/g)
+  if (tickIndices.length % 2 === 1) {
+    const lastOpen = tickIndices[tickIndices.length - 1]
+    out = out.slice(0, lastOpen) + out.slice(lastOpen + 1)
   }
   return out
 }
