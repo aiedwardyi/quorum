@@ -135,17 +135,45 @@ export function useSmoothStream(
     }
   }, [fireDrainIfDone])
 
-  // Detect reduced-motion preference.
+  // Detect reduced-motion preference. Toggles mid-stream apply immediately:
+  // turning reduce ON cancels any in-flight rAF and snaps the visible text to
+  // the full target so the animation stops on the next paint. Turning reduce
+  // OFF kicks the rAF loop back on if there is still buffered content to
+  // drain. Without this the preference change only took effect on the next
+  // targetText update, which could be seconds away.
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return
     const mql = window.matchMedia("(prefers-reduced-motion: reduce)")
     reducedMotionRef.current = mql.matches
     const onChange = (e: MediaQueryListEvent) => {
       reducedMotionRef.current = e.matches
+      if (e.matches) {
+        if (rafRef.current != null) {
+          cancelAnimationFrame(rafRef.current)
+          rafRef.current = null
+        }
+        lastTsRef.current = null
+        const full = targetRef.current.length
+        if (displayedLengthRef.current !== full) {
+          displayedLengthRef.current = full
+          setDisplayedLength(full)
+        }
+        if (!isStreamingRef.current) {
+          fireDrainIfDone()
+        }
+        return
+      }
+      if (
+        rafRef.current == null &&
+        targetRef.current.length > displayedLengthRef.current
+      ) {
+        lastTsRef.current = null
+        rafRef.current = requestAnimationFrame((t) => tickRef.current(t))
+      }
     }
     mql.addEventListener?.("change", onChange)
     return () => mql.removeEventListener?.("change", onChange)
-  }, [])
+  }, [fireDrainIfDone])
 
   // React to target changes: snap on truncation, kick off the rAF loop
   // if we're behind and one isn't already running. The setState calls
