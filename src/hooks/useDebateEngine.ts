@@ -399,11 +399,24 @@ export function useDebateEngine(config: {
           updatePlaceholder(msg)
           return null
         }
+        // Thrown errors here cover two main cases:
+        //  1. Transport errors from fetch (network dropped, CORS, etc.)
+        //  2. `data.error` payloads from the chat route's error channel
+        //     (upstream VertexAI / Anthropic / OpenAI failures that the
+        //     server caught and forwarded with `{error}`)
+        // Previously we dumped the raw error text into the bubble
+        // ("Gemini encountered an error: [VertexAI.ClientError]: got
+        // status: 499 Client Closed Request. {..}"), which is scary and
+        // unactionable for end users. Swap in the friendly snack-break
+        // fallback (the same message shown when a provider stream is
+        // empty) and keep the detailed error in logDebate for debugging.
+        //
+        // logDebate instead of console.error so Next.js's red-box dev
+        // overlay does not pop on an already-handled rejection.
         const errorMsg = err instanceof Error ? err.message : "Unknown error"
         logDebate("callModel:error", { provider, error: errorMsg })
-        console.error(`[debate] ${provider} failed:`, err)
         clearTypingIfCurrentSession()
-        updatePlaceholder(`${DISPLAY_NAMES[provider]} encountered an error.`)
+        updatePlaceholder(SYSTEM_MESSAGES.emptyResponse(locale, provider))
         return null
       } finally {
         clearTimeout(timeoutId)
@@ -474,7 +487,12 @@ export function useDebateEngine(config: {
             }
           })
           .catch((err) => {
-            console.error("Mid-debate verdict check failed:", err)
+            // Fire-and-forget - the mid-debate confidence update is a
+            // best-effort badge, not a must-land dispatch. logDebate so
+            // Next.js's dev overlay does not pop for transient failures.
+            logDebate("mid-verdict:failed", {
+              error: err instanceof Error ? err.message : String(err),
+            })
           })
       }
 
@@ -604,20 +622,21 @@ export function useDebateEngine(config: {
               if (stopRef.current || stoppingRef.current) {
                 logDebate("verdict:skipped-stopped", {})
               } else if (!res.ok) {
-                // Surface the server's error detail to the browser console
-                // so a user running dev can see *why* the verdict failed
-                // ("Verdict response is not an object", "confidence out of
-                // range", timeout, etc.). The UI still shows the generic
-                // analysisFailed message.
+                // Surface the server's error detail via logDebate so a
+                // dev running the app can still see *why* the verdict
+                // failed ("Verdict response is not an object", confidence
+                // out of range, timeout, etc.) but we no longer trigger
+                // Next.js's red-box dev overlay for what is already a
+                // handled rejection with a visible UI fallback.
                 try {
                   const errBody = await res.json()
-                  console.error("[debate] verdict failed:", {
+                  logDebate("verdict:failed", {
                     status: res.status,
                     error: errBody?.error,
                     detail: errBody?.detail,
                   })
                 } catch {
-                  console.error("[debate] verdict failed with status", res.status)
+                  logDebate("verdict:failed", { status: res.status })
                 }
                 dispatch({
                   type: "UPDATE_MESSAGE",
@@ -661,7 +680,9 @@ export function useDebateEngine(config: {
                 }
               }
             } catch (err) {
-              console.error("Final verdict failed:", err)
+              logDebate("verdict:thrown", {
+                error: err instanceof Error ? err.message : String(err),
+              })
               dispatch({
                 type: "UPDATE_MESSAGE",
                 id: analyzingMsg.id,
@@ -678,7 +699,9 @@ export function useDebateEngine(config: {
         dispatch({ type: "SET_DEBATING", value: false })
       }
       } catch (err) {
-        console.error("[debate] Unhandled debate error:", err)
+        logDebate("debate:unhandled", {
+          error: err instanceof Error ? err.message : String(err),
+        })
         dispatch({ type: "SET_DEBATING", value: false })
         dispatch({ type: "SET_TYPING", model: null })
       }
