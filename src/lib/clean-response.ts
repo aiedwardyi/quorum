@@ -1,8 +1,26 @@
+/**
+ * Demotes `# Title` and `## Title` at line start to `### Title`. The app's
+ * system prompt forbids `#` and `##` so they don't compete with the UI's
+ * own headers, but models drift. Sanitizing client-side guarantees that
+ * even an out-of-spec emission never renders as a page-scale h1/h2 in a
+ * chat bubble, and the sanitizer runs per-chunk during streaming so the
+ * hash chars never flash as plain text before ReactMarkdown catches them.
+ *
+ * The regex only matches `#` or `##` followed by whitespace, so `###+`
+ * headings are untouched. Idempotent - running it on already-sanitized
+ * text is a no-op. Chunk-boundary safe because it always runs on the
+ * accumulated content.
+ */
+export function sanitizeHeadings(text: string): string {
+  return text.replace(/^#{1,2}(?=\s)/gm, "###")
+}
+
 // Strips citation markers [1], [2][3], trailing "Refs:" / "References:" blocks,
 // HTML entities, stray tags, and escaped control sequences that Perplexity and
-// other models sometimes include in responses.
+// other models sometimes include in responses. Also demotes out-of-spec `#`
+// / `##` headings to `###` via sanitizeHeadings.
 export function cleanResponse(text: string): string {
-  return text
+  return sanitizeHeadings(text)
     // Remove inline citation markers like [1], [2][3], [1][2] - only numeric/short refs
     .replace(/\[\d+\](\[\d+\])*/g, "")
     // Remove trailing "Refs:", "References:", "Sources:" blocks and everything after

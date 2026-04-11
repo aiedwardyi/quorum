@@ -40,19 +40,19 @@ export const DEFAULT_PACING: PacingConfig = {
 
 /**
  * Per-provider pacing. All four providers share the Claude ramp shape
- * (55 -> 220 cps ramp at pending >= 150 chars, 600 cps turbo drain after
- * stream end). The earlier flat non-Claude pacing at 95-110 cps was
- * slower than the provider backend burst rate, so a large buffer piled
- * up during the stream and the mid-debate force-complete snapped 70-90%
- * of the content in one frame when the next bubble took over. Matching
- * Claude's rate keeps the calm-then-fluent feel and lets the debate
- * engine drain each bubble fully before the next starts.
+ * (55 -> 220 cps ramp at pending >= 150 chars, 280 cps turbo drain after
+ * stream end). Turbo used to sit at 600 cps, but at 60fps that's ~10
+ * chars per frame, which reads as visibly chunky "finishing" on every
+ * bubble. Drain-aware handoff already waits for the bubble to type
+ * through, so we don't need turbo to be that aggressive - 280 cps is
+ * ~4.7 chars per frame, still distinctly faster than the main ramp but
+ * smooth enough that individual character additions aren't jarring.
  */
 const CLAUDE_LIKE_PACING: PacingConfig = {
   baseCps: 55,
   maxCps: 220,
   rampThreshold: 150,
-  turboCps: 600,
+  turboCps: 280,
 }
 
 export const PROVIDER_PACING: Record<string, PacingConfig> = {

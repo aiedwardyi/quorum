@@ -2,7 +2,7 @@
 
 import { useReducer, useCallback, useRef, useEffect } from "react"
 import type { Message, Provider, VerdictResult, Locale, ResponseLength } from "@/types"
-import { cleanResponse } from "@/lib/clean-response"
+import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
 import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
 import { waitForDrain } from "@/lib/drain-registry"
 
@@ -356,7 +356,10 @@ export function useDebateEngine(config: {
               if (data.empty === true) providerEmpty = true
             }
             if (data.chunk) {
-              fullContent += data.chunk
+              // Sanitize on the accumulated content so chunk boundaries
+              // that split `#` and `# Heading` across two chunks still
+              // get caught on the combined string. Idempotent.
+              fullContent = sanitizeHeadings(fullContent + data.chunk)
               updatePlaceholder(fullContent)
             }
           }

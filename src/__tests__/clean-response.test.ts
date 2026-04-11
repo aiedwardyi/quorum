@@ -1,5 +1,45 @@
 import { describe, it, expect } from "vitest"
-import { cleanResponse } from "@/lib/clean-response"
+import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
+
+describe("sanitizeHeadings", () => {
+  it("downgrades h1 at line start to h3", () => {
+    expect(sanitizeHeadings("# Title\nBody")).toBe("### Title\nBody")
+  })
+
+  it("downgrades h2 at line start to h3", () => {
+    expect(sanitizeHeadings("## Title\nBody")).toBe("### Title\nBody")
+  })
+
+  it("leaves h3 untouched", () => {
+    expect(sanitizeHeadings("### Title")).toBe("### Title")
+  })
+
+  it("leaves h4+ untouched", () => {
+    expect(sanitizeHeadings("#### Sub\n##### Deeper")).toBe("#### Sub\n##### Deeper")
+  })
+
+  it("is idempotent - running twice equals running once", () => {
+    const input = "# A\n## B\n### C"
+    const once = sanitizeHeadings(input)
+    expect(sanitizeHeadings(once)).toBe(once)
+  })
+
+  it("handles hashes mid-line without touching them", () => {
+    expect(sanitizeHeadings("Text with #hashtag and ##tag mid-sentence.")).toBe(
+      "Text with #hashtag and ##tag mid-sentence."
+    )
+  })
+
+  it("downgrades across multiple lines", () => {
+    const input = "# One\nsomething\n## Two\nmore"
+    expect(sanitizeHeadings(input)).toBe("### One\nsomething\n### Two\nmore")
+  })
+
+  it("does not touch a lone # with no following whitespace", () => {
+    expect(sanitizeHeadings("#")).toBe("#")
+    expect(sanitizeHeadings("##")).toBe("##")
+  })
+})
 
 describe("cleanResponse", () => {
   it("strips inline citation markers", () => {

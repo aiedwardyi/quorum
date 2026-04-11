@@ -130,7 +130,7 @@ describe("computeNextDisplayedLength", () => {
       // during streaming and the mid-debate handoff snapped 70-90% of
       // non-Claude content in one frame. The debate engine now awaits
       // drain between models, and all four providers share the Claude
-      // 55 -> 220 ramp with a 600 cps turbo drain so the typing feel
+      // 55 -> 220 ramp with a 280 cps turbo drain so the typing feel
       // matches across providers.
       const { claude, gemini, perplexity, gpt } = PROVIDER_PACING
       for (const pacing of [gemini, perplexity, gpt]) {
