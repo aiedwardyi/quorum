@@ -151,24 +151,56 @@ export async function POST(req: NextRequest) {
       ),
     ])
 
+    const generateElapsed = Date.now() - startTime
+    console.log(`[verdict] Vertex responded in ${generateElapsed}ms`)
+
     const raw =
       result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
     if (!raw) {
+      // Empty responses are usually a safety filter trip or a Pro
+      // thinking-only response with no output tokens. Log the full
+      // candidate shape so we can see finishReason/safetyRatings when
+      // this recurs.
+      const candidate = result.response.candidates?.[0]
+      console.error(`[verdict] Empty response. finishReason=${candidate?.finishReason}`, {
+        safetyRatings: candidate?.safetyRatings,
+        promptFeedback: result.response.promptFeedback,
+      })
       throw new Error("Gemini returned an empty response")
     }
 
-    const cleaned = raw
-      .replace(/```json\s*/gi, "")
-      .replace(/```\s*/g, "")
-      .trim()
+    console.log(`[verdict] Raw response length=${raw.length}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`)
+
+    // Try to extract a JSON object from the response, even if Pro
+    // wrapped it in thinking text or markdown prose. Strategy:
+    //   1. Strip markdown code fences (```json ... ``` wrappers).
+    //   2. If the result isn't pure JSON, find the first `{` and the
+    //      last `}` and slice between them - this tolerates a preamble
+    //      like "Here's my analysis:" or a trailing summary comment
+    //      without needing a repair round-trip.
+    const extractJson = (text: string): string => {
+      const stripped = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+      if (stripped.startsWith("{") && stripped.endsWith("}")) return stripped
+      const first = stripped.indexOf("{")
+      const last = stripped.lastIndexOf("}")
+      if (first < 0 || last < 0 || last <= first) return stripped
+      return stripped.slice(first, last + 1)
+    }
+
+    const cleaned = extractJson(raw)
 
     let parsed: unknown
     try {
       parsed = JSON.parse(cleaned)
     } catch (jsonErr) {
-      // Gemini sometimes returns malformed JSON - retry once with repair prompt
-      console.warn(`[verdict] JSON parse failed, retrying: ${jsonErr instanceof Error ? jsonErr.message : jsonErr}`)
+      // First-pass parse failed. Ask Vertex to repair it, then extract
+      // again. Log both so we can see what Pro is returning in the
+      // wild when this recurs.
+      const parseErrMsg = jsonErr instanceof Error ? jsonErr.message : String(jsonErr)
+      console.warn(
+        `[verdict] JSON parse failed: ${parseErrMsg}. Cleaned preview=${cleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+      )
       const retryResult = await Promise.race([
         model.generateContent({
           contents: [
@@ -179,15 +211,34 @@ export async function POST(req: NextRequest) {
           ],
         }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("JSON retry timed out")), 15_000)
+          setTimeout(() => reject(new Error("JSON retry timed out")), 30_000)
         ),
       ])
       const retryRaw = retryResult.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
-      const retryCleaned = retryRaw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
-      parsed = JSON.parse(retryCleaned)
+      const retryCleaned = extractJson(retryRaw)
+      try {
+        parsed = JSON.parse(retryCleaned)
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr)
+        console.error(
+          `[verdict] Retry parse ALSO failed: ${retryMsg}. Retry preview=${retryCleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+        )
+        throw retryErr
+      }
     }
 
-    const verdict = validateVerdictResult(parsed)
+    let verdict
+    try {
+      verdict = validateVerdictResult(parsed)
+    } catch (validationErr) {
+      const valMsg = validationErr instanceof Error ? validationErr.message : String(validationErr)
+      console.error(
+        `[verdict] Validation failed: ${valMsg}. Parsed keys=${
+          parsed && typeof parsed === "object" ? Object.keys(parsed as object).join(",") : typeof parsed
+        }`
+      )
+      throw validationErr
+    }
 
     const elapsed = Date.now() - startTime
     console.log(`[verdict] Generated in ${elapsed}ms, confidence=${verdict.confidence}`)
