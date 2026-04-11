@@ -89,16 +89,33 @@ export function trimUnclosedTrailingMarkdown(text: string): string {
   return out
 }
 
+// Matches a trailing word-count annotation like "(62 words)",
+// "(Word count: 75)", "(Word count: 398 words)", or Korean "(75단어)".
+// Anchored to end-of-string and prefixed by optional whitespace so
+// mid-text parentheticals are left alone. Two alternatives inside the
+// parens: either a "Word count:" prefix (with optional units after the
+// number) or a bare "<N> words" form - a lone "(75)" has neither prefix
+// nor suffix and is never stripped, which avoids eating footnote
+// numbers, years, or real parentheticals.
+const TRAILING_WORD_COUNT =
+  /\s*\(\s*(?:word[-\s]*count\s*[:：]?\s*\d+\s*(?:words?|단어)?|\d+\s*(?:words?|단어))\s*\)\s*$/i
+
 // Strips citation markers [1], [2][3], trailing "Refs:" / "References:" blocks,
 // HTML entities, stray tags, and escaped control sequences that Perplexity and
 // other models sometimes include in responses. Also demotes out-of-spec `#`
-// / `##` headings to `###` via sanitizeHeadings.
+// / `##` headings to `###` via sanitizeHeadings and drops trailing word-count
+// meta-annotations ("(62 words)", "(Word count: 75)") that the models
+// occasionally echo back from the response-length instruction.
 export function cleanResponse(text: string): string {
   return sanitizeHeadings(text)
     // Remove inline citation markers like [1], [2][3], [1][2] - only numeric/short refs
     .replace(/\[\d+\](\[\d+\])*/g, "")
     // Remove trailing "Refs:", "References:", "Sources:" blocks and everything after
     .replace(/\n*-{0,3}\s*(Refs?|References|Sources)\s*:[\s\S]*$/i, "")
+    // Strip trailing "(N words)" / "(Word count: N)" meta-annotations.
+    // Runs before the double-space collapse / trim so the regex's own
+    // leading `\s*` can eat any preceding newlines cleanly.
+    .replace(TRAILING_WORD_COUNT, "")
     // Remove markdown horizontal rules (--- or ***) that some models add
     .replace(/^\s*[-*]{3,}\s*$/gm, "")
     // Remove leftover HTML/XML tags

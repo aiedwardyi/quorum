@@ -260,4 +260,52 @@ describe("cleanResponse", () => {
     expect(cleanResponse("Some text\\nlt")).toBe("Some text")
     expect(cleanResponse("Answer\\xyz")).toBe("Answer")
   })
+
+  // Models sometimes echo the word-limit instruction back to the user
+  // at the end of their response despite the prompt telling them not to
+  // include self-reported meta-annotations. Examples from real debates:
+  //   "That decides it precisely. (Word count: 398)"
+  //   "...self-filing risks 70% rejection rates. (54 words)"
+  //   "I believe this comprehensive view...\n(Word count: 75)"
+  // Strip these trailing parentheticals so the cleaned text ends at the
+  // last real sentence.
+  it("strips trailing '(N words)' annotation", () => {
+    expect(cleanResponse("Response text. (62 words)")).toBe("Response text.")
+  })
+
+  it("strips trailing '(Word count: N)' annotation", () => {
+    expect(cleanResponse("Response text. (Word count: 75)")).toBe(
+      "Response text."
+    )
+  })
+
+  it("strips trailing '(Word count: N)' on its own line", () => {
+    expect(cleanResponse("Line 1\nLine 2.\n\n(Word count: 398)")).toBe(
+      "Line 1\nLine 2."
+    )
+  })
+
+  it("strips trailing '(N words)' with no period before it", () => {
+    expect(cleanResponse("Everyone: hire a patent attorney (54 words)")).toBe(
+      "Everyone: hire a patent attorney"
+    )
+  })
+
+  it("strips trailing Korean '(N단어)' annotation", () => {
+    expect(cleanResponse("응답 내용입니다. (75단어)")).toBe("응답 내용입니다.")
+  })
+
+  it("leaves mid-text parentheticals with numbers + words alone", () => {
+    expect(
+      cleanResponse("The brief was 500 words (roughly 5 paragraphs) long.")
+    ).toBe("The brief was 500 words (roughly 5 paragraphs) long.")
+  })
+
+  it("leaves standalone numeric parentheticals alone (no 'words' suffix)", () => {
+    // (75) without 'words' is not a word-count annotation - could be
+    // a footnote, citation, year, etc. Leave it.
+    expect(cleanResponse("The year was important. (75)")).toBe(
+      "The year was important. (75)"
+    )
+  })
 })
