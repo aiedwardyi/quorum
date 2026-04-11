@@ -124,37 +124,43 @@ describe("computeNextDisplayedLength", () => {
       expect(getPacingForProvider("gpt")).toBe(PROVIDER_PACING.gpt)
     })
 
-    it("Claude, Gemini, Perplexity share the same ramp shape", () => {
-      // Claude, Gemini, and Perplexity are intentionally aligned on
-      // the same pacing config so a round-robin debate reads as one
-      // consistent typing cadence across those three. Exact numeric
-      // values live in smooth-stream.ts; this test asserts equality
-      // rather than specific values so retuning doesn't break it.
-      const { claude, gemini, perplexity } = PROVIDER_PACING
-      for (const pacing of [gemini, perplexity]) {
-        expect(pacing.baseCps).toBe(claude.baseCps)
-        expect(pacing.maxCps).toBe(claude.maxCps)
-        expect(pacing.rampThreshold).toBe(claude.rampThreshold)
-        expect(pacing.turboCps).toBe(claude.turboCps)
-      }
+    it("Gemini and Perplexity share the same ramp shape", () => {
+      // Gemini and Perplexity stream with similar burst patterns at the
+      // network layer, so they share one pacing config. Claude and GPT
+      // each get their own tuned to their specific backend shape.
+      const { gemini, perplexity } = PROVIDER_PACING
+      expect(gemini.baseCps).toBe(perplexity.baseCps)
+      expect(gemini.maxCps).toBe(perplexity.maxCps)
+      expect(gemini.rampThreshold).toBe(perplexity.rampThreshold)
+      expect(gemini.turboCps).toBe(perplexity.turboCps)
+    })
+
+    it("Claude has a higher floor and earlier ramp than the shared config", () => {
+      // Claude streams steadily at a low effective rate - pending
+      // rarely grows past a handful of characters so the ramp never
+      // triggers with a shared config and it reads noticeably slower
+      // than Gemini/Perplexity. Lifting its baseCps and dropping its
+      // rampThreshold means even small bursts push the rate up, and
+      // the steady stream no longer feels chuggy next to the others.
+      const { claude, gemini } = PROVIDER_PACING
+      expect(claude.baseCps).toBeGreaterThan(gemini.baseCps)
+      expect(claude.rampThreshold).toBeLessThan(gemini.rampThreshold)
     })
 
     it("GPT uses a slower config to match the others' perceptual speed", () => {
-      // GPT's backend emits tokens in much larger bursts than Claude/
-      // Gemini/Perplexity, so the smooth-stream buffer fills faster
-      // and its ramp ratio pegs at 1.0 far more often. If GPT shared
-      // the same max cap it would sit at peak speed almost the whole
-      // stream while the others hover well below their ceiling, and
-      // the perceptual mismatch would read as "GPT types way faster."
-      // Capping GPT's max below the shared cap and raising its ramp
-      // threshold brings its sustained on-screen rate down into line.
-      // The test asserts relationships, not specific values, so the
-      // config can be retuned without breaking it.
-      const { claude, gpt } = PROVIDER_PACING
-      expect(gpt.baseCps).toBe(claude.baseCps)
-      expect(gpt.maxCps).toBeLessThan(claude.maxCps)
-      expect(gpt.rampThreshold).toBeGreaterThan(claude.rampThreshold)
-      expect(gpt.turboCps).toBeLessThan(claude.turboCps)
+      // GPT's backend emits tokens in even larger bursts than
+      // Gemini/Perplexity, so its ramp ratio pegs at 1.0 almost
+      // continuously. If GPT shared the same max cap it would sit at
+      // peak speed almost the whole stream while the others hover
+      // well below their ceiling, and the perceptual mismatch would
+      // read as "GPT types way faster." Capping GPT's max below the
+      // shared cap and raising its ramp threshold brings its
+      // sustained on-screen rate down into line. Test asserts
+      // relationships, not specific values, so retunes don't break it.
+      const { gemini, gpt } = PROVIDER_PACING
+      expect(gpt.maxCps).toBeLessThan(gemini.maxCps)
+      expect(gpt.rampThreshold).toBeGreaterThan(gemini.rampThreshold)
+      expect(gpt.turboCps).toBeLessThan(gemini.turboCps)
     })
 
     it("saturated GPT tick advances fewer chars than saturated Claude tick", () => {

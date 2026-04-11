@@ -39,50 +39,61 @@ export const DEFAULT_PACING: PacingConfig = {
 }
 
 /**
- * Per-provider pacing. Claude, Gemini, and Perplexity share one ramp
- * shape; GPT gets its own slower config.
+ * Per-provider pacing. Three distinct configs tuned to each backend's
+ * streaming shape so a round-robin debate reads with one consistent
+ * on-screen cadence even though the providers deliver tokens very
+ * differently at the network layer.
  *
- * GPT's backend emits tokens in much larger bursts than the others,
- * which fills the smooth-stream buffer faster and pushes the ramp
- * ratio to 1.0 far more often. If GPT shared the same max as the
- * others it would sit at peak cps almost the whole stream while
- * Claude/Gemini/Perplexity hovered well below their ceiling, and the
- * perceptual mismatch would read as "GPT types way faster than
- * everyone else." Capping GPT's max a step below the shared cap and
- * raising its ramp threshold brings its sustained on-screen rate into
- * alignment with the rest so a round-robin debate reads as one even
- * cadence.
+ * Claude streams smoothly and steadily at a relatively low effective
+ * rate - pending rarely grows past a handful of characters so the
+ * ramp (which kicks in above `rampThreshold` pending) almost never
+ * triggers. With a shared config Claude ends up reading noticeably
+ * slower than the others; we lift its baseCps and drop its
+ * rampThreshold so even small bursts lift the on-screen rate toward
+ * the shared max, and the steady stream never feels chuggy.
  *
- * The Claude-like turbo cap used to sit at 600 cps, but at 60fps
- * that's ~10 chars per frame, which reads as visibly chunky
- * "finishing" on every bubble tail. Drain-aware handoff already waits
- * for the bubble to type through its buffer, so turbo doesn't need
- * to be that aggressive - the current values drain the tail cleanly
- * without the chunky look.
+ * Gemini and Perplexity send larger bursts at the network layer and
+ * fill the smooth-stream buffer quickly, then close the stream while
+ * the buffer is still draining. The tail drain at turbo is the "fast
+ * near the end" window users notice; lowering turboCps slows that
+ * window down without affecting the main stream.
+ *
+ * GPT emits tokens in even larger bursts than Gemini/Perplexity, so
+ * its ramp ratio pegs at 1.0 almost continuously. It needs the
+ * lowest max cap of the four to keep from running visibly faster
+ * than everyone else during the main stream, plus a higher ramp
+ * threshold so small early-stream bursts don't prematurely slam the
+ * rate up.
  *
  * Keep this docblock free of exact cps numbers - the numeric values
- * below have shifted over several tuning passes and inline numbers in
- * the prose drifted out of sync. Read the configs directly for the
- * current values.
+ * below have shifted several times and inline numbers in the prose
+ * drift out of sync. Read the configs directly for current values.
  */
-const CLAUDE_LIKE_PACING: PacingConfig = {
+const CLAUDE_PACING: PacingConfig = {
+  baseCps: 95,
+  maxCps: 300,
+  rampThreshold: 80,
+  turboCps: 370,
+}
+
+const GEMINI_PERPLEXITY_PACING: PacingConfig = {
   baseCps: 75,
   maxCps: 300,
   rampThreshold: 140,
-  turboCps: 370,
+  turboCps: 280,
 }
 
 const GPT_PACING: PacingConfig = {
   baseCps: 75,
   maxCps: 240,
   rampThreshold: 190,
-  turboCps: 330,
+  turboCps: 250,
 }
 
 export const PROVIDER_PACING: Record<string, PacingConfig> = {
-  claude: CLAUDE_LIKE_PACING,
-  gemini: CLAUDE_LIKE_PACING,
-  perplexity: CLAUDE_LIKE_PACING,
+  claude: CLAUDE_PACING,
+  gemini: GEMINI_PERPLEXITY_PACING,
+  perplexity: GEMINI_PERPLEXITY_PACING,
   gpt: GPT_PACING,
 }
 
