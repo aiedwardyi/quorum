@@ -299,7 +299,7 @@ export default function ChatHeader({
       </div>
 
       {/* Right side controls */}
-      <div className="flex items-center gap-2 sm:gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 ml-auto">
         <div className="flex items-center gap-2 sm:gap-3">
           <motion.div
             whileHover={{ scale: 1.05 }}
