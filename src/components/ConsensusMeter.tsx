@@ -37,18 +37,25 @@ export default function ConsensusMeter({
     const target = score ?? 0
     if (target === displayScore) return
 
-    const step = target > displayScore ? 1 : -1
-    const timer = setInterval(() => {
-      setDisplayScore((prev) => {
-        const next = prev + step
-        if ((step > 0 && next >= target) || (step < 0 && next <= target)) {
-          clearInterval(timer)
-          return target
-        }
-        return next
-      })
-    }, 16)
-    return () => clearInterval(timer)
+    const start = displayScore
+    const diff = target - start
+    const duration = Math.min(1200, Math.abs(diff) * 14)
+    let startTime: number | null = null
+    let raf: number
+
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3) // easeOutCubic
+
+    const tick = (now: number) => {
+      if (!startTime) startTime = now
+      const elapsed = now - startTime
+      const progress = Math.min(1, elapsed / duration)
+      const value = Math.round(start + diff * ease(progress))
+      setDisplayScore(value)
+      if (progress < 1) raf = requestAnimationFrame(tick)
+    }
+
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
   }, [score]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getColor = (s: number) => {
