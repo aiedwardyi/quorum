@@ -119,7 +119,7 @@ export default function ThreadDropdown({
     setIsOpen(false)
     const navigate = () => {
       isNavigatingRef.current = true
-      router.replace(`/chat?thread=${threadId}`)
+      router.replace(`/?thread=${threadId}`)
     }
     if (confirmBeforeNav) {
       confirmBeforeNav(navigate)
@@ -173,10 +173,10 @@ export default function ThreadDropdown({
         {isOpen && (
           <motion.div
             key="thread-dropdown"
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.12 }}
+            initial={{ opacity: 0, y: -6, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 400, damping: 24 }}
             className="absolute top-full left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] sm:w-80 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl z-50 overflow-hidden"
           >
             {/* Search */}

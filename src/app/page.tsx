@@ -1,929 +1,637 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
-import { Sun, Moon, Star, Heart, Flame, Cat, Snowflake, Send, Check, User, Settings2, LogOut, LogIn, X, Sparkles, Paperclip, Sunrise, FileText, File, Loader2 } from "lucide-react"
-import SettingsModal from "@/components/SettingsModal"
-import { motion, AnimatePresence } from "framer-motion"
+import { Suspense, useCallback, useRef, useEffect, useState } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { THEMES } from "@/types"
-import type { Provider, ResponseLength, Locale, Theme } from "@/types"
-import { cn } from "@/lib/utils"
-import { useSession, signIn, signOut } from "next-auth/react"
-import { shouldShowLoginGate, savePendingDebate } from "@/components/LoginGate"
-import LoginGateModal from "@/components/LoginGate"
-import ThreadDropdown from "@/components/ThreadDropdown"
-import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
-import { MODEL_INFO } from "@/lib/model-info"
+import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
+import { useDebateEngine, SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
+import ChatThread from "@/components/ChatThread"
+import MessageInput from "@/components/MessageInput"
+import ConsensusMeter from "@/components/ConsensusMeter"
+import ChatHeader, { leaveDebateStrings } from "@/components/Header"
+import ConfirmDialog from "@/components/ConfirmDialog"
+import dynamic from "next/dynamic"
+const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
+import { ChevronDown } from "lucide-react"
+import { useThreadPersistence } from "@/hooks/useThreadPersistence"
+import { incrementDebateCount } from "@/components/LoginGate"
 
-/* ─── Model SVG Icons ─── */
+// Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
+// last historically because Pro's TTFT was slowest; chat now runs on
+// 2.5 Flash which is much faster, but we keep the order for now until
+// we re-validate rotation timing end-to-end.
+const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
 
-const GeminiIcon = ({ size = 24, className = "", ...props }: { size?: number; className?: string } & React.SVGProps<SVGSVGElement>) => (
-  <svg height={size} width={size} style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
-    <title>Gemini</title>
-    <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="#3186FF" />
-    <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#gemini-g0)" />
-    <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#gemini-g1)" />
-    <path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#gemini-g2)" />
-    <defs>
-      <linearGradient gradientUnits="userSpaceOnUse" id="gemini-g0" x1="7" x2="11" y1="15.5" y2="12"><stop stopColor="#08B962" /><stop offset="1" stopColor="#08B962" stopOpacity="0" /></linearGradient>
-      <linearGradient gradientUnits="userSpaceOnUse" id="gemini-g1" x1="8" x2="11.5" y1="5.5" y2="11"><stop stopColor="#F94543" /><stop offset="1" stopColor="#F94543" stopOpacity="0" /></linearGradient>
-      <linearGradient gradientUnits="userSpaceOnUse" id="gemini-g2" x1="3.5" x2="17.5" y1="13.5" y2="12"><stop stopColor="#FABC12" /><stop offset=".46" stopColor="#FABC12" stopOpacity="0" /></linearGradient>
-    </defs>
-  </svg>
-)
-
-const PerplexityIcon = ({ size = 24, className = "", ...props }: { size?: number; className?: string } & React.SVGProps<SVGSVGElement>) => (
-  <svg fill="currentColor" fillRule="evenodd" height={size} width={size} style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
-    <title>Perplexity</title>
-    <path d="M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z" />
-  </svg>
-)
-
-const ClaudeIcon = ({ size = 24, className = "", ...props }: { size?: number; className?: string } & React.SVGProps<SVGSVGElement>) => (
-  <svg height={size} width={size} style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
-    <title>Claude</title>
-    <path clipRule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill="#D97757" fillRule="evenodd" />
-  </svg>
-)
-
-const GPTIcon = ({ size = 24, className = "", ...props }: { size?: number; className?: string } & React.SVGProps<SVGSVGElement>) => (
-  <svg fill="currentColor" fillRule="evenodd" height={size} width={size} style={{ flex: "none", lineHeight: 1 }} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} {...props}>
-    <title>OpenAI</title>
-    <path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z" />
-  </svg>
-)
-
-/* ─── Model config ─── */
-
-const MODELS: { id: Provider; color: string; icon: React.ElementType }[] = [
-  { id: "gemini", color: "#3B82F6", icon: GeminiIcon },
-  { id: "perplexity", color: "#14B8A6", icon: PerplexityIcon },
-  { id: "claude", color: "#F97316", icon: ClaudeIcon },
-  { id: "gpt", color: "#10B981", icon: GPTIcon },
-]
-
-/* ─── Translations ─── */
-
-type Tooltips = typeof t["en"]["tooltips"]
-
-const t = {
-  en: {
-    placeholder: "What should the AIs debate?",
-    start: "Send",
-    short: "Short",
-    medium: "Medium",
-    long: "Long",
-    rounds: "rounds",
-    singleRound: "single",
-    quickTake: "quick",
-    standard: "standard",
-    deepDive: "deep",
-    responseLength: "Response Length",
-    roundsCount: "Rounds",
-    models: "Participants",
-    keyboardHint: "to submit",
-    attach: "Attach file",
-    parsing: "Reading files...",
-    unsupported: "Supported: PDF, DOCX, Excel, and text files",
-    truncated: (name: string) => `"${name}" is too long - only the first ~20 pages were included`,
-    empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`,
-    too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`,
-    parse_error: (name: string) => `"${name}" could not be read - the file may be corrupted or password-protected`,
-    settings: "Settings",
-    signIn: "Sign In",
-    signOut: "Sign Out",
-    tooltips: {
-      short: "1-2 paragraphs per response",
-      medium: "3-4 paragraphs per response",
-      long: "Comprehensive, detailed analysis",
-      rounds1: "Single response from each model",
-      rounds2: "Quick back-and-forth",
-      rounds3: "Standard debate",
-      rounds5: "Deep analysis",
-    },
-  },
-  ko: {
-    placeholder: "AI들이 무엇을 토론할까요?",
-    start: "전송",
-    short: "짧게",
-    medium: "보통",
-    long: "길게",
-    rounds: "라운드",
-    singleRound: "단일",
-    quickTake: "빠른",
-    standard: "기본",
-    deepDive: "심층",
-    responseLength: "응답 길이",
-    roundsCount: "라운드 수",
-    models: "참여 모델",
-    keyboardHint: "눌러서 시작",
-    attach: "파일 첨부",
-    parsing: "파일 읽는 중...",
-    unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일",
-    truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`,
-    empty: (name: string) => `"${name}" 파일에 읽을 수 있는 텍스트가 없습니다 - 스캔 이미지일 수 있음`,
-    too_large: (name: string) => `"${name}" 파일이 50MB 크기 제한을 초과합니다`,
-    parse_error: (name: string) => `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)`,
-    settings: "설정",
-    signIn: "로그인",
-    signOut: "로그아웃",
-    tooltips: {
-      short: "응답당 1-2 문단",
-      medium: "응답당 3-4 문단",
-      long: "포괄적이고 상세한 분석",
-      rounds1: "각 모델의 단일 응답",
-      rounds2: "빠른 의견 교환",
-      rounds3: "표준 토론",
-      rounds5: "심층 분석",
-    },
-  },
-}
-
-/* ─── Display name helper ─── */
-
-function modelDisplayName(id: Provider): string {
-  if (id === "gpt") return "GPT"
-  return id.charAt(0).toUpperCase() + id.slice(1)
-}
-
-/* ─── Component ─── */
-
-export default function Home() {
-  const router = useRouter()
-  const [theme, setTheme] = useState<Theme>("dark")
-  const [locale, setLocale] = useState<Locale>("ko")
-  const [prompt, setPrompt] = useState("")
-  // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts and chat/page.tsx.
-  // Gemini sits last historically because Pro was slower; chat now runs on
-  // 2.5 Flash, but the order is preserved for reasoning benefits (Gemini
-  // sees the other models' opinions before forming its own).
-  const [selectedModels, setSelectedModels] = useState<Provider[]>(["perplexity", "claude", "gpt", "gemini"])
-  const [responseLength, setResponseLength] = useState<ResponseLength>("short")
-  const [rounds, setRounds] = useState<number>(1)
-  const sendHint = "Ctrl/⌘+Enter"
-
-  // Hydrate persisted settings from localStorage after mount
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    const savedLocale = localStorage.getItem("quorum_locale")
-    if (savedLocale === "en" || savedLocale === "ko") setLocale(savedLocale)
-    const savedLength = localStorage.getItem("quorum_responseLength")
-    if (savedLength === "short" || savedLength === "medium" || savedLength === "long") setResponseLength(savedLength)
-    const savedRounds = localStorage.getItem("quorum_rounds")
-    if (savedRounds) { const n = parseInt(savedRounds, 10); if ([1, 2, 3, 5].includes(n)) setRounds(n) }
-  }, [])
-  /* eslint-enable react-hooks/set-state-in-effect */
-  const [isFocused, setIsFocused] = useState(false)
-  const [files, setFiles] = useState<{ id: string; file: File; preview?: string; parsing?: boolean; parseStatus?: string; parseProgress?: number; parsed?: ParseResult }[]>([])
-  const filesRef = useRef(files)
-  const [isDragging, setIsDragging] = useState(false)
-  const [fileError, setFileError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Auth & login gate
-  const { data: session } = useSession()
-  const isLoggedIn = !!session?.user
-  const [showGate, setShowGate] = useState(false)
-
-  // Header & Settings state
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest("[data-header-dropdown]")) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  const applyThemeToDOM = (t: Theme) => {
-    const cl = document.documentElement.classList
-    cl.remove(...THEMES.filter((t) => t !== "light"))
-    const isLightTheme = t === "light" || t === "solarized"
-    if (!isLightTheme) {
-      cl.add("dark")
-      if (t !== "dark") cl.add(t)
-    } else if (t === "solarized") {
-      cl.add("solarized")
-    }
-  }
-
-  useEffect(() => {
-    const applyTheme = () => {
-      let saved = localStorage.getItem("quorum_theme") as string | null
-      if (saved === "github") { saved = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
-      const valid = THEMES
-      if (saved && valid.includes(saved as Theme)) {
-        setTheme(saved as Theme)
-        applyThemeToDOM(saved as Theme)
-      } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        setTheme("dark")
-        applyThemeToDOM("dark")
-      } else {
-        setTheme("light")
-        applyThemeToDOM("light")
-      }
-    }
-    applyTheme()
-
-    // BUG-015: Re-apply theme when page becomes visible again
-    // (handles both bfcache restore and Next.js client-side back/forward)
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") applyTheme()
-    }
-    const handlePageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) applyTheme()
-    }
-    document.addEventListener("visibilitychange", handleVisibility)
-    window.addEventListener("pageshow", handlePageShow)
-    window.addEventListener("focus", applyTheme)
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibility)
-      window.removeEventListener("pageshow", handlePageShow)
-      window.removeEventListener("focus", applyTheme)
-    }
-  }, [])
-
-  const changeTheme = (t: Theme) => {
-    setTheme(t)
-    localStorage.setItem("quorum_theme", t)
-    applyThemeToDOM(t)
-  }
-
-  const toggleTheme = () => {
-    const order = THEMES
-    const next = order[(order.indexOf(theme) + 1) % order.length]
-    changeTheme(next)
-  }
-
-  const toggleModel = (model: Provider) => {
-    if (selectedModels.includes(model)) {
-      if (selectedModels.length > 2) {
-        setSelectedModels(selectedModels.filter((m) => m !== model))
-      }
-    } else {
-      if (selectedModels.length < 4) {
-        setSelectedModels([...selectedModels, model])
-      }
-    }
-  }
-
-  const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setPrompt(e.target.value)
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto"
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
-    }
-  }
-
-  // File helpers
-  const addFiles = (incoming: File[]) => {
-    const supported: File[] = []
-    let hasUnsupported = false
-    for (const file of incoming) {
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
-      if (SUPPORTED_EXTENSIONS.has(ext)) {
-        supported.push(file)
-      } else {
-        hasUnsupported = true
-      }
-    }
-    if (hasUnsupported) setFileError(t[locale].unsupported)
-    if (supported.length === 0) return
-    const newFiles = supported.map((file) => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
-      parsing: true,
-      parseProgress: 1,
-    }))
-    setFiles((prev) => {
-      const next = [...prev, ...newFiles]
-      filesRef.current = next
-      return next
-    })
-
-    newFiles.forEach(async (af) => {
-      const parsed = await parseFile(af.file, {
-        onProgress: (status, progress) => {
-          setFiles((prev) => {
-            const next = prev.map((f) =>
-              f.id === af.id ? { ...f, parseStatus: status, parseProgress: progress } : f
-            )
-            filesRef.current = next
-            return next
-          })
-        },
-      })
-      if (!filesRef.current.some((f) => f.id === af.id)) return
-      const warningMsg = parsed.warning === "empty" ? t[locale].empty(af.file.name)
-        : parsed.warning === "too_large" ? t[locale].too_large(af.file.name)
-        : parsed.warning === "parse_error" ? t[locale].parse_error(af.file.name)
-        : parsed.warning === "truncated" ? t[locale].truncated(af.file.name)
-        : null
-      if (warningMsg) setFileError(warningMsg)
-      setFiles((prev) => {
-        const next = prev.map((f) =>
-          f.id === af.id ? { ...f, parsing: false, parseStatus: undefined, parsed } : f
-        )
-        filesRef.current = next
-        return next
-      })
-    })
-  }
-
-  const removeFile = (id: string) => {
-    setFiles((prev) => {
-      const removed = prev.find((f) => f.id === id)
-      if (removed?.preview) URL.revokeObjectURL(removed.preview)
-      const next = prev.filter((f) => f.id !== id)
-      filesRef.current = next
-      return next
-    })
-  }
-
-  // Auto-dismiss file error
-  useEffect(() => {
-    if (!fileError) return
-    const timer = setTimeout(() => setFileError(null), 5000)
-    return () => clearTimeout(timer)
-  }, [fileError])
-
-  const anyFileParsing = files.some((f) => f.parsing)
-
-  const handleSubmit = () => {
-    if (anyFileParsing || (!prompt.trim() && files.length === 0)) return
-
-    let messageText = prompt.trim()
-
-    if (files.length > 0) {
-      const fileContents = files
-        .filter((af) => af.parsed?.text && !af.parsed.text.startsWith("[Unsupported"))
-        .map((af) => `--- File: ${af.file.name} ---\n${af.parsed!.text}`)
-
-      if (fileContents.length === 0) return
-
-      messageText = messageText
-        ? `${messageText}\n\n${fileContents.join("\n\n")}`
-        : fileContents.join("\n\n")
-    }
-
-    if (!messageText) return
-
-    if (shouldShowLoginGate(!!session?.user)) {
-      savePendingDebate({
-        prompt: messageText,
-        originalPrompt: prompt.trim(),
-        hadFiles: files.length > 0,
-        models: selectedModels,
-        responseLength,
-        rounds,
-        locale,
-      })
-      setShowGate(true)
-      return
-    }
-
-    const fileWarnings = files
-      .filter((af) => af.parsed?.warning)
-      .map((af) => {
-        const w = af.parsed!.warning!
-        if (w === "truncated") return t[locale].truncated(af.file.name)
-        if (w === "empty") return t[locale].empty(af.file.name)
-        if (w === "too_large") return t[locale].too_large(af.file.name)
-        if (w === "parse_error") return t[locale].parse_error(af.file.name)
-        return null
-      })
-      .filter(Boolean) as string[]
-
-    const config = {
-      prompt: messageText,
-      models: selectedModels,
-      responseLength,
-      rounds,
-      locale,
-    }
-    sessionStorage.setItem("quorum_config", JSON.stringify(config))
-    sessionStorage.removeItem("quorum_file_warnings")
-    if (fileWarnings.length > 0) {
-      sessionStorage.setItem("quorum_file_warnings", JSON.stringify(fileWarnings))
-    }
-    setFileError(null)
-    files.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
-    router.push("/chat")
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault()
-      handleSubmit()
-    }
-  }
-
-
+export default function ChatPage() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background text-foreground font-[family-name:var(--font-geist-sans)] selection:bg-zinc-200 dark:selection:bg-zinc-800 transition-colors duration-300 flex flex-col">
-      {/* Background animation */}
-      <div className="absolute inset-0 pointer-events-none">
-        <motion.div
-          animate={{ x: [0, 50, 0], y: [0, -30, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[-20%] left-[-10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-blue-400/10 dark:bg-blue-500/5 blur-[120px]"
-        />
-        <motion.div
-          animate={{ x: [0, -50, 0], y: [0, 30, 0] }}
-          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] max-w-[600px] max-h-[600px] rounded-full bg-teal-400/10 dark:bg-teal-500/5 blur-[120px]"
-        />
-      </div>
-
-      {/* Header */}
-      <header className="relative z-30 flex justify-between items-center p-4 sm:p-6 md:p-8 w-full max-w-5xl mx-auto">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/")}
-            className="font-semibold tracking-tight text-base sm:text-lg flex items-center gap-2 hover:opacity-70 transition-opacity"
-          >
-            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-sm bg-zinc-900 dark:bg-zinc-100" />
-            Quorum
-          </button>
-          {isLoggedIn && (
-            <ThreadDropdown
-              currentThreadId={null}
-              currentTitle={locale === "ko" ? "최근 토론" : "History"}
-              locale={locale}
-              onNewDebate={() => {
-                sessionStorage.removeItem("quorum_config")
-                router.push("/chat")
-              }}
-            />
-          )}
-        </div>
-        <div className="flex items-center gap-3 sm:gap-5">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-            onClick={() => {
-              const next = locale === "en" ? "ko" : "en"
-              setLocale(next)
-              localStorage.setItem("quorum_locale", next)
-            }}
-            className={cn("cursor-pointer text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors rounded-md px-1", theme === "lovelace" && "hover:ring-2 hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-2 hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-2 hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-2 hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-2 hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-2 hover:ring-[#073642]/50")}
-          >
-            {locale === "en" ? "EN" : "KO"}
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-            onClick={toggleTheme}
-            className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
-            aria-label="Toggle theme"
-          >
-            <AnimatePresence mode="popLayout">
-              {theme === "light" && (
-                <motion.div key="sun" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}
-                  whileHover={{ rotate: [0, 360], transition: { duration: 3, repeat: Infinity, ease: "linear" } }}>
-                  <Sun className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                </motion.div>
-              )}
-              {theme === "dark" && (
-                <motion.div key="moon" initial={{ scale: 0, rotate: -90 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: 90 }} transition={{ duration: 0.2 }}
-                  whileHover={{ rotate: [0, -15, 15, -15, 0], transition: { duration: 0.5, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Moon className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                </motion.div>
-              )}
-              {theme === "tokyonight" && (
-                <motion.div key="star" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.2 }}
-                  whileHover={{ scale: [1, 1.3, 1], transition: { duration: 1, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Star className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                </motion.div>
-              )}
-              {theme === "lovelace" && (
-                <motion.div key="heart" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.2 }}
-                  whileHover={{ scale: [1, 1.2, 1, 1.15, 1], transition: { duration: 0.8, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Heart className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                </motion.div>
-              )}
-              {theme === "gruvbox" && (
-                <motion.div key="flame" initial={{ scale: 0, y: 5 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0, y: 5 }} transition={{ duration: 0.2 }}
-                  whileHover={{ y: [0, -2, 0, -1, 0], scale: [1, 1.15, 1, 1.1, 1], transition: { duration: 0.6, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Flame className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                </motion.div>
-              )}
-              {theme === "catppuccin" && (
-                <motion.div key="cat" initial={{ scale: 0, rotate: 15 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -15 }} transition={{ duration: 0.2 }}
-                  whileHover={{ rotate: [0, -10, 10, -5, 0], y: [0, -1, 0], transition: { duration: 0.7, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Cat className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                </motion.div>
-              )}
-              {theme === "nord" && (
-                <motion.div key="snowflake" initial={{ scale: 0, rotate: 60 }} animate={{ scale: 1, rotate: 0 }} exit={{ scale: 0, rotate: -60 }} transition={{ duration: 0.2 }}
-                  whileHover={{ rotate: [0, 180, 360], scale: [1, 1.15, 1], transition: { duration: 2, repeat: Infinity, ease: "linear" } }}>
-                  <Snowflake className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                </motion.div>
-              )}
-              {theme === "solarized" && (
-                <motion.div key="solar" initial={{ scale: 0, y: 4 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0, y: -4 }} transition={{ duration: 0.2 }}
-                  whileHover={{ y: [0, -3, 0], scale: [1, 1.15, 1], transition: { duration: 1.2, repeat: Infinity, ease: "easeInOut" } }}>
-                  <Sunrise className="w-3.5 h-3.5 text-[#b58900]" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.button>
-
-          <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-800 mx-1" />
-
-          {isLoggedIn ? (
-            <div className="flex items-center gap-3">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className={cn("flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
-              >
-                <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100">1,250</span>
-              </motion.div>
-
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                whileHover={{ scale: 1.05 }}
-                onClick={() => setShowSettings(true)}
-                className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
-                aria-label={t[locale].settings}
-              >
-                <Settings2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-              </motion.button>
-
-              <div className="relative" data-header-dropdown>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  whileHover={{ scale: 1.05 }}
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
-                >
-                  <User className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-                </motion.button>
-
-                <AnimatePresence>
-                  {showDropdown && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 5, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                      className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
-                    >
-                      <div className="p-1">
-                        <button
-                          onClick={() => { setShowDropdown(false); signOut() }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          {t[locale].signOut}
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                whileHover={{ scale: 1.05 }}
-                onClick={() => setShowSettings(true)}
-                className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
-                aria-label={t[locale].settings}
-              >
-                <Settings2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => signIn("google")}
-                className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline text-xs font-bold">{t[locale].signIn}</span>
-              </motion.button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="relative z-10 flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 pt-6 sm:pt-12 pb-24 sm:pb-32 flex flex-col justify-center">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}
-          className="flex flex-col gap-8 sm:gap-12"
-        >
-          {/* Textarea */}
-          <motion.div
-            className={`relative group rounded-3xl p-[2px] overflow-hidden -mx-4 sm:-mx-6 ${isDragging ? "ring-4 ring-purple-500" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); if (!anyFileParsing) setIsDragging(true) }}
-            onDragLeave={(e) => { e.preventDefault(); setIsDragging(false) }}
-            onDrop={(e) => {
-              e.preventDefault()
-              setIsDragging(false)
-              if (!anyFileParsing && e.dataTransfer.files) addFiles(Array.from(e.dataTransfer.files))
-            }}
-            initial={false}
-            animate={{ scale: isFocused ? 1.02 : 1 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          >
-            <div className={`absolute inset-0 bg-[conic-gradient(from_0deg,red,purple,blue,red)] animate-rotate-border ${isFocused ? "opacity-100" : "opacity-50"}`} />
-
-            <div className="relative bg-background rounded-[22px] p-4 sm:p-6">
-              <AnimatePresence>
-                {fileError && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mb-3 px-3 py-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-xl whitespace-pre-line"
-                  >
-                    {fileError}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <textarea
-                ref={textareaRef}
-                value={prompt}
-                onChange={handleInput}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                placeholder={t[locale].placeholder}
-                className="w-full bg-transparent text-base min-[375px]:text-lg sm:text-xl md:text-2xl font-medium tracking-tight placeholder:text-zinc-400 dark:placeholder:text-zinc-600 resize-none outline-none min-h-[100px] sm:min-h-[120px] leading-[1.15]"
-                autoFocus
-              />
-              {files.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {files.map((af) => {
-                    const pct = Math.max(1, Math.min(100, Math.round(af.parseProgress ?? 1)))
-                    return (
-                      <div
-                        key={af.id}
-                        className={cn(
-                          "group/file flex items-center gap-2.5 pl-2 pr-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-sm",
-                          af.parsing && "pl-2"
-                        )}
-                      >
-                        {af.parsing ? (
-                          <div className="relative flex-shrink-0 w-9 h-9">
-                            <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
-                              <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" className="stroke-zinc-300 dark:stroke-zinc-700" />
-                              <circle
-                                cx="18"
-                                cy="18"
-                                r="15"
-                                fill="none"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                className="stroke-blue-500 dark:stroke-blue-400 transition-[stroke-dashoffset] duration-500 ease-out"
-                                strokeDasharray={2 * Math.PI * 15}
-                                strokeDashoffset={2 * Math.PI * 15 * (1 - pct / 100)}
-                              />
-                            </svg>
-                            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold tabular-nums text-blue-600 dark:text-blue-400">
-                              {pct}%
-                            </span>
-                          </div>
-                        ) : af.file.type.includes("pdf") ? (
-                          <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
-                        ) : (
-                          <File className="w-4 h-4 text-zinc-400 flex-shrink-0" />
-                        )}
-                        <div className="flex flex-col min-w-0">
-                          <span className={cn("truncate max-w-[180px] leading-tight", af.parsed?.warning === "empty" || af.parsed?.warning === "too_large" || af.parsed?.warning === "parse_error" ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300")}>{af.file.name}</span>
-                          {af.parsing && af.parseStatus && (
-                            <span className="text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[180px] leading-tight">{af.parseStatus}</span>
-                          )}
-                        </div>
-                        <button onClick={() => removeFile(af.id)} className="text-zinc-400 hover:text-red-500 transition-colors flex-shrink-0">
-                          <X size={14} />
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-              <div className="flex items-center justify-between mt-3">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={anyFileParsing}
-                  title={t[locale].attach}
-                  aria-label={t[locale].attach}
-                  className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  multiple
-                  accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv"
-                  onChange={(e) => {
-                    if (e.target.files) addFiles(Array.from(e.target.files))
-                    e.target.value = ""
-                  }}
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
-                    {sendHint}
-                  </span>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={anyFileParsing || (!prompt.trim() && files.length === 0)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
-                  >
-                    {anyFileParsing ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <>
-                        <Send className="w-3.5 h-3.5" />
-                        {t[locale].start}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Controls */}
-          <div className="flex flex-col gap-8 sm:gap-10">
-            {/* Models */}
-            <div className="flex flex-col gap-4">
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                {t[locale].models}
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                {MODELS.map((model) => {
-                  const isSelected = selectedModels.includes(model.id)
-                  const isDisabled = !isSelected && selectedModels.length >= 4
-                  const isMinReached = isSelected && selectedModels.length <= 2
-                  const Icon = model.icon
-
-                  return (
-                    <motion.button
-                      key={model.id}
-                      onClick={() => toggleModel(model.id)}
-                      disabled={isDisabled && !isSelected}
-                      initial={false}
-                      animate={{
-                        scale: isSelected ? 1.02 : 1,
-                        opacity: isDisabled && !isSelected ? 0.3 : isSelected ? 1 : 0.6,
-                      }}
-                      whileHover={
-                        isDisabled && !isSelected
-                          ? {}
-                          : { scale: isSelected ? 1.04 : 1.02, opacity: 1 }
-                      }
-                      whileTap={{
-                        scale: (isDisabled && !isSelected) || isMinReached ? (isSelected ? 1.02 : 1) : 0.98,
-                      }}
-                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                      className={`group/model relative flex flex-col items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl transition-all duration-300 text-left outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600 border ${
-                        isSelected
-                          ? "bg-white dark:bg-zinc-900"
-                          : "bg-zinc-50/50 dark:bg-zinc-900/20 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-900/50"
-                      } ${(isDisabled && !isSelected) || isMinReached ? "cursor-not-allowed" : "cursor-pointer"}`}
-                      style={
-                        isSelected
-                          ? {
-                              borderColor: `${model.color}80`,
-                              boxShadow: `0 4px 24px -6px ${model.color}40`,
-                            }
-                          : {}
-                      }
-                    >
-                      {/* Tooltip */}
-                      <div className="hidden sm:block absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[11px] sm:text-xs font-medium rounded-lg opacity-0 group-hover/model:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl">
-                        {MODEL_INFO[model.id].description[locale]}
-                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
-                      </div>
-
-                      <div className="flex justify-between w-full items-start">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300"
-                          style={{
-                            backgroundColor: isSelected ? `${model.color}15` : "transparent",
-                            color: isSelected ? model.color : "currentColor",
-                          }}
-                        >
-                          <Icon size={16} className={isSelected ? "" : "text-zinc-500 dark:text-zinc-400"} />
-                        </div>
-                        <div
-                          className={`w-4 h-4 mt-1 rounded-full border flex items-center justify-center transition-all duration-300 ${
-                            isSelected
-                              ? "bg-zinc-900 dark:bg-zinc-100 border-transparent text-white dark:text-zinc-900 scale-100"
-                              : "border-zinc-300 dark:border-zinc-600 text-transparent scale-90"
-                          }`}
-                        >
-                          <Check size={10} strokeWidth={3} />
-                        </div>
-                      </div>
-                      <span
-                        className={`font-medium text-xs sm:text-sm tracking-wide transition-colors ${
-                          isSelected ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400"
-                        }`}
-                      >
-                        {modelDisplayName(model.id)}
-                      </span>
-                    </motion.button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="h-px w-full bg-zinc-200/60 dark:bg-zinc-800/60" />
-
-            {/* Settings Row */}
-            <div className="flex flex-col sm:flex-row gap-6 sm:gap-12 lg:gap-16">
-                {/* Response Length */}
-                <div className="flex flex-col gap-4 w-full sm:w-auto">
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                    {t[locale].responseLength}
-                  </span>
-                  <div className="flex items-center w-full sm:w-auto gap-1 bg-zinc-100/50 dark:bg-zinc-900/30 p-1 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
-                    {(["short", "medium", "long"] as ResponseLength[]).map((len) => (
-                      <motion.button
-                        key={len}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => { setResponseLength(len); localStorage.setItem("quorum_responseLength", len) }}
-                        className={`group/len relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
-                          responseLength === len
-                            ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
-                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 border border-transparent"
-                        }`}
-                      >
-                        <div className="hidden sm:block absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[11px] sm:text-xs font-medium rounded-lg opacity-0 group-hover/len:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl">
-                          {t[locale].tooltips[len]}
-                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
-                        </div>
-                        {t[locale][len]}
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Rounds */}
-                <div className="flex flex-col gap-4 w-full sm:w-auto">
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
-                    {t[locale].roundsCount}
-                  </span>
-                  <div className="flex items-center w-full sm:w-auto gap-1 bg-zinc-100/50 dark:bg-zinc-900/30 p-1 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
-                    {[
-                      { val: 1, label: `1 ${t[locale].rounds}`, desc: t[locale].singleRound },
-                      { val: 2, label: `2 ${t[locale].rounds}`, desc: t[locale].quickTake },
-                      { val: 3, label: `3 ${t[locale].rounds}`, desc: t[locale].standard },
-                      { val: 5, label: `5 ${t[locale].rounds}`, desc: t[locale].deepDive },
-                    ].map((r) => (
-                      <motion.button
-                        key={r.val}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => { setRounds(r.val); localStorage.setItem("quorum_rounds", String(r.val)) }}
-                        className={`group/round relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-6 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
-                          rounds === r.val
-                            ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
-                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 border border-transparent"
-                        }`}
-                      >
-                        <div className="hidden sm:block absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[11px] sm:text-xs font-medium rounded-lg opacity-0 group-hover/round:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl">
-                          {t[locale].tooltips[`rounds${r.val}` as keyof Tooltips]}
-                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-900 dark:border-t-zinc-100" />
-                        </div>
-                        {r.val}
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-          </div>
-        </motion.div>
-
-      </main>
-
-      {/* Settings Modal */}
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        locale={locale}
-        onToggleLocale={() => setLocale((l) => (l === "en" ? "ko" : "en"))}
-        activeModels={selectedModels}
-        onToggleModel={toggleModel}
-        showPreferences={false}
-      />
-      {showGate && <LoginGateModal onClose={() => setShowGate(false)} locale={locale} />}
-    </div>
+    <Suspense>
+      <ChatPageContent />
+    </Suspense>
   )
 }
 
+function ChatPageContent() {
+  // Config loaded from sessionStorage (set by homepage)
+  const [locale, setLocale] = useState<Locale>("ko")
+  const [responseLength, setResponseLength] = useState<ResponseLength>("short")
+  const [maxRounds, setMaxRounds] = useState(1)
+  const [theme, setTheme] = useState<Theme>("dark")
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isLoadingThread, setIsLoadingThread] = useState(false)
+  const [fileWarning, setFileWarning] = useState<string | null>(null)
+  const [prefillText, setPrefillText] = useState<string | null>(null)
+
+  const { state, dispatch, handleSend, handleStop, handleReset, handleSendRef } =
+    useDebateEngine({ locale, responseLength, maxRounds })
+
+  const persistence = useThreadPersistence()
+  const router = useRouter()
+
+  const searchParams = useSearchParams()
+  const threadParam = searchParams.get("thread")
+
+  const mainRef = useRef<HTMLElement>(null)
+  const [showScrollDown, setShowScrollDown] = useState(false)
+  // Bumped on bfcache restore to force framer-motion remount
+  const [mountKey, setMountKey] = useState(0)
+
+  // Warn before browser back/refresh/tab close during active debate
+  const [showBackConfirm, setShowBackConfirm] = useState(false)
+  const isDebatingRef = useRef(state.isDebating)
+  const allowBackRef = useRef(false)
+  const guardPushedRef = useRef(false)
+  // When true, popstate handlers skip everything so a confirmed leave
+  // flow can navigate (router.replace) without re-triggering the
+  // back-confirmation dialog.
+  const leavingRef = useRef(false)
+  isDebatingRef.current = state.isDebating
+
+  useEffect(() => {
+    if (!state.isDebating) {
+      // Clean up guard entry when debate ends naturally (not during navigation)
+      if (guardPushedRef.current && history.state?.debateGuard) {
+        guardPushedRef.current = false
+        allowBackRef.current = true
+        history.back()
+      } else {
+        guardPushedRef.current = false
+      }
+      return
+    }
+
+    // Push a guard entry so we can intercept back navigation
+    history.pushState({ debateGuard: true }, "")
+    guardPushedRef.current = true
+
+    const handlePopState = () => {
+      if (leavingRef.current) return
+      if (allowBackRef.current) {
+        allowBackRef.current = false
+        return
+      }
+      if (isDebatingRef.current) {
+        history.pushState({ debateGuard: true }, "")
+        setShowBackConfirm(true)
+      }
+    }
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+      window.removeEventListener("beforeunload", handleBeforeUnload)
+    }
+  }, [state.isDebating])
+
+  // Apply theme classes to <html>
+  useEffect(() => {
+    const cl = document.documentElement.classList
+    cl.remove(...THEMES.filter((t) => t !== "light"))
+    const isLightTheme = theme === "light" || theme === "solarized"
+    if (!isLightTheme) {
+      cl.add("dark")
+      if (theme !== "dark") cl.add(theme)
+    } else if (theme === "solarized") {
+      cl.add("solarized")
+    }
+  }, [theme])
+
+  // BUG-015: Re-apply theme when page becomes visible again
+  // (handles bfcache restore, Next.js client-side back/forward, and tab switching)
+  useEffect(() => {
+    const reapplyTheme = () => {
+      let saved = localStorage.getItem("quorum_theme") as string | null
+      if (saved === "github") { saved = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
+      if (saved && (THEMES as readonly string[]).includes(saved)) {
+        setTheme(saved as Theme)
+      }
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") reapplyTheme()
+    }
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        reapplyTheme()
+        setMountKey((k) => k + 1)
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+    window.addEventListener("pageshow", handlePageShow)
+    window.addEventListener("focus", reapplyTheme)
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility)
+      window.removeEventListener("pageshow", handlePageShow)
+      window.removeEventListener("focus", reapplyTheme)
+    }
+  }, [])
+
+  /* ---- Read config from sessionStorage on mount ---- */
+  const initialPromptSent = useRef(false)
+  const pendingPrompt = useRef<{ prompt: string; models: Provider[] } | null>(null)
+  const [configHydrated, setConfigHydrated] = useState(false)
+
+  useEffect(() => {
+    let savedTheme = localStorage.getItem("quorum_theme") as string | null
+    if (savedTheme === "github") { savedTheme = "solarized"; localStorage.setItem("quorum_theme", "solarized") }
+    if (savedTheme && (THEMES as readonly string[]).includes(savedTheme)) {
+      setTheme(savedTheme as Theme)
+    }
+
+    const savedLocale = localStorage.getItem("quorum_locale") as string | null
+    if (savedLocale === "en" || savedLocale === "ko") {
+      setLocale(savedLocale)
+    }
+
+    const savedLength = localStorage.getItem("quorum_responseLength") as string | null
+    if (savedLength === "short" || savedLength === "medium" || savedLength === "long") {
+      setResponseLength(savedLength)
+    }
+
+    const savedRounds = localStorage.getItem("quorum_rounds")
+    if (savedRounds) {
+      const n = parseInt(savedRounds, 10)
+      if ([1, 2, 3, 5].includes(n)) setMaxRounds(n)
+    }
+
+    // Check for pending debate from login gate (must be before quorum_config early return)
+    const pending = sessionStorage.getItem("quorum_pending")
+    if (pending) {
+      sessionStorage.removeItem("quorum_pending")
+      // Clear stale quorum_config so it doesn't auto-send over our prefill
+      sessionStorage.removeItem("quorum_config")
+      sessionStorage.removeItem("quorum_file_warnings")
+      try {
+        const config = JSON.parse(pending)
+        if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
+        if (config.responseLength) setResponseLength(config.responseLength)
+        if (config.rounds) setMaxRounds(config.rounds)
+        if (config.locale) setLocale(config.locale)
+        // Prefill the text box with the original prompt instead of auto-sending
+        const textToShow = config.originalPrompt || config.prompt || ""
+        if (textToShow) setPrefillText(textToShow)
+        if (config.hadFiles) {
+          const reattachMsg = config.locale === "ko"
+            ? "로그인 전에 첨부한 파일을 다시 첨부해주세요"
+            : "Please re-attach files from before login"
+          setFileWarning(reattachMsg)
+        }
+      } catch { /* ignore */ }
+      setConfigHydrated(true)
+      return
+    }
+
+    const raw = sessionStorage.getItem("quorum_config")
+    if (!raw) {
+      setConfigHydrated(true)
+      return
+    }
+
+    try {
+      const config = JSON.parse(raw) as {
+        prompt?: string
+        models?: Provider[]
+        responseLength?: ResponseLength
+        rounds?: number
+        locale?: Locale
+      }
+
+      sessionStorage.removeItem("quorum_config")
+
+      const warningsRaw = sessionStorage.getItem("quorum_file_warnings")
+      if (warningsRaw) {
+        sessionStorage.removeItem("quorum_file_warnings")
+        try {
+          const parsed = JSON.parse(warningsRaw)
+          if (Array.isArray(parsed)) {
+            const joined = parsed.filter((w): w is string => typeof w === "string").join("\n")
+            if (joined) setFileWarning(joined)
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (config.models?.length) dispatch({ type: "SET_MODELS", models: config.models })
+      if (config.responseLength) setResponseLength(config.responseLength)
+      if (config.rounds) setMaxRounds(config.rounds)
+      if (config.locale) setLocale(config.locale)
+
+      if (config.prompt) {
+        pendingPrompt.current = {
+          prompt: config.prompt,
+          models: config.models ?? DEFAULT_MODELS,
+        }
+      }
+    } catch {
+      // malformed config - ignore
+    } finally {
+      setConfigHydrated(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Fire pending prompt after state has settled
+  useEffect(() => {
+    if (!configHydrated) return
+    if (pendingPrompt.current && !initialPromptSent.current) {
+      initialPromptSent.current = true
+      const { prompt: p, models } = pendingPrompt.current
+      pendingPrompt.current = null
+      setTimeout(() => handleSendRef.current(p, "all", models), 0)
+    }
+  }, [configHydrated, handleSendRef])
+
+  const changeTheme = useCallback((t: Theme) => {
+    setTheme(t)
+    localStorage.setItem("quorum_theme", t)
+  }, [])
+
+  const toggleTheme = useCallback(() => {
+    const order = THEMES
+    setTheme((prev) => {
+      const next = order[(order.indexOf(prev) + 1) % order.length]
+      localStorage.setItem("quorum_theme", next)
+      return next
+    })
+  }, [])
+
+  // Persistence-related refs
+  const creatingThreadRef = useRef(false)
+  const prevMessageCount = useRef(0)
+  const isHydratingRef = useRef(false)
+  const threadLoaded = useRef<string | null>(null)
+
+  // Auto-save messages when new ones are added
+  useEffect(() => {
+    if (!persistence.isLoggedIn) return
+    if (isHydratingRef.current) {
+      prevMessageCount.current = state.messages.length
+      return
+    }
+    if (state.messages.length <= prevMessageCount.current) {
+      prevMessageCount.current = state.messages.length
+      return
+    }
+    prevMessageCount.current = state.messages.length
+
+    // If no thread exists yet and we have a user message, create one
+    if (!persistence.threadId.current && !creatingThreadRef.current && state.messages.length > 0) {
+      const firstUserMsg = state.messages.find(m => m.sender === "user")
+      if (firstUserMsg) {
+        creatingThreadRef.current = true
+        persistence.createThread({
+          title: firstUserMsg.content.slice(0, 80),
+          models: state.activeModels,
+          rounds: maxRounds,
+          responseLength,
+          locale,
+        }).then((id) => {
+          creatingThreadRef.current = false
+          if (id) {
+            dispatch({ type: "SET_THREAD_ID", id })
+            // Don't save here — auto-save handles it on next trigger,
+            // avoiding saving empty AI placeholders during thread creation.
+          }
+        })
+        return
+      }
+    }
+
+    // Skip verdict message batch — verdict-save effect handles it sequentially
+    if (state.showSummary && state.messages[state.messages.length - 1]?.sender === "verdict") {
+      return
+    }
+
+    // Don't save while an AI message is still streaming (empty placeholder).
+    // The next ADD_MESSAGE trigger will include the now-complete message.
+    const lastMsg = state.messages[state.messages.length - 1]
+    if (lastMsg && !lastMsg.content && lastMsg.sender !== "user" && lastMsg.sender !== "system" && lastMsg.sender !== "verdict") {
+      return
+    }
+
+    // Otherwise save incrementally
+    persistence.saveMessages(state.messages)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.messages.length])
+
+  // Save messages when debate ends (covers stop, single-model, and normal completion)
+  useEffect(() => {
+    if (isHydratingRef.current) return
+    if (!state.isDebating && state.messages.length > 0 && persistence.threadId.current) {
+      persistence.saveMessages(state.messages)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.isDebating])
+
+  // Auto-save verdict when summary is shown (save messages first to avoid version race)
+  useEffect(() => {
+    if (isHydratingRef.current) return
+    if (state.showSummary && state.verdict && persistence.threadId.current) {
+      const doSave = async () => {
+        await persistence.saveMessages(state.messages)
+        const afterIndex = state.messages.length - 1
+        await persistence.saveVerdict(state.verdict!, afterIndex)
+      }
+      doSave()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.showSummary])
+
+  const handleNewDebate = useCallback(() => {
+    creatingThreadRef.current = false
+    threadLoaded.current = null
+    prevMessageCount.current = 0
+    persistence.reset()
+    handleReset()
+    router.replace("/")
+  }, [persistence, handleReset, router])
+
+  // When user continues a completed thread, mark it active again
+  const prevShowSummary = useRef(state.showSummary)
+  useEffect(() => {
+    if (prevShowSummary.current && !state.showSummary) {
+      persistence.continueThread()
+    }
+    prevShowSummary.current = state.showSummary
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.showSummary])
+
+  // Load thread from URL parameter
+  useEffect(() => {
+    if (!threadParam || threadLoaded.current === threadParam || !persistence.isLoggedIn) return
+    threadLoaded.current = threadParam
+    creatingThreadRef.current = false
+    isHydratingRef.current = true
+    prevMessageCount.current = 0
+    setIsLoadingThread(true)
+    handleReset()
+    // Prevent the continue-thread effect from misinterpreting this reset
+    // as the user continuing a completed thread
+    prevShowSummary.current = false
+
+    persistence.loadThread(threadParam).then((thread) => {
+      if (!thread) {
+        isHydratingRef.current = false
+        threadLoaded.current = null
+        setIsLoadingThread(false)
+        return
+      }
+
+      // Rebuild client messages from DB records
+      const rawMessages: Message[] = thread.messages.map((m: { id: string; sender: string; displayName: string; content: string; createdAt: string }) => ({
+        id: `db-${m.id}`,
+        sender: m.sender as Message["sender"],
+        displayName: m.displayName,
+        content: m.content,
+        timestamp: new Date(m.createdAt),
+      }))
+
+      // Inject verdict data into verdict messages using the original
+      // indices from the DB record. Verdict.afterMessageIndex was
+      // captured against the full message list (including the
+      // analyzing divider that we are about to strip below), so the
+      // lookup must run on rawMessages, not on the filtered list.
+      for (const verdict of thread.verdicts) {
+        const verdictMsg = rawMessages.find(
+          (m, i) => m.sender === "verdict" && i >= verdict.afterMessageIndex
+        )
+        if (verdictMsg) {
+          verdictMsg.verdictData = {
+            recommendedAnswer: verdict.recommendation,
+            voteSplit: verdict.voteSplit,
+            confidence: verdict.confidence,
+            reasons: verdict.reasons,
+            minorityView: verdict.minorityView,
+            oppositeCase: verdict.oppositeCase,
+            ...(verdict.analysis ? { analysis: verdict.analysis } : {}),
+            ...(verdict.keyTakeaways?.length ? { keyTakeaways: verdict.keyTakeaways } : {}),
+            ...(verdict.actionItems?.length ? { actionItems: verdict.actionItems } : {}),
+          }
+        }
+      }
+
+      // Strip stale "Analyzing discussion..." system dividers. These
+      // were persisted during the live debate (saveMessages is
+      // append-only and the post-verdict UPDATE_MESSAGE that clears
+      // them to empty content never gets written back to the DB). On
+      // a completed thread the analyzing phase is over, so rendering
+      // the divider plus its VerdictSkeleton above the real verdict
+      // card is a stale-state artifact. For in-progress threads, the
+      // engine cannot resume the pending consensus request anyway, so
+      // the divider is also stale there.
+      const messages: Message[] = rawMessages.filter(
+        (m) =>
+          !(
+            m.sender === "system" &&
+            (m.content === SYSTEM_MESSAGES.analyzing("en") ||
+              m.content === SYSTEM_MESSAGES.analyzing("ko"))
+          )
+      )
+
+      // Find the last verdict for the state
+      const lastVerdict = thread.verdicts[thread.verdicts.length - 1]
+      const verdictResult: VerdictResult | null = lastVerdict
+        ? {
+            recommendedAnswer: lastVerdict.recommendation,
+            voteSplit: lastVerdict.voteSplit,
+            confidence: lastVerdict.confidence,
+            reasons: lastVerdict.reasons,
+            minorityView: lastVerdict.minorityView,
+            oppositeCase: lastVerdict.oppositeCase,
+            ...(lastVerdict.analysis ? { analysis: lastVerdict.analysis } : {}),
+            ...(lastVerdict.keyTakeaways?.length ? { keyTakeaways: lastVerdict.keyTakeaways } : {}),
+            ...(lastVerdict.actionItems?.length ? { actionItems: lastVerdict.actionItems } : {}),
+          }
+        : null
+
+      // Set config from thread
+      if (thread.models?.length) dispatch({ type: "SET_MODELS", models: thread.models })
+      if (thread.responseLength) setResponseLength(thread.responseLength)
+      if (thread.rounds) setMaxRounds(thread.rounds)
+      if (thread.locale) setLocale(thread.locale)
+
+      // Hydrate debate engine
+      dispatch({
+        type: "HYDRATE_THREAD",
+        messages,
+        verdict: verdictResult,
+        showSummary: thread.status === "complete",
+      })
+      dispatch({ type: "SET_THREAD_ID", id: thread.id })
+      prevMessageCount.current = messages.length
+      setTimeout(() => { isHydratingRef.current = false; setIsLoadingThread(false) }, 0)
+    }).catch((err) => {
+      console.error("[thread] Failed to load thread:", err)
+      isHydratingRef.current = false
+      threadLoaded.current = null
+      setIsLoadingThread(false)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadParam, persistence.isLoggedIn, handleReset])
+
+  // Increment free-debate counter after verdict (for login gate)
+  const hasIncrementedRef = useRef(false)
+  useEffect(() => {
+    if (state.showSummary && !persistence.isLoggedIn && !hasIncrementedRef.current) {
+      hasIncrementedRef.current = true
+      incrementDebateCount()
+    }
+    if (!state.showSummary) {
+      hasIncrementedRef.current = false
+    }
+  }, [state.showSummary, persistence.isLoggedIn])
+
+  /* ---- Render ---- */
+
+  return (
+    <div key={mountKey} className="relative flex flex-col h-screen bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
+      <ChatHeader
+        currentRound={state.currentRound}
+        maxRounds={maxRounds}
+        responseLength={responseLength}
+        onChangeResponseLength={(len) => { setResponseLength(len); localStorage.setItem("quorum_responseLength", len) }}
+        onChangeRounds={(rounds: number) => {
+          setMaxRounds(rounds)
+          localStorage.setItem("quorum_rounds", String(rounds))
+        }}
+        activeModels={state.activeModels}
+        onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
+        locale={locale}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        isDebating={state.isDebating}
+        threadId={state.threadId}
+        onNewDebate={handleNewDebate}
+        onDeleteCurrent={handleNewDebate}
+        onStopDebate={handleStop}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        locale={locale}
+        onToggleLocale={() => setLocale((l) => {
+          const next = l === "en" ? "ko" : "en"
+          localStorage.setItem("quorum_locale", next)
+          return next
+        })}
+        activeModels={state.activeModels}
+        onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
+        isDebating={state.isDebating}
+        theme={theme}
+        onChangeTheme={changeTheme}
+      />
+
+      {/* Scrollable message area */}
+      <main
+        ref={mainRef}
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative thin-scrollbar scroll-smooth"
+        onScroll={() => {
+          const el = mainRef.current
+          if (!el) return
+          const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+          setShowScrollDown(distFromBottom > 200)
+        }}
+      >
+        {isLoadingThread ? (
+          <div className="flex-1 flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-5 h-5 border-2 border-zinc-300 dark:border-zinc-600 border-t-zinc-600 dark:border-t-zinc-300 rounded-full animate-spin" />
+              <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                {locale === "ko" ? "불러오는 중..." : "Loading..."}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <ChatThread
+            messages={state.messages}
+            typingModel={state.typingModel}
+            isDebating={state.isDebating}
+            locale={locale}
+            activeModels={state.activeModels}
+            responseLength={responseLength}
+            onSendMessage={(text) => handleSend(text, "all")}
+            onNewDiscussion={handleNewDebate}
+          />
+        )}
+      </main>
+
+      <button
+        onClick={() => mainRef.current?.scrollTo({ top: mainRef.current.scrollHeight, behavior: "smooth" })}
+        className={`absolute left-1/2 -translate-x-1/2 bottom-20 sm:bottom-24 w-8 h-8 rounded-full bg-zinc-500/20 dark:bg-zinc-400/15 backdrop-blur-sm text-zinc-500 dark:text-zinc-400 flex items-center justify-center hover:bg-zinc-500/30 dark:hover:bg-zinc-400/25 transition-all duration-200 z-30 ${showScrollDown ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"}`}
+      >
+        <ChevronDown className="w-4 h-4" />
+      </button>
+
+      {/* Bottom bar: consensus rail + input */}
+      <div className="w-full shrink-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-2 z-10">
+        {(state.isDebating || state.typingModel !== null || state.verdict !== null) && (
+          <ConsensusMeter
+            score={state.verdict?.confidence ?? null}
+            result={state.showSummary ? state.verdict : null}
+            locale={locale}
+          />
+        )}
+
+        <MessageInput
+          onSend={handleSend}
+          onStop={handleStop}
+          disabled={state.isDebating}
+          locale={locale}
+          initialFileWarning={fileWarning}
+          initialText={prefillText}
+        />
+      </div>
+
+      <ConfirmDialog
+        isOpen={showBackConfirm}
+        title={leaveDebateStrings[locale].leaveTitle}
+        description={leaveDebateStrings[locale].leaveDesc}
+        confirmLabel={leaveDebateStrings[locale].leaveConfirm}
+        cancelLabel={leaveDebateStrings[locale].leaveCancel}
+        onConfirm={() => {
+          setShowBackConfirm(false)
+          handleStop()
+          // Leaving flag so the popstate listener ignores the navigation
+          // we are about to trigger and never re-shows the dialog.
+          leavingRef.current = true
+          guardPushedRef.current = false
+          // Navigate directly to home via Next.js router instead of
+          // counting history entries and calling history.go(-N). The
+          // previous history.go(-2) approach assumed exactly two guard
+          // entries had been pushed, which held during Gemini's thinking
+          // phase but broke once additional renders pushed more entries
+          // after the first bubble finished streaming, leaving the user
+          // stranded on a middle chat entry that required a second
+          // back-click. router.replace is independent of stack depth.
+          router.replace("/")
+        }}
+        onCancel={() => setShowBackConfirm(false)}
+        destructive
+      />
+    </div>
+  )
+}

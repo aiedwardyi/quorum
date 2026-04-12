@@ -174,7 +174,7 @@ export default function ChatHeader({
           <div className={cn("relative shrink-0 group", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowRoundsDropdown(!showRoundsDropdown)}
+              onClick={() => { setShowRoundsDropdown(!showRoundsDropdown); setShowLengthDropdown(false); setShowUserMenu(false) }}
               aria-haspopup="listbox"
               aria-expanded={showRoundsDropdown}
               className="flex items-center gap-1 sm:gap-1.5 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
@@ -196,14 +196,18 @@ export default function ChatHeader({
             <AnimatePresence>
               {showRoundsDropdown && (
                 <motion.div
-                  initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 6, scale: 0.92 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 24 }}
                   className="absolute top-full left-0 mt-1 w-28 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60] py-1"
                 >
-                  {[1, 2, 3, 5].map((rounds) => (
+                  {[1, 2, 3, 5].map((rounds, i) => (
                     <motion.button
                       key={rounds}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.04, duration: 0.2 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         onChangeRounds(rounds)
@@ -229,7 +233,7 @@ export default function ChatHeader({
           <div className={cn("relative shrink-0 group", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowLengthDropdown(!showLengthDropdown)}
+              onClick={() => { setShowLengthDropdown(!showLengthDropdown); setShowRoundsDropdown(false); setShowUserMenu(false) }}
               aria-haspopup="listbox"
               aria-expanded={showLengthDropdown}
               className="flex items-center gap-1 sm:gap-1.5 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
@@ -251,14 +255,18 @@ export default function ChatHeader({
             <AnimatePresence>
               {showLengthDropdown && (
                   <motion.div
-                    initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.92 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 24 }}
                     className="absolute top-full left-0 mt-1 w-32 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60] py-1"
                   >
-                    {(["short", "medium", "long"] as ResponseLength[]).map((len) => (
+                    {(["short", "medium", "long"] as ResponseLength[]).map((len, i) => (
                       <motion.button
                         key={len}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04, duration: 0.2 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
                           onChangeResponseLength(len)
@@ -376,7 +384,7 @@ export default function ChatHeader({
             <motion.button
               whileTap={{ scale: 0.95 }}
               whileHover={{ scale: 1.05 }}
-              onClick={() => setShowUserMenu(!showUserMenu)}
+              onClick={() => { setShowUserMenu(!showUserMenu); setShowRoundsDropdown(false); setShowLengthDropdown(false) }}
               aria-label="User menu"
               aria-haspopup="menu"
               aria-expanded={showUserMenu}
@@ -398,9 +406,10 @@ export default function ChatHeader({
           <AnimatePresence>
             {showUserMenu && isLoggedIn && (
                 <motion.div
-                  initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 6, scale: 0.92 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 24 }}
                   className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
                 >
                   <div className="p-1">
