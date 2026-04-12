@@ -359,8 +359,6 @@ function ChatPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.showSummary])
 
-  const currentTitle = state.messages.find(m => m.sender === "user")?.content.slice(0, 80) ?? null
-
   const handleNewDebate = useCallback(() => {
     creatingThreadRef.current = false
     threadLoaded.current = null
