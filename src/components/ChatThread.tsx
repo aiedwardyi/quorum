@@ -6,10 +6,6 @@ import ChatBubble from "@/components/ChatBubble"
 import WelcomeHero from "@/components/WelcomeHero"
 import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
 
-// When true, the ResizeObserver follow-scroll yields to the verdict
-// scroll logic so it doesn't chase the SummaryCard to the bottom.
-const verdictScrollActiveRef = { current: false }
-
 export default function ChatThread({
   messages,
   typingModel,
@@ -31,6 +27,9 @@ export default function ChatThread({
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  // When true, the ResizeObserver follow-scroll yields to the verdict
+  // scroll logic so it doesn't chase the SummaryCard to the bottom.
+  const verdictScrollActiveRef = useRef(false)
 
   const hasMessages = messages.length > 0 || !!typingModel
 
@@ -154,38 +153,47 @@ export default function ChatThread({
     // the top in view). SummaryCard is dynamically imported, so we
     // poll until it renders past the skeleton height and suppress the
     // ResizeObserver meanwhile.
+    let timerId: ReturnType<typeof setTimeout> | null = null
+    let cancelled = false
     if (verdictJustAdded && lastMsg) {
       verdictScrollActiveRef.current = true
       const main = bottomRef.current?.closest("main")
       const msgId = lastMsg.id
       let attempts = 0
-      const maxAttempts = 40 // ~2s at 50ms intervals
+      const SKELETON_H = 200
+      const MAX_ATTEMPTS = 40 // ~2s at 50ms intervals
+      const SCROLL_SETTLE_MS = 800
       const poll = () => {
+        if (cancelled) return
         const verdictEl = main?.querySelector(
           `[data-message-id="${msgId}"]`
         ) as HTMLElement | null
-        if (verdictEl && verdictEl.offsetHeight > 200) {
+        if (verdictEl && verdictEl.offsetHeight > SKELETON_H) {
           const viewportH = main?.clientHeight ?? window.innerHeight
           const cardFits = verdictEl.offsetHeight <= viewportH - 40
           verdictEl.scrollIntoView({
             behavior: "smooth",
             block: cardFits ? "end" : "start",
           })
-          setTimeout(() => { verdictScrollActiveRef.current = false }, 800)
+          timerId = setTimeout(() => { verdictScrollActiveRef.current = false }, SCROLL_SETTLE_MS)
           return
         }
         attempts++
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 50)
+        if (attempts < MAX_ATTEMPTS) {
+          timerId = setTimeout(poll, 50)
         } else {
           if (verdictEl) {
             verdictEl.scrollIntoView({ behavior: "smooth", block: "start" })
           }
-          setTimeout(() => { verdictScrollActiveRef.current = false }, 800)
+          timerId = setTimeout(() => { verdictScrollActiveRef.current = false }, SCROLL_SETTLE_MS)
         }
       }
       poll()
-      return
+      return () => {
+        cancelled = true
+        if (timerId) clearTimeout(timerId)
+        verdictScrollActiveRef.current = false
+      }
     }
 
     // User just hit send: always scroll to bottom smoothly. Matches
