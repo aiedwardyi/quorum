@@ -1,8 +1,7 @@
 "use client"
 
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { Provider, Locale } from "@/types"
-import { useEffect, useState } from "react"
 
 const suggestions = {
   en: [
@@ -171,15 +170,6 @@ export default function WelcomeHero({
 }) {
   const t = translations[locale]
   const s = suggestions[locale]
-  const [ready, setReady] = useState(false)
-
-  useEffect(() => {
-    // Small delay so the page feels like it's loading in, not just popping
-    const id = setTimeout(() => setReady(true), 50)
-    return () => clearTimeout(id)
-  }, [])
-
-  if (!ready) return null
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 sm:px-6 py-8 sm:py-12">
