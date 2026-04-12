@@ -102,9 +102,10 @@ export default function SettingsModal({
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-zinc-900/20 dark:bg-black/40 backdrop-blur-sm" />
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          initial={{ opacity: 0, scale: 0.92, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+          exit={{ opacity: 0, scale: 0.95, y: 8 }}
+          transition={{ type: "spring", stiffness: 400, damping: 26 }}
           className={cn("relative w-full bg-card border border-border shadow-2xl rounded-2xl overflow-hidden", showPrefs ? "max-w-xl flex flex-col sm:flex-row h-[90vh] sm:h-[520px]" : "max-w-md flex flex-col max-h-[90vh]")}
         >
           {/* Sidebar */}

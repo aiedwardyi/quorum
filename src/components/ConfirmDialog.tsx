@@ -78,10 +78,10 @@ export default function ConfirmDialog({
           />
           <motion.div
             ref={dialogRef}
-            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            initial={{ opacity: 0, scale: 0.92, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 8 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, scale: 0.95, y: 6 }}
+            transition={{ type: "spring", stiffness: 400, damping: 26 }}
             role="alertdialog"
             aria-modal="true"
             aria-labelledby={titleId}
