@@ -72,7 +72,7 @@ export default function LoginGateModal({
         <h2 id="login-gate-title" className="text-lg font-semibold text-[var(--foreground)] mb-2">{t.title}</h2>
         <p className="text-sm text-[var(--muted-foreground)] mb-6">{t.desc}</p>
         <button
-          onClick={() => signIn("google", { callbackUrl: "/chat" })}
+          onClick={() => signIn("google", { callbackUrl: "/" })}
           className="w-full flex items-center justify-center gap-2 bg-white text-gray-800 font-medium py-2.5 px-4 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">

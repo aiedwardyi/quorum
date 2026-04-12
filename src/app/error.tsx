@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { AlertTriangle, RefreshCw, Home } from "lucide-react"
 import Link from "next/link"
 
-export default function Error({
+export default function ChatError({
   error,
   reset,
 }: {
@@ -12,9 +12,7 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.error("App error boundary caught:", error)
-    }
+    console.error("Chat error boundary caught:", error)
   }, [error])
 
   return (
@@ -28,10 +26,10 @@ export default function Error({
 
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Something went wrong
+            The debate encountered an error
           </h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            An unexpected error occurred. Please try again or return to the home page.
+            Something went wrong during the debate. You can retry or start fresh.
           </p>
         </div>
 
@@ -48,7 +46,7 @@ export default function Error({
             className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-4 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
           >
             <Home className="w-4 h-4" />
-            Go home
+            Start new debate
           </Link>
         </div>
       </div>

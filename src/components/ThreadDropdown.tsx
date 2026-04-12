@@ -119,7 +119,7 @@ export default function ThreadDropdown({
     setIsOpen(false)
     const navigate = () => {
       isNavigatingRef.current = true
-      router.replace(`/chat?thread=${threadId}`)
+      router.replace(`/?thread=${threadId}`)
     }
     if (confirmBeforeNav) {
       confirmBeforeNav(navigate)
