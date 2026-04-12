@@ -70,24 +70,24 @@ export const DEFAULT_PACING: PacingConfig = {
  * drift out of sync. Read the configs directly for current values.
  */
 const CLAUDE_PACING: PacingConfig = {
-  baseCps: 145,
-  maxCps: 400,
-  rampThreshold: 65,
-  turboCps: 500,
+  baseCps: 110,
+  maxCps: 280,
+  rampThreshold: 80,
+  turboCps: 380,
 }
 
 const GEMINI_PERPLEXITY_PACING: PacingConfig = {
-  baseCps: 90,
-  maxCps: 360,
-  rampThreshold: 130,
-  turboCps: 335,
+  baseCps: 100,
+  maxCps: 270,
+  rampThreshold: 120,
+  turboCps: 360,
 }
 
 const GPT_PACING: PacingConfig = {
-  baseCps: 90,
-  maxCps: 290,
-  rampThreshold: 185,
-  turboCps: 300,
+  baseCps: 100,
+  maxCps: 260,
+  rampThreshold: 140,
+  turboCps: 340,
 }
 
 export const PROVIDER_PACING: Record<string, PacingConfig> = {
