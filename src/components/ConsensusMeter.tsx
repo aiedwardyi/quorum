@@ -39,13 +39,11 @@ export default function ConsensusMeter({
 
     const start = displayScore
     const diff = target - start
-    const duration = Math.min(1800, Math.abs(diff) * 20)
+    const duration = Math.min(1200, Math.abs(diff) * 14)
     let startTime: number | null = null
     let raf: number
 
-    // easeInOutCubic: slow start, smooth middle, gentle landing
-    const ease = (t: number) =>
-      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3) // easeOutCubic
 
     const tick = (now: number) => {
       if (!startTime) startTime = now
