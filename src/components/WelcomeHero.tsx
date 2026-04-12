@@ -225,17 +225,14 @@ export default function WelcomeHero({
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 1.1 + i * 0.08, type: "spring", stiffness: 300, damping: 20 }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-150 ease-out hover:scale-105 cursor-default"
+              className="model-badge flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-default"
               style={{
-                backgroundColor: `${modelMeta[model].color}08`,
-                borderColor: `${modelMeta[model].color}20`,
-                boxShadow: `0 0 0px ${modelMeta[model].glow}`,
-              }}
-              whileHover={{
-                boxShadow: `0 0 24px ${modelMeta[model].glow}, 0 0 8px ${modelMeta[model].glow}`,
-                borderColor: `${modelMeta[model].color}50`,
-                backgroundColor: `${modelMeta[model].color}12`,
-              }}
+                '--badge-bg': `${modelMeta[model].color}08`,
+                '--badge-border': `${modelMeta[model].color}20`,
+                '--badge-glow': modelMeta[model].glow,
+                '--badge-bg-hover': `${modelMeta[model].color}12`,
+                '--badge-border-hover': `${modelMeta[model].color}50`,
+              } as React.CSSProperties}
             >
               <ModelIcon provider={model} size={14} />
               <span
