@@ -49,3 +49,13 @@ export type ThreadSummary = {
     confidence: number
   }[]
 }
+
+export type DebateTier = "anonymous" | "free" | "paid"
+
+export type DebateBalanceInfo = {
+  tier: DebateTier
+  balance: number
+  freeDebatesRemaining: number
+  hasUsedClaudeBonus: boolean
+  allowedModels: Provider[]
+}
