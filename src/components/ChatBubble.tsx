@@ -429,7 +429,7 @@ export default function ChatBubble({
                   )}
                 </div>
               ) : (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayedText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ table: ({ children }) => <div className="table-wrap"><table>{children}</table></div> }}>{displayedText}</ReactMarkdown>
               )}
               {showCaret && <span className="speak-caret" aria-hidden="true" />}
             </div>
