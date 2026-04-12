@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ComponentType } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise } from "lucide-react"
+import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise, Gift } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 import { MODEL_INFO } from "@/lib/model-info"
@@ -41,8 +41,8 @@ const ModelIcon = ({ provider, size = 16 }: { provider: Provider; size?: number 
 }
 
 const translations = {
-  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Credits", availableBalance: "Available Balance", buyCredits: "Buy Credits", keysDesc: "Use your own API keys or buy credits to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme" },
-  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "크레딧", availableBalance: "사용 가능 잔액", buyCredits: "크레딧 구매", keysDesc: "자신의 API 키를 사용하거나 크레딧을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마" },
+  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Debates", availableBalance: "Available Balance", buyCredits: "Buy Debates", keysDesc: "Use your own API keys or buy debates to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme", promoCode: "Invite Code", promoPlaceholder: "Enter invite code", promoRedeem: "Redeem", promoSuccess: "debates added!", promoError: "Invalid or expired code" },
+  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "토론", availableBalance: "사용 가능 잔액", buyCredits: "토론 구매", keysDesc: "자신의 API 키를 사용하거나 토론을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마", promoCode: "초대 코드", promoPlaceholder: "초대 코드를 입력하세요", promoRedeem: "사용", promoSuccess: "토론이 추가되었습니다!", promoError: "유효하지 않거나 만료된 코드입니다" },
 }
 
 type Tab = "account" | "preferences"
@@ -58,6 +58,10 @@ export default function SettingsModal({
   isDebating = false,
   theme,
   onChangeTheme,
+  onBuyDebates,
+  balance,
+  freeDebatesRemaining,
+  tier,
 }: {
   isOpen: boolean
   onClose: () => void
@@ -69,14 +73,44 @@ export default function SettingsModal({
   isDebating?: boolean
   theme?: Theme
   onChangeTheme?: (theme: Theme) => void
+  onBuyDebates?: () => void
+  balance?: number
+  freeDebatesRemaining?: number
+  tier?: "anonymous" | "free" | "paid"
 }) {
   const showPrefs = showPreferences !== false
   const [activeTab, setActiveTab] = useState<Tab>("account")
   const [keys, setKeys] = useState({ gemini: "", claude: "", gpt: "", perplexity: "" })
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({})
   const [saved, setSaved] = useState(false)
+  const [promoInput, setPromoInput] = useState("")
+  const [promoStatus, setPromoStatus] = useState<{ type: "success" | "error"; message: string } | null>(null)
+  const [promoLoading, setPromoLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const t = translations[locale]
+
+  const handleRedeemPromo = async () => {
+    if (!promoInput.trim() || promoLoading) return
+    setPromoLoading(true)
+    setPromoStatus(null)
+    try {
+      const res = await fetch("/api/promo/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: promoInput.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setPromoStatus({ type: "success", message: `+${data.debatesAdded} ${t.promoSuccess}` })
+        setPromoInput("")
+      } else {
+        setPromoStatus({ type: "error", message: data.error === "Already redeemed" ? (locale === "ko" ? "이미 사용된 코드입니다" : "Already redeemed") : t.promoError })
+      }
+    } catch {
+      setPromoStatus({ type: "error", message: t.promoError })
+    }
+    setPromoLoading(false)
+  }
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
@@ -135,15 +169,41 @@ export default function SettingsModal({
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{t.availableBalance}</p>
-                        <div className="flex items-center gap-2"><span className="text-3xl font-mono font-light tracking-tighter text-foreground">1,250</span><Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /></div>
+                        <div className="flex items-center gap-2"><span className="text-3xl font-mono font-light tracking-tighter text-foreground">{tier === "anonymous" || tier === "free" ? (freeDebatesRemaining ?? 0) : (balance ?? 0).toLocaleString()}</span><Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /></div>
                       </div>
-                      <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2, ease: "easeOut" }} className="relative group overflow-hidden px-4 py-2 bg-primary text-primary-foreground text-[12px] font-bold rounded-lg shadow-md transition-colors">
+                      <motion.button onClick={onBuyDebates} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2, ease: "easeOut" }} className="relative group overflow-hidden px-4 py-2 bg-primary text-primary-foreground text-[12px] font-bold rounded-lg shadow-md transition-colors">
                         <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
                         <div className="relative flex items-center gap-1.5"><Sparkles className="w-3 h-3 text-amber-400" />{t.buyCredits}</div>
                       </motion.button>
                     </div>
                   </div>
                 </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1"><Gift className="w-3.5 h-3.5 text-muted-foreground" /><span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">{t.promoCode}</span></div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={promoInput}
+                      onChange={(e) => { setPromoInput(e.target.value.toUpperCase()); setPromoStatus(null) }}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleRedeemPromo() }}
+                      placeholder={t.promoPlaceholder}
+                      className="flex-1 px-3.5 py-2.5 bg-card border border-border rounded-xl text-[13px] text-foreground focus:border-ring focus:outline-none placeholder:text-muted-foreground/50 font-mono tracking-wider"
+                    />
+                    <button
+                      onClick={handleRedeemPromo}
+                      disabled={!promoInput.trim() || promoLoading}
+                      className="px-4 py-2.5 bg-primary text-primary-foreground text-[12px] font-bold rounded-xl transition-colors hover:opacity-90 disabled:opacity-50"
+                    >
+                      {promoLoading ? "..." : t.promoRedeem}
+                    </button>
+                  </div>
+                  {promoStatus && (
+                    <p className={`text-[12px] px-1 ${promoStatus.type === "success" ? "text-green-500" : "text-red-400"}`}>
+                      {promoStatus.message}
+                    </p>
+                  )}
+                </div>
+
                 <div className="space-y-4">
                   <div className="space-y-1 px-1">
                     <div className="flex items-center gap-2"><Key className="w-3.5 h-3.5 text-muted-foreground" /><span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">{t.apiKeys}</span></div>
