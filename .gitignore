@@ -49,6 +49,10 @@ service-account*.json
 # Playwright MCP (Claude Code)
 .playwright-mcp/
 
+# Test screenshots
+/mobile-*.png
+/test-*.png
+
 # Internal planning docs
 CURRENT_SPRINT.md
 IMPLEMENTATION_PLAN.md

@@ -32,11 +32,11 @@ describe("getDebateCount", () => {
     expect(getDebateCount()).toBe(0)
   })
   it("returns stored count", () => {
-    localStore["quorum_debate_count"] = "3"
+    localStore["quorum_anon_debates"] = "3"
     expect(getDebateCount()).toBe(3)
   })
   it("returns 0 for malformed value", () => {
-    localStore["quorum_debate_count"] = "abc"
+    localStore["quorum_anon_debates"] = "abc"
     expect(getDebateCount()).toBe(0)
   })
 })
@@ -44,12 +44,12 @@ describe("getDebateCount", () => {
 describe("incrementDebateCount", () => {
   it("increments from 0 to 1", () => {
     incrementDebateCount()
-    expect(localStore["quorum_debate_count"]).toBe("1")
+    expect(localStore["quorum_anon_debates"]).toBe("1")
   })
   it("increments from existing value", () => {
-    localStore["quorum_debate_count"] = "2"
+    localStore["quorum_anon_debates"] = "2"
     incrementDebateCount()
-    expect(localStore["quorum_debate_count"]).toBe("3")
+    expect(localStore["quorum_anon_debates"]).toBe("3")
   })
 })
 
@@ -58,11 +58,11 @@ describe("shouldShowLoginGate", () => {
     expect(shouldShowLoginGate(false)).toBe(false)
   })
   it("returns true when count >= limit and not logged in", () => {
-    localStore["quorum_debate_count"] = String(FREE_DEBATE_LIMIT)
+    localStore["quorum_anon_debates"] = String(FREE_DEBATE_LIMIT)
     expect(shouldShowLoginGate(false)).toBe(true)
   })
   it("returns false when logged in regardless of count", () => {
-    localStore["quorum_debate_count"] = "100"
+    localStore["quorum_anon_debates"] = "100"
     expect(shouldShowLoginGate(true)).toBe(false)
   })
 })

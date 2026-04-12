@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useRef, useEffect, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { THEMES } from "@/types"
 import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
 import { useDebateEngine, SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
@@ -12,9 +13,11 @@ import ChatHeader, { leaveDebateStrings } from "@/components/Header"
 import ConfirmDialog from "@/components/ConfirmDialog"
 import dynamic from "next/dynamic"
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
+const BuyDebatesModal = dynamic(() => import("@/components/BuyDebatesModal"), { ssr: false })
+const UpgradePrompt = dynamic(() => import("@/components/UpgradePrompt"), { ssr: false })
 import { ChevronDown } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
-import { incrementDebateCount } from "@/components/LoginGate"
+import { useDebateBalance } from "@/hooks/useDebateBalance"
 
 // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
 // last historically because Pro's TTFT was slowest; chat now runs on
@@ -37,6 +40,8 @@ function ChatPageContent() {
   const [maxRounds, setMaxRounds] = useState(1)
   const [theme, setTheme] = useState<Theme>("dark")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [showBuyModal, setShowBuyModal] = useState(false)
+  const [upgradePrompt, setUpgradePrompt] = useState<{ show: boolean; variant: "signup" | "buy" }>({ show: false, variant: "buy" })
   const [isLoadingThread, setIsLoadingThread] = useState(false)
   const [fileWarning, setFileWarning] = useState<string | null>(null)
   const [prefillText, setPrefillText] = useState<string | null>(null)
@@ -45,6 +50,7 @@ function ChatPageContent() {
     useDebateEngine({ locale, responseLength, maxRounds })
 
   const persistence = useThreadPersistence()
+  const debateBalance = useDebateBalance()
   const router = useRouter()
 
   const searchParams = useSearchParams()
@@ -52,6 +58,8 @@ function ChatPageContent() {
 
   const mainRef = useRef<HTMLElement>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
+  // Ref so the early auto-send effect can call through the gate
+  const handleSendWithGateRef = useRef<(text: string, target: Provider | "all") => void>(() => {})
   // Bumped on bfcache restore to force framer-motion remount
   const [mountKey, setMountKey] = useState(0)
 
@@ -252,16 +260,26 @@ function ChatPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Fire pending prompt after state has settled
+  // Fire pending prompt after state has settled - goes through the gate
+  // so balance is checked and deducted before starting the debate.
   useEffect(() => {
     if (!configHydrated) return
     if (pendingPrompt.current && !initialPromptSent.current) {
       initialPromptSent.current = true
-      const { prompt: p, models } = pendingPrompt.current
+      const { prompt: p } = pendingPrompt.current
       pendingPrompt.current = null
-      setTimeout(() => handleSendRef.current(p, "all", models), 0)
+      setTimeout(() => handleSendWithGateRef.current(p, "all"), 0)
     }
-  }, [configHydrated, handleSendRef])
+  }, [configHydrated])
+
+  // Handle purchase success redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("purchase") === "success") {
+      setTimeout(() => debateBalance.refresh(), 1500)
+      window.history.replaceState({}, "", "/")
+    }
+  }, [])
 
   const changeTheme = useCallback((t: Theme) => {
     setTheme(t)
@@ -492,17 +510,45 @@ function ChatPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadParam, persistence.isLoggedIn, handleReset])
 
-  // Increment free-debate counter after verdict (for login gate)
-  const hasIncrementedRef = useRef(false)
-  useEffect(() => {
-    if (state.showSummary && !persistence.isLoggedIn && !hasIncrementedRef.current) {
-      hasIncrementedRef.current = true
-      incrementDebateCount()
+  // Anonymous debate counting is now handled by deductAnonymous() in handleSendWithGate
+
+  // Gate: check balance + deduct before sending
+  const handleSendWithGate = useCallback(async (text: string, target: Provider | "all") => {
+    const models = state.activeModels
+    const check = debateBalance.canStartDebate(models)
+
+    if (!check.allowed) {
+      if (check.reason === "signup") {
+        setUpgradePrompt({ show: true, variant: "signup" })
+        return
+      }
+      if (check.reason === "no_debates" || check.reason === "model_locked") {
+        setUpgradePrompt({ show: true, variant: "buy" })
+        return
+      }
+      return
     }
-    if (!state.showSummary) {
-      hasIncrementedRef.current = false
+
+    // Server-side deduction for logged-in users
+    if (debateBalance.isLoggedIn) {
+      const res = await fetch("/api/debates/deduct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ models, threadId: persistence.threadId.current }),
+      })
+      if (!res.ok) {
+        setUpgradePrompt({ show: true, variant: "buy" })
+        return
+      }
+      debateBalance.refresh()
+    } else {
+      // Anonymous: deduct from localStorage
+      debateBalance.deductAnonymous()
     }
-  }, [state.showSummary, persistence.isLoggedIn])
+
+    handleSend(text, target)
+  }, [state.activeModels, debateBalance, handleSend, persistence.threadId])
+  handleSendWithGateRef.current = handleSendWithGate
 
   /* ---- Render ---- */
 
@@ -528,6 +574,11 @@ function ChatPageContent() {
         onNewDebate={handleNewDebate}
         onDeleteCurrent={handleNewDebate}
         onStopDebate={handleStop}
+        debateBalance={debateBalance.balance}
+        freeDebatesRemaining={debateBalance.freeDebatesRemaining}
+        tier={debateBalance.tier}
+        allowedModels={debateBalance.allowedModels}
+        balanceLoading={debateBalance.loading}
       />
 
       <SettingsModal
@@ -544,6 +595,25 @@ function ChatPageContent() {
         isDebating={state.isDebating}
         theme={theme}
         onChangeTheme={changeTheme}
+        onBuyDebates={() => { setIsSettingsOpen(false); setShowBuyModal(true) }}
+        balance={debateBalance.balance}
+        freeDebatesRemaining={debateBalance.freeDebatesRemaining}
+        tier={debateBalance.tier}
+      />
+
+      <BuyDebatesModal
+        isOpen={showBuyModal}
+        onClose={() => { setShowBuyModal(false); debateBalance.refresh() }}
+        locale={locale}
+      />
+
+      <UpgradePrompt
+        isOpen={upgradePrompt.show}
+        onClose={() => setUpgradePrompt({ show: false, variant: "buy" })}
+        variant={upgradePrompt.variant}
+        onBuyDebates={() => setShowBuyModal(true)}
+        onSignUp={() => signIn("google")}
+        locale={locale}
       />
 
       {/* Scrollable message area */}
@@ -574,7 +644,7 @@ function ChatPageContent() {
             locale={locale}
             activeModels={state.activeModels}
             responseLength={responseLength}
-            onSendMessage={(text) => handleSend(text, "all")}
+            onSendMessage={(text) => handleSendWithGate(text, "all")}
             onNewDiscussion={handleNewDebate}
           />
         )}
@@ -598,7 +668,7 @@ function ChatPageContent() {
         )}
 
         <MessageInput
-          onSend={handleSend}
+          onSend={handleSendWithGate}
           onStop={handleStop}
           disabled={state.isDebating}
           locale={locale}

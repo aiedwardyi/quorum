@@ -14,9 +14,12 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  accounts      Account[]
-  sessions      Session[]
-  threads       Thread[]
+  accounts           Account[]
+  sessions           Session[]
+  threads            Thread[]
+  debateBalance      UserDebateBalance?
+  debateTransactions DebateTransaction[]
+  promoRedemptions   PromoRedemption[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -115,4 +118,74 @@ model Verdict {
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
   @@index([threadId])
+}
+
+// ---- Debate credits tables ----
+
+enum DebateTransactionType {
+  PURCHASE
+  DEDUCTION
+  SIGNUP_BONUS
+  FREE_RESET
+  PROMO_REDEMPTION
+}
+
+model UserDebateBalance {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance            Int      @default(0)
+  freeDebatesUsed    Int      @default(0)
+  freeDebatesResetAt DateTime @default(now())
+  hasUsedClaudeBonus Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model DebateTransaction {
+  id              String                @id @default(cuid())
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Int
+  type            DebateTransactionType
+  stripeSessionId String?               @unique
+  threadId        String?
+  description     String
+  createdAt       DateTime              @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model DebatePackage {
+  id            String   @id @default(cuid())
+  name          String
+  debateCount   Int
+  priceKRW      Int
+  priceUSD      Int
+  stripePriceId String
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+model PromoCode {
+  id          String            @id @default(cuid())
+  code        String            @unique
+  debateCount Int
+  maxUses     Int
+  usedCount   Int               @default(0)
+  expiresAt   DateTime?
+  active      Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  redemptions PromoRedemption[]
+}
+
+model PromoRedemption {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promoCodeId String
+  promoCode   PromoCode @relation(fields: [promoCodeId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, promoCodeId])
 }
