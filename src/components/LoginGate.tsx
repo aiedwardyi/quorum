@@ -5,8 +5,9 @@ import { X } from "lucide-react"
 import type { Locale } from "@/types"
 
 // ---- Constants ----
-export const FREE_DEBATE_LIMIT = 1
-const STORAGE_KEY = "quorum_debate_count"
+// Aligned with useDebateBalance hook - single source of truth for anon limits
+export const FREE_DEBATE_LIMIT = 3
+const STORAGE_KEY = "quorum_anon_debates"
 const PENDING_KEY = "quorum_pending"
 
 // ---- Pure logic (exported for testing) ----

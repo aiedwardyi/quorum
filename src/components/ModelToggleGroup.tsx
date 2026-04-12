@@ -4,6 +4,7 @@ import { useId } from "react"
 import type { Provider, Locale } from "@/types"
 import { cn } from "@/lib/utils"
 import { MODEL_INFO } from "@/lib/model-info"
+import { Lock } from "lucide-react"
 
 const MODELS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
 
@@ -92,11 +93,13 @@ export default function ModelToggleGroup({
   onToggle,
   locale,
   disabled = false,
+  allowedModels,
 }: {
   activeModels: Provider[]
   onToggle: (model: Provider) => void
   locale: Locale
   disabled?: boolean
+  allowedModels?: Provider[]
 }) {
   const lastIdx = MODELS.length - 1
   return (
@@ -110,11 +113,12 @@ export default function ModelToggleGroup({
     >
       {MODELS.map((model, idx) => {
         const active = activeModels.includes(model)
+        const isLocked = allowedModels ? !allowedModels.includes(model) : false
         const isMinReached = active && activeModels.length <= 2
         // Mid-debate: also disable on the button itself so keyboard
         // (Tab + Enter / Space) can't bypass the wrapper's
         // pointer-events-none guard.
-        const isDisabled = disabled || isMinReached
+        const isDisabled = disabled || isMinReached || isLocked
         const info = MODEL_INFO[model]
         return (
           <div key={model} className="relative group/model">
@@ -124,6 +128,7 @@ export default function ModelToggleGroup({
             <button
               type="button"
               onClick={() => {
+                if (isLocked) return
                 if (isDisabled) return
                 onToggle(model)
               }}
@@ -131,17 +136,22 @@ export default function ModelToggleGroup({
               aria-label={info.name}
               disabled={isDisabled}
               className={cn(
-                "flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg",
+                "relative flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg",
                 "transition-[transform,background-color,color] duration-200 ease-out",
                 "hover:scale-[1.08] active:scale-[0.92] disabled:hover:scale-100 disabled:active:scale-100",
                 "bg-zinc-100/70 dark:bg-zinc-800/40",
-                active
-                  ? cn(activeColors[model], activeHoverBg[model])
-                  : "text-zinc-400 dark:text-zinc-600 opacity-60 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/50",
+                isLocked
+                  ? "opacity-50 cursor-not-allowed text-zinc-400 dark:text-zinc-600"
+                  : active
+                    ? cn(activeColors[model], activeHoverBg[model])
+                    : "text-zinc-400 dark:text-zinc-600 opacity-60 hover:bg-zinc-200/80 dark:hover:bg-zinc-700/50",
                 isMinReached && "cursor-not-allowed"
               )}
             >
-              <ModelGlyph provider={model} active={active} />
+              <ModelGlyph provider={model} active={active && !isLocked} />
+              {isLocked && (
+                <Lock className="absolute bottom-0 right-0 w-2.5 h-2.5 text-zinc-500 dark:text-zinc-400" />
+              )}
             </button>
             <div
               className={cn(
