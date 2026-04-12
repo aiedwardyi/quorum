@@ -27,6 +27,9 @@ export default function ChatThread({
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  // When true, the ResizeObserver follow-scroll yields to the verdict
+  // scroll logic so it doesn't chase the SummaryCard to the bottom.
+  const verdictScrollActiveRef = useRef(false)
 
   const hasMessages = messages.length > 0 || !!typingModel
 
@@ -124,7 +127,7 @@ export default function ChatThread({
       prevContentH = currContentH
       const preGrowthDistFromBottom =
         main.scrollHeight - main.scrollTop - main.clientHeight - growthDelta
-      if (preGrowthDistFromBottom < 150) {
+      if (preGrowthDistFromBottom < 150 && !verdictScrollActiveRef.current) {
         // Plain scrollTop write. The inline scroll-behavior override
         // above ensures this lands instantly rather than animating.
         main.scrollTop = main.scrollHeight
@@ -143,18 +146,53 @@ export default function ChatThread({
     prevUserMessageCountRef.current = userMessageCount
     const verdictJustAdded = lastMsg?.sender === "verdict"
 
-    // When the final verdict card lands, scroll so the TOP of the card
-    // sits at the top of the viewport - otherwise the default bottom-ref
-    // scroll lands on the bottom of a tall card and the user has to
-    // scroll up to read the recommendation.
+    // When the final verdict card lands, scroll it into view.
+    // On mobile the card is taller than the viewport, so scroll to the
+    // TOP (block: "start"). On desktop the card fits, so scroll to
+    // show the whole card (block: "end" keeps the bottom visible and
+    // the top in view). SummaryCard is dynamically imported, so we
+    // poll until it renders past the skeleton height and suppress the
+    // ResizeObserver meanwhile.
+    let timerId: ReturnType<typeof setTimeout> | null = null
+    let cancelled = false
     if (verdictJustAdded && lastMsg) {
+      verdictScrollActiveRef.current = true
       const main = bottomRef.current?.closest("main")
-      const verdictEl = main?.querySelector(
-        `[data-message-id="${lastMsg.id}"]`
-      ) as HTMLElement | null
-      if (verdictEl) {
-        verdictEl.scrollIntoView({ behavior: "smooth", block: "start" })
-        return
+      const msgId = lastMsg.id
+      let attempts = 0
+      const SKELETON_H = 200
+      const MAX_ATTEMPTS = 40 // ~2s at 50ms intervals
+      const SCROLL_SETTLE_MS = 800
+      const poll = () => {
+        if (cancelled) return
+        const verdictEl = main?.querySelector(
+          `[data-message-id="${msgId}"]`
+        ) as HTMLElement | null
+        if (verdictEl && verdictEl.offsetHeight > SKELETON_H) {
+          const viewportH = main?.clientHeight ?? window.innerHeight
+          const cardFits = verdictEl.offsetHeight <= viewportH - 40
+          verdictEl.scrollIntoView({
+            behavior: "smooth",
+            block: cardFits ? "end" : "start",
+          })
+          timerId = setTimeout(() => { verdictScrollActiveRef.current = false }, SCROLL_SETTLE_MS)
+          return
+        }
+        attempts++
+        if (attempts < MAX_ATTEMPTS) {
+          timerId = setTimeout(poll, 50)
+        } else {
+          if (verdictEl) {
+            verdictEl.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
+          timerId = setTimeout(() => { verdictScrollActiveRef.current = false }, SCROLL_SETTLE_MS)
+        }
+      }
+      poll()
+      return () => {
+        cancelled = true
+        if (timerId) clearTimeout(timerId)
+        verdictScrollActiveRef.current = false
       }
     }
 
