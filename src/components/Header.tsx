@@ -74,6 +74,7 @@ export default function ChatHeader({
   onNewDebate,
   onDeleteCurrent,
   onStopDebate,
+  onLogoClick,
 }: {
   currentRound: number
   maxRounds: number
@@ -91,6 +92,7 @@ export default function ChatHeader({
   onNewDebate?: () => void
   onDeleteCurrent?: () => void
   onStopDebate?: () => void
+  onLogoClick?: () => void
 }) {
   const { data: session } = useSession()
   const router = useRouter()
@@ -151,7 +153,7 @@ export default function ChatHeader({
       {/* Title + Round + Length */}
       <div className="flex items-center gap-2 sm:gap-4">
         <button
-          onClick={() => confirmIfDebating(() => router.push("/"))}
+          onClick={() => confirmIfDebating(onLogoClick ?? (() => router.push("/")))}
           className="text-sm sm:text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2 hover:opacity-70 transition-opacity"
         >
           <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-sm bg-zinc-900 dark:bg-zinc-100 shrink-0" />
