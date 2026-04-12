@@ -159,14 +159,14 @@ const cardIcons = [
   <svg key="work" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="6" x2="9" y2="6.01"/><line x1="15" y1="6" x2="15" y2="6.01"/><line x1="9" y1="10" x2="9" y2="10.01"/><line x1="15" y1="10" x2="15" y2="10.01"/><line x1="9" y1="14" x2="9" y2="14.01"/><line x1="15" y1="14" x2="15" y2="14.01"/><path d="M9 18h6"/></svg>,
 ]
 
+const ALL_MODELS: Provider[] = ["perplexity", "claude", "gemini", "gpt"]
+
 export default function WelcomeHero({
   locale,
   onSuggestionClick,
-  activeModels,
 }: {
   locale: Locale
   onSuggestionClick: (text: string) => void
-  activeModels: Provider[]
 }) {
   const t = translations[locale]
   const s = suggestions[locale]
@@ -219,20 +219,22 @@ export default function WelcomeHero({
           transition={{ delay: 1.0, duration: 0.4, ease: "easeOut" }}
           className="flex flex-wrap justify-center gap-2 sm:gap-3 py-1 sm:py-2"
         >
-          {activeModels.map((model, i) => (
+          {ALL_MODELS.map((model, i) => (
             <motion.div
               key={model}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 1.1 + i * 0.08, type: "spring", stiffness: 300, damping: 20 }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 hover:scale-105"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-150 ease-out hover:scale-105 cursor-default"
               style={{
                 backgroundColor: `${modelMeta[model].color}08`,
                 borderColor: `${modelMeta[model].color}20`,
+                boxShadow: `0 0 0px ${modelMeta[model].glow}`,
               }}
               whileHover={{
-                boxShadow: `0 0 20px ${modelMeta[model].glow}`,
-                borderColor: `${modelMeta[model].color}40`,
+                boxShadow: `0 0 24px ${modelMeta[model].glow}, 0 0 8px ${modelMeta[model].glow}`,
+                borderColor: `${modelMeta[model].color}50`,
+                backgroundColor: `${modelMeta[model].color}12`,
               }}
             >
               <ModelIcon provider={model} size={14} />

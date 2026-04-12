@@ -643,7 +643,6 @@ function ChatPageContent() {
             typingModel={state.typingModel}
             isDebating={state.isDebating}
             locale={locale}
-            activeModels={state.activeModels}
             responseLength={responseLength}
             onSendMessage={(text) => handleSendWithGate(text, "all")}
             onNewDiscussion={handleNewDebate}

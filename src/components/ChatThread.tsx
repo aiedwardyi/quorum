@@ -11,7 +11,6 @@ export default function ChatThread({
   typingModel,
   isDebating,
   locale,
-  activeModels,
   responseLength,
   onSendMessage,
   onNewDiscussion,
@@ -20,7 +19,6 @@ export default function ChatThread({
   typingModel?: Provider | null
   isDebating?: boolean
   locale: Locale
-  activeModels: Provider[]
   responseLength?: ResponseLength
   onSendMessage: (text: string) => void
   onNewDiscussion?: () => void
@@ -209,7 +207,7 @@ export default function ChatThread({
   if (messages.length === 0 && !typingModel) {
     return (
       <div className="w-full">
-        <WelcomeHero locale={locale} activeModels={activeModels} onSuggestionClick={onSendMessage} />
+        <WelcomeHero locale={locale} onSuggestionClick={onSendMessage} />
       </div>
     )
   }
