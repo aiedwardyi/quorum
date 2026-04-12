@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useLayoutEffect } from "react"
+import { useState, useRef, useEffect, useLayoutEffect, type ComponentProps } from "react"
 import { Copy, Check } from "lucide-react"
 import { Message, Provider, Locale, ResponseLength } from "@/types"
 import { cn } from "@/lib/utils"
@@ -17,6 +17,12 @@ import VerdictSkeleton from "@/components/VerdictSkeleton"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => <div className="h-48 w-full max-w-3xl mx-auto mt-8 mb-12 bg-muted rounded-[28px] animate-pulse" />,
 })
+
+const mdComponents = {
+  table: ({ children, ...props }: ComponentProps<"table">) => (
+    <div className="table-wrap"><table {...props}>{children}</table></div>
+  ),
+}
 
 const thinkingText = { en: "is thinking...", ko: "생각 중..." }
 const showLessText = { en: "Show less", ko: "접기" }
@@ -429,7 +435,7 @@ export default function ChatBubble({
                   )}
                 </div>
               ) : (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayedText}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{displayedText}</ReactMarkdown>
               )}
               {showCaret && <span className="speak-caret" aria-hidden="true" />}
             </div>

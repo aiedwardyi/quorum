@@ -747,6 +747,12 @@ button:not(:disabled) {
 }
 
 /* Markdown rendering inside AI chat bubbles */
+.chat-markdown {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .chat-markdown > :first-child {
   margin-top: 0;
 }
@@ -826,6 +832,7 @@ button:not(:disabled) {
   padding: 0.65em 0.8em;
   border-radius: 8px;
   overflow-x: auto;
+  max-width: 100%;
   background: rgba(0, 0, 0, 0.04);
   font-size: 0.88em;
 }
@@ -865,8 +872,12 @@ button:not(:disabled) {
 .dark .chat-markdown hr {
   border-top-color: rgba(255, 255, 255, 0.1);
 }
-.chat-markdown table {
+.chat-markdown .table-wrap {
   margin: 0.5em 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.chat-markdown table {
   border-collapse: collapse;
   font-size: 0.92em;
   width: 100%;

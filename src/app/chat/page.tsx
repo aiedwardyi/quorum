@@ -550,7 +550,7 @@ function ChatPageContent() {
       {/* Scrollable message area */}
       <main
         ref={mainRef}
-        className="flex-1 min-h-0 overflow-y-auto relative thin-scrollbar scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative thin-scrollbar scroll-smooth"
         onScroll={() => {
           const el = mainRef.current
           if (!el) return
@@ -589,7 +589,7 @@ function ChatPageContent() {
       </button>
 
       {/* Bottom bar: consensus rail + input */}
-      <div className="w-full shrink-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-4 z-10">
+      <div className="w-full shrink-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-2 z-10">
         {(state.isDebating || state.typingModel !== null || state.verdict !== null) && (
           <ConsensusMeter
             score={state.verdict?.confidence ?? null}

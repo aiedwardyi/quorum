@@ -181,7 +181,7 @@ export default function MessageInput({
   const sendDisabled = anyParsing || (!text.trim() && attachedFiles.length === 0)
 
   return (
-    <div className="w-full max-w-3xl mx-auto p-4 pb-6">
+    <div className="w-full max-w-3xl mx-auto px-4 pt-1 pb-3">
       <div
         className={`relative p-[2px] rounded-3xl overflow-hidden transition-transform duration-200 ${isFocused ? "scale-[1.02]" : "scale-100"}`}
       >
@@ -278,7 +278,7 @@ export default function MessageInput({
             onBlur={() => setIsFocused(false)}
             placeholder={t.placeholder}
             aria-label={t.placeholder}
-            className="w-full max-h-[200px] min-h-[56px] resize-none bg-transparent px-4 py-4 text-[15px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none"
+            className="w-full max-h-[200px] min-h-[44px] resize-none bg-transparent px-4 py-3 text-[15px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none"
             rows={1}
           />
 
