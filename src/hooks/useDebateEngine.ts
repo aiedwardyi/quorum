@@ -8,10 +8,10 @@ import { waitForDrain } from "@/lib/drain-registry"
 
 /* ---- Constants ---- */
 
-// 60s per model - Gemini on gemini-2.5-pro has ~10-15s TTFT on a cold
-// call plus a slower sustained token rate than Flash, and medium/long
-// responses need comfortable headroom above that. The old 30s cap was
-// tuned for Flash and started triggering aborts on Pro.
+// 60s per model - keeps comfortable headroom even for medium/long
+// responses. Chat Gemini now runs on 2.5 Flash (TTFT dropped back
+// into Claude/GPT territory), so this cap has plenty of margin; the
+// generous ceiling stays as defense-in-depth for cold-call spikes.
 const MODEL_TIMEOUT_MS = 60_000
 
 /* ---- Logging ---- */
@@ -126,12 +126,12 @@ export function resolveProviderContent(
 
 /* ---- State ---- */
 
-// Gemini sits last in the default rotation so its gemini-2.5-pro TTFT
-// (slower than Flash on a cold call) is hidden behind the three faster
-// providers. By the time Perplexity + Claude + GPT have streamed their
-// responses, Gemini has long since started. A second benefit: Gemini
-// now sees all three other models' opinions before forming its own,
-// which actually improves its reasoning quality on consensus-style
+// Gemini sits last in the default rotation. Historically this hid Pro's
+// slower TTFT behind the three faster providers; chat now runs on 2.5
+// Flash so that specific latency argument is weaker, but we keep the
+// order because it still pays off: Gemini sees all three other models'
+// opinions before forming its own, which actually improves its
+// reasoning quality on consensus-style
 // prompts. Users who customize the participant order override this
 // default; we only rearrange the initial zero-config case.
 const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]

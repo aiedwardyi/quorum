@@ -154,8 +154,9 @@ export default function Home() {
   const [locale, setLocale] = useState<Locale>("ko")
   const [prompt, setPrompt] = useState("")
   // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts and chat/page.tsx.
-  // Gemini sits last so gemini-2.5-pro's slower TTFT is hidden behind the
-  // three faster providers.
+  // Gemini sits last historically because Pro was slower; chat now runs on
+  // 2.5 Flash, but the order is preserved for reasoning benefits (Gemini
+  // sees the other models' opinions before forming its own).
   const [selectedModels, setSelectedModels] = useState<Provider[]>(["perplexity", "claude", "gpt", "gemini"])
   const [responseLength, setResponseLength] = useState<ResponseLength>("short")
   const [rounds, setRounds] = useState<number>(1)

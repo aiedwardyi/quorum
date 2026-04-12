@@ -4,11 +4,85 @@ import {
   VertexAI,
   HarmCategory,
   HarmBlockThreshold,
+  SchemaType,
+  type ResponseSchema,
 } from "@google-cloud/vertexai"
 import { getVertexConfig } from "@/lib/vertex-config"
 import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt } from "@/lib/verdict-prompt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
+
+/**
+ * Vertex AI response schema mirroring validateVerdictResult. Forces the
+ * model to emit a structurally valid JSON object with our exact field
+ * names, instead of "helpful" prose or invented schemas (gemini-2.5-flash
+ * was observed returning markdown bullet lists and renaming
+ * recommendedAnswer to summary/recommendation when given only natural-
+ * language instructions).
+ *
+ * Vertex's Schema subset doesn't support min/max constraints on numbers,
+ * so the runtime range check on `confidence` stays in
+ * validateVerdictResult as defense in depth. Optional fields are listed
+ * in `properties` but omitted from `required` so the model can skip them.
+ */
+const VERDICT_RESPONSE_SCHEMA: ResponseSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    recommendedAnswer: {
+      type: SchemaType.STRING,
+      description:
+        "The single concrete recommendation the user should act on. Must be decisive and non-hedging.",
+    },
+    voteSplit: {
+      type: SchemaType.STRING,
+      description:
+        "Human-readable tally of how the AI participants voted, e.g. '4/4 unanimous' or '3/4 in favor'.",
+    },
+    confidence: {
+      type: SchemaType.NUMBER,
+      description:
+        "Confidence in the recommendation as a number between 0 and 100.",
+    },
+    reasons: {
+      type: SchemaType.ARRAY,
+      description:
+        "Plain-string bullet points justifying the recommendation. Each element MUST be a simple string, not an object.",
+      items: { type: SchemaType.STRING },
+    },
+    minorityView: {
+      type: SchemaType.STRING,
+      description:
+        "The strongest dissenting position from the debate, even if no model held it explicitly.",
+    },
+    oppositeCase: {
+      type: SchemaType.STRING,
+      description:
+        "The scenario in which the recommendation would be wrong - the user's situation that would flip the answer.",
+    },
+    analysis: {
+      type: SchemaType.STRING,
+      description: "Optional longer-form synthesis of the debate.",
+    },
+    keyTakeaways: {
+      type: SchemaType.ARRAY,
+      description: "Optional plain-string takeaways. Each element MUST be a simple string.",
+      items: { type: SchemaType.STRING },
+    },
+    actionItems: {
+      type: SchemaType.ARRAY,
+      description: "Optional plain-string action items. Each element MUST be a simple string.",
+      items: { type: SchemaType.STRING },
+    },
+  },
+  required: [
+    "recommendedAnswer",
+    "voteSplit",
+    "confidence",
+    "reasons",
+    "minorityView",
+    "oppositeCase",
+  ],
+}
 
 const HEDGING_PHRASES = [
   "it depends",
@@ -99,13 +173,21 @@ export async function POST(req: NextRequest) {
       }
     }
     const vertexAI = new VertexAI(opts)
-    // gemini-2.5-pro instead of -flash: the verdict synthesis is the
-    // single decision the user walks away with, and the reasoning
-    // quality difference between Pro and Flash on multi-model debate
-    // analysis is worth the latency. Eddie: "for important documents
-    // and decisions, precision matters more than speed."
+    // Hybrid Flash/Pro verdict routing. The verdict's job is synthesis,
+    // not deep reasoning - the 4 panelist AIs already did the heavy
+    // thinking, and Flash is more than capable of picking the consensus
+    // and formatting it. The one case where Pro is meaningfully better
+    // is continuations: when there's already a prior verdict in the
+    // thread, the new verdict must reconcile against it without flip-
+    // flopping, and Pro is noticeably steadier at that. Everything else
+    // - any length, any round count, any model count - uses Flash, which
+    // cuts verdict wall time from ~15s to ~5s and now produces
+    // schema-conforming JSON thanks to responseSchema enforcement.
+    const useProModel = previousVerdicts.length > 0
+    const verdictModelName = useProModel ? "gemini-2.5-pro" : "gemini-2.5-flash"
+    const verdictTier = useProModel ? "pro" : "flash"
     const model = vertexAI.getGenerativeModel({
-      model: "gemini-2.5-pro",
+      model: verdictModelName,
       safetySettings: [
         {
           category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -118,15 +200,17 @@ export async function POST(req: NextRequest) {
       ],
     })
 
-    console.log(`[verdict] Generating verdict for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}`)
+    console.log(
+      `[verdict] Generating verdict tier=${verdictTier} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
+    )
 
-    // 120s - gemini-2.5-pro verdict synthesis on a 2-round debate with
-    // 8 AI messages to analyze legitimately runs over a minute. The
-    // first bump (30 -> 60) still tripped for Eddie mid-test, so give
-    // it a full 2 minutes of headroom. Users see the analyzing spinner
-    // and verdict skeleton card during this time, so the longer wait
-    // is visible-but-acceptable UX.
-    const VERDICT_TIMEOUT_MS = 120_000
+    // Per-tier timeout. Pro verdicts on a 2-round debate with 8 AI
+    // messages legitimately run over a minute; give Pro a full 2
+    // minutes of headroom so it never aborts mid-synthesis. Flash
+    // verdicts finish well under 10s in local testing, so 30s is
+    // plenty of margin - anything past that is a real problem we
+    // want to surface quickly rather than hide behind a long wait.
+    const VERDICT_TIMEOUT_MS = useProModel ? 120_000 : 30_000
     const result = await Promise.race([
       model.generateContent({
         systemInstruction: {
@@ -145,6 +229,15 @@ export async function POST(req: NextRequest) {
             ],
           },
         ],
+        // Force structurally valid JSON matching VERDICT_RESPONSE_SCHEMA.
+        // Without this, gemini-2.5-flash returns markdown prose or
+        // invents alternate schemas (summary/recommendation instead of
+        // recommendedAnswer). With it, both Flash and Pro emit
+        // schema-conforming JSON the validator can accept directly.
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: VERDICT_RESPONSE_SCHEMA,
+        },
       }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("Verdict generation timed out")), VERDICT_TIMEOUT_MS)
@@ -228,6 +321,13 @@ export async function POST(req: NextRequest) {
               parts: [{ text: `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}` }],
             },
           ],
+          // Same schema enforcement on the repair retry. Without it the
+          // retry path was the second observed source of wrong-schema
+          // output (Flash inventing field names like 'summary').
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: VERDICT_RESPONSE_SCHEMA,
+          },
         }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("JSON retry timed out")), 30_000)
