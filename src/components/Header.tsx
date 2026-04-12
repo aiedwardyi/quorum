@@ -174,7 +174,7 @@ export default function ChatHeader({
           <div className={cn("relative shrink-0 group", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowRoundsDropdown(!showRoundsDropdown)}
+              onClick={() => { setShowRoundsDropdown(!showRoundsDropdown); setShowLengthDropdown(false); setShowUserMenu(false) }}
               aria-haspopup="listbox"
               aria-expanded={showRoundsDropdown}
               className="flex items-center gap-1 sm:gap-1.5 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
@@ -233,7 +233,7 @@ export default function ChatHeader({
           <div className={cn("relative shrink-0 group", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowLengthDropdown(!showLengthDropdown)}
+              onClick={() => { setShowLengthDropdown(!showLengthDropdown); setShowRoundsDropdown(false); setShowUserMenu(false) }}
               aria-haspopup="listbox"
               aria-expanded={showLengthDropdown}
               className="flex items-center gap-1 sm:gap-1.5 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
@@ -384,7 +384,7 @@ export default function ChatHeader({
             <motion.button
               whileTap={{ scale: 0.95 }}
               whileHover={{ scale: 1.05 }}
-              onClick={() => setShowUserMenu(!showUserMenu)}
+              onClick={() => { setShowUserMenu(!showUserMenu); setShowRoundsDropdown(false); setShowLengthDropdown(false) }}
               aria-label="User menu"
               aria-haspopup="menu"
               aria-expanded={showUserMenu}
