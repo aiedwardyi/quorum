@@ -19,10 +19,11 @@ export async function getOrCreateBalance(userId: string) {
 export async function getBalanceInfo(userId: string) {
   const bal = await getOrCreateBalance(userId)
 
-  // Lazy monthly reset
-  if (new Date() >= bal.freeDebatesResetAt) {
-    await prisma.userDebateBalance.update({
-      where: { userId },
+  // Lazy monthly reset - conditional to avoid race with concurrent requests
+  const now = new Date()
+  if (now >= bal.freeDebatesResetAt) {
+    await prisma.userDebateBalance.updateMany({
+      where: { userId, freeDebatesResetAt: { lte: now } },
       data: {
         freeDebatesUsed: 0,
         freeDebatesResetAt: getNextResetDate(),
@@ -61,10 +62,11 @@ export async function deductDebate(
 ) {
   const bal = await getOrCreateBalance(userId)
 
-  // Lazy monthly reset
-  if (new Date() >= bal.freeDebatesResetAt) {
-    await prisma.userDebateBalance.update({
-      where: { userId },
+  // Lazy monthly reset - conditional to avoid race with concurrent requests
+  const now = new Date()
+  if (now >= bal.freeDebatesResetAt) {
+    await prisma.userDebateBalance.updateMany({
+      where: { userId, freeDebatesResetAt: { lte: now } },
       data: {
         freeDebatesUsed: 0,
         freeDebatesResetAt: getNextResetDate(),

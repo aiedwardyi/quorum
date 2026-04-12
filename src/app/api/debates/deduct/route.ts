@@ -10,11 +10,15 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json()
-  const models: Provider[] = body.models
   const threadId: string | undefined = body.threadId
 
-  if (!models || !Array.isArray(models) || models.length === 0) {
+  const VALID_PROVIDERS: Provider[] = ["gpt", "perplexity", "gemini", "claude"]
+  if (!body.models || !Array.isArray(body.models) || body.models.length === 0) {
     return NextResponse.json({ error: "models required" }, { status: 400 })
+  }
+  const models = body.models.filter((m: string) => VALID_PROVIDERS.includes(m as Provider)) as Provider[]
+  if (models.length === 0) {
+    return NextResponse.json({ error: "no valid models provided" }, { status: 400 })
   }
 
   const result = await deductDebate(session.user.id, models, threadId)
