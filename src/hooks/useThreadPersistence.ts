@@ -120,6 +120,8 @@ export function useThreadPersistence() {
         })
         if (res.ok) {
           versionRef.current++
+        } else if (res.status === 409) {
+          console.warn("[persistence] Verdict conflict - version stale, skipping")
         }
       } catch {
         // Fire-and-forget

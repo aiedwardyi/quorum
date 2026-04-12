@@ -339,7 +339,7 @@ function ChatPageContent() {
   // Save messages when debate ends (covers stop, single-model, and normal completion)
   useEffect(() => {
     if (isHydratingRef.current) return
-    if (!state.isDebating && state.messages.length > 0 && persistence.threadId.current) {
+    if (!state.isDebating && !state.showSummary && state.messages.length > 0 && persistence.threadId.current) {
       persistence.saveMessages(state.messages)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -507,7 +507,7 @@ function ChatPageContent() {
   /* ---- Render ---- */
 
   return (
-    <div key={mountKey} className="relative flex flex-col h-screen bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
+    <div key={mountKey} className="relative flex flex-col h-dvh bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
       <ChatHeader
         currentRound={state.currentRound}
         maxRounds={maxRounds}
