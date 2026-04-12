@@ -25,4 +25,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session
     },
   },
+  events: {
+    async createUser({ user }) {
+      if (user.id) {
+        const { prisma } = await import("@/lib/prisma")
+        await prisma.userDebateBalance.create({
+          data: {
+            userId: user.id,
+            freeDebatesResetAt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
+          },
+        }).catch((err: unknown) => {
+          if (err instanceof Error && !("code" in err && (err as { code: string }).code === "P2002")) {
+            console.error("[auth] Failed to create debate balance:", err)
+          }
+        })
+      }
+    },
+  },
 })
