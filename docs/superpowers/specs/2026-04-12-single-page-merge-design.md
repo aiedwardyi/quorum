@@ -59,9 +59,9 @@ type Phase = "setup" | "active"
 
 ### Key Changes
 
-1. **Delete `src/app/chat/page.tsx`** -- all logic moves to root page
+1. **Replace `src/app/chat/page.tsx` chat logic with a redirect stub** -- all chat UI/state logic moves to the root page, but the route file remains for backwards compatibility
 2. **Remove sessionStorage bridge** -- no more `quorum_config` passing between pages; state lives in the component
-3. **Redirect `/chat` to `/`** -- preserve old links, add `src/app/chat/page.tsx` as a redirect
+3. **Redirect `/chat` to `/`** -- preserve old links by keeping `src/app/chat/page.tsx` as a minimal redirect
 4. **useDebateEngine** -- called unconditionally in root page, used in active phase
 5. **useThreadPersistence** -- same, called unconditionally
 6. **Thread URL** -- change from `/chat?thread=xxx` to `/?thread=xxx`

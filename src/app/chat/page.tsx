@@ -11,7 +11,7 @@ function ChatRedirect() {
 
   useEffect(() => {
     // Redirect /chat and /chat?thread=xxx to / and /?thread=xxx
-    const url = thread ? `/?thread=${thread}` : "/"
+    const url = thread ? `/?thread=${encodeURIComponent(thread)}` : "/"
     router.replace(url)
   }, [router, thread])
 

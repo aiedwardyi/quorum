@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import type { Provider, ResponseLength, Locale, Theme } from "@/types"
+import type { Provider, ResponseLength, Locale } from "@/types"
 import { cn } from "@/lib/utils"
 import { Send, Check, X, Paperclip, FileText, File, Loader2 } from "lucide-react"
 import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
@@ -154,7 +154,6 @@ interface FileState {
 
 interface SetupViewProps {
   locale: Locale
-  theme: Theme
   selectedModels: Provider[]
   onToggleModel: (model: Provider) => void
   responseLength: ResponseLength
@@ -169,7 +168,6 @@ interface SetupViewProps {
 
 export default function SetupView({
   locale,
-  theme,
   selectedModels,
   onToggleModel,
   responseLength,
@@ -180,7 +178,6 @@ export default function SetupView({
   initialPrompt,
 }: SetupViewProps) {
   const [prompt, setPrompt] = useState(initialPrompt ?? "")
-  const [isFocused, setIsFocused] = useState(false)
   const [files, setFiles] = useState<FileState[]>([])
   const filesRef = useRef(files)
   const [isDragging, setIsDragging] = useState(false)
@@ -189,10 +186,14 @@ export default function SetupView({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sendHint = "Ctrl/\u2318+Enter"
 
-  // Sync initialPrompt changes
+  // Sync initialPrompt when it changes (e.g. login gate recovery)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (initialPrompt) setPrompt(initialPrompt)
   }, [initialPrompt])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const [isFocused, setIsFocused] = useState(false)
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPrompt(e.target.value)
@@ -431,7 +432,7 @@ export default function SetupView({
                           <span className="text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[180px] leading-tight">{af.parseStatus}</span>
                         )}
                       </div>
-                      <button onClick={() => removeFile(af.id)} className="text-zinc-400 hover:text-red-500 transition-colors flex-shrink-0">
+                      <button type="button" aria-label={`Remove ${af.file.name}`} onClick={() => removeFile(af.id)} className="text-zinc-400 hover:text-red-500 transition-colors flex-shrink-0">
                         <X size={14} />
                       </button>
                     </div>
@@ -584,7 +585,7 @@ export default function SetupView({
                   <motion.button
                     key={len}
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => { onResponseLengthChange(len); localStorage.setItem("quorum_responseLength", len) }}
+                    onClick={() => { onResponseLengthChange(len) }}
                     className={`group/len relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-4 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                       responseLength === len
                         ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"
@@ -616,7 +617,7 @@ export default function SetupView({
                   <motion.button
                     key={r.val}
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => { onRoundsChange(r.val); localStorage.setItem("quorum_rounds", String(r.val)) }}
+                    onClick={() => { onRoundsChange(r.val) }}
                     className={`group/round relative cursor-pointer flex-1 px-1.5 min-[375px]:px-2 sm:px-6 py-2.5 sm:py-1.5 rounded-xl text-[11px] min-[375px]:text-xs sm:text-sm whitespace-nowrap font-medium transition-all duration-200 ${
                       rounds === r.val
                         ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200/50 dark:border-zinc-700/50"

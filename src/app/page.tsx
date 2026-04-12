@@ -83,7 +83,7 @@ function PageContent() {
   const persistence = useThreadPersistence()
   const [isLoadingThread, setIsLoadingThread] = useState(false)
   const [fileWarning, setFileWarning] = useState<string | null>(null)
-  const [prefillText, setPrefillText] = useState<string | null>(null)
+  const [prefillText] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
   const [mountKey, setMountKey] = useState(0)
@@ -355,7 +355,12 @@ function PageContent() {
           locale,
         }).then((id) => {
           creatingThreadRef.current = false
-          if (id) dispatch({ type: "SET_THREAD_ID", id })
+          if (id) {
+            dispatch({ type: "SET_THREAD_ID", id })
+            const params = new URLSearchParams(window.location.search)
+            params.set("thread", id)
+            router.replace(`${window.location.pathname}?${params.toString()}`)
+          }
         })
         return
       }
@@ -391,7 +396,6 @@ function PageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.showSummary])
 
-  const currentTitle = state.messages.find(m => m.sender === "user")?.content.slice(0, 80) ?? null
 
   /* ── New debate ── */
   const handleNewDebate = useCallback(() => {
@@ -522,9 +526,9 @@ function PageContent() {
     if (!state.showSummary) hasIncrementedRef.current = false
   }, [state.showSummary, persistence.isLoggedIn])
 
-  /* ══════════════════════��═════════════════════
+  /* ============================================
      RENDER
-  ════════════════════════════════════════════ */
+  ============================================ */
 
   /* ── Shared header pieces ── */
   const themeIconMap: Record<Theme, { key: string; icon: React.ElementType; motion: Record<string, unknown> }> = {
@@ -704,7 +708,6 @@ function PageContent() {
             {renderSetupHeader()}
             <SetupView
               locale={locale}
-              theme={theme}
               selectedModels={selectedModels}
               onToggleModel={toggleSetupModel}
               responseLength={responseLength}
