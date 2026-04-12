@@ -680,15 +680,15 @@
 @keyframes bubble-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.98);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 .animate-bubble-in {
-  animation: bubble-in 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  animation: bubble-in 0.3s ease-out both;
 }
 
 /* Rainbow border rotation for input focus */
