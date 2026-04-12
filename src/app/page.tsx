@@ -599,6 +599,7 @@ function ChatPageContent() {
         balance={debateBalance.balance}
         freeDebatesRemaining={debateBalance.freeDebatesRemaining}
         tier={debateBalance.tier}
+        allowedModels={debateBalance.allowedModels}
       />
 
       <BuyDebatesModal
