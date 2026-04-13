@@ -603,7 +603,7 @@ function ChatPageContent() {
         debateBalance={debateBalance.balance}
         freeDebatesRemaining={debateBalance.freeDebatesRemaining}
         tier={debateBalance.tier}
-        allowedModels={debateBalance.allowedModels}
+        allowedModels={debateBalance.loading ? undefined : debateBalance.allowedModels}
         balanceLoading={debateBalance.loading}
       />
 
@@ -625,7 +625,7 @@ function ChatPageContent() {
         balance={debateBalance.balance}
         freeDebatesRemaining={debateBalance.freeDebatesRemaining}
         tier={debateBalance.tier}
-        allowedModels={debateBalance.allowedModels}
+        allowedModels={debateBalance.loading ? undefined : debateBalance.allowedModels}
       />
 
       <BuyDebatesModal

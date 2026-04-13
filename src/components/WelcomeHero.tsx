@@ -1,5 +1,6 @@
 "use client"
 
+import type { CSSProperties } from "react"
 import { motion } from "framer-motion"
 import { Provider, Locale } from "@/types"
 
@@ -234,7 +235,7 @@ export default function WelcomeHero({
                   '--badge-glow': modelMeta[model].glow,
                   '--badge-bg-hover': `${modelMeta[model].color}12`,
                   '--badge-border-hover': `${modelMeta[model].color}50`,
-                } as React.CSSProperties}
+                } as CSSProperties}
               >
                 <ModelIcon provider={model} size={14} />
                 <span

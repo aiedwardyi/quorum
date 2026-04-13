@@ -1046,4 +1046,6 @@ button:not(:disabled) {
   .icon-holder.speaking .ring { animation: none; box-shadow: none; }
   .verdict-skeleton-shimmer::after { animation: none; }
   .animate-verdict-phrase { animation: none; }
+  .model-badge { transition: none; }
+  .model-badge:hover { transform: none; box-shadow: none; }
 }
