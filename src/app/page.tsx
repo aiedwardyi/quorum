@@ -72,8 +72,9 @@ function ChatPageContent() {
   // flow can navigate (history.go / history.back) without re-triggering
   // the back-confirmation dialog or resetting to welcome.
   const leavingRef = useRef(false)
-  // Tracks whether a { chatState: true } history entry has been pushed
-  const chatStatePushedRef = useRef(false)
+  // Tracks whether a { chatState: true } history entry has been pushed.
+  // Initialized from history.state to stay in sync after reload/bfcache.
+  const chatStatePushedRef = useRef(!!history.state?.chatState)
   const prevHadMessagesRef = useRef(false)
   const resetToWelcomeRef = useRef<() => void>(() => {})
   isDebatingRef.current = state.isDebating
@@ -83,7 +84,7 @@ function ChatPageContent() {
   // a debate completes or when viewing a loaded thread.
   useEffect(() => {
     const hasMessages = state.messages.length > 0
-    if (hasMessages && !prevHadMessagesRef.current && !chatStatePushedRef.current && !leavingRef.current) {
+    if (hasMessages && !prevHadMessagesRef.current && !chatStatePushedRef.current && !leavingRef.current && !history.state?.chatState) {
       history.pushState({ chatState: true }, "")
       chatStatePushedRef.current = true
     }
@@ -142,8 +143,10 @@ function ChatPageContent() {
         setShowBackConfirm(true)
         return
       }
-      // Viewing completed debate or loaded thread: reset to welcome
-      if (chatStatePushedRef.current) {
+      // Viewing completed debate or loaded thread: reset to welcome.
+      // Check both the ref and history.state to stay in sync after
+      // forward navigation or reloads where the ref may have been lost.
+      if (chatStatePushedRef.current || history.state?.chatState) {
         chatStatePushedRef.current = false
         resetToWelcomeRef.current()
         window.history.replaceState({}, "", "/")
