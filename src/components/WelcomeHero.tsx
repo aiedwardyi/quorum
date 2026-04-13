@@ -254,49 +254,56 @@ export default function WelcomeHero({
         {/* ── Suggestion cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 sm:pt-4">
           {s.map((suggestion, i) => (
-            <motion.button
+            <motion.div
               key={i}
               initial={{ opacity: 0, y: 24, scale: 0.92 }}
-              animate={{ opacity: 1, y: 0, scale: 1, boxShadow: ["0 0 0 1px rgba(52,211,153,0.4)", "0 0 0 1px rgba(52,211,153,0)", "0 0 0 0px rgba(52,211,153,0)"] }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{
                 delay: 1.2 + i * 0.12,
                 type: "spring",
                 stiffness: 200,
                 damping: 18,
-                boxShadow: { delay: 2.0 + i * 0.15, duration: 1.5, ease: "easeOut" },
               }}
-              onClick={() => onSuggestionClick(suggestion)}
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.97 }}
-              className="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-300 border border-zinc-200/60 dark:border-zinc-800/40 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm shadow-sm hover:shadow-lg hover:shadow-zinc-200/20 dark:hover:shadow-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700"
+              className="relative"
             >
-              {/* Glassmorphism highlight on hover */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                style={{
-                  background: "radial-gradient(ellipse at 30% 50%, rgba(52, 211, 153, 0.04) 0%, transparent 70%)",
-                }}
-              />
-
-              {/* Subtle top-edge shine */}
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-zinc-300/40 dark:via-zinc-600/20 to-transparent pointer-events-none" />
-
-              <div className="relative p-2.5 rounded-xl bg-zinc-100/80 dark:bg-zinc-800/60 text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors duration-300">
-                {cardIcons[i]}
+              {/* Rainbow border wrapper */}
+              <div className="relative p-[1.5px] rounded-2xl overflow-hidden">
+                <motion.div
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400%] aspect-square animate-rotate-border blur-xl will-change-transform"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: [0, 0.6, 0] }}
+                  transition={{ delay: 2.0 + i * 0.15, duration: 2.5, ease: "easeInOut" }}
+                  style={{
+                    background: "conic-gradient(from 0deg, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)",
+                  }}
+                />
+                <motion.button
+                  onClick={() => onSuggestionClick(suggestion)}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className="group relative flex items-center gap-4 p-4 rounded-[14px] text-left bg-white dark:bg-zinc-900 shadow-sm hover:shadow-md border border-transparent hover:border-zinc-300 dark:hover:border-zinc-700 transition-[border-color,box-shadow] duration-150 w-full"
+                >
+                  <div className="p-2.5 rounded-xl bg-zinc-100/80 dark:bg-zinc-800/60 text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors duration-150">
+                    {cardIcons[i]}
+                  </div>
+                  <span className="text-[13px] font-semibold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-100 line-clamp-2 leading-snug transition-colors duration-150">
+                    {suggestion}
+                  </span>
+                </motion.button>
               </div>
-              <span className="relative text-[13px] font-semibold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-100 line-clamp-2 leading-snug transition-colors duration-300">
-                {suggestion}
-              </span>
+              {/* Try me tag - outside overflow-hidden */}
               {i === 0 && (
                 <motion.span
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 2.5, type: "spring", stiffness: 300, damping: 20 }}
-                  className="absolute -top-2 -right-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-full shadow-sm"
+                  className="absolute -top-2 -right-2 z-10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-full shadow-sm"
                 >
                   {tryMeLabel[locale]}
                 </motion.span>
               )}
-            </motion.button>
+            </motion.div>
           ))}
         </div>
       </div>
