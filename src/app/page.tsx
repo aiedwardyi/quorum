@@ -69,11 +69,32 @@ function ChatPageContent() {
   const allowBackRef = useRef(false)
   const guardPushedRef = useRef(false)
   // When true, popstate handlers skip everything so a confirmed leave
-  // flow can navigate (router.replace) without re-triggering the
-  // back-confirmation dialog.
+  // flow can navigate (history.go / history.back) without re-triggering
+  // the back-confirmation dialog or resetting to welcome.
   const leavingRef = useRef(false)
+  // Tracks whether a { chatState: true } history entry has been pushed
+  const chatStatePushedRef = useRef(false)
+  const prevHadMessagesRef = useRef(false)
+  const resetToWelcomeRef = useRef<() => void>(() => {})
   isDebatingRef.current = state.isDebating
 
+  // Push a "chat" history entry when transitioning from welcome to chat.
+  // This lets the browser back button return to the welcome screen after
+  // a debate completes or when viewing a loaded thread.
+  useEffect(() => {
+    const hasMessages = state.messages.length > 0
+    if (hasMessages && !prevHadMessagesRef.current && !chatStatePushedRef.current && !leavingRef.current) {
+      history.pushState({ chatState: true }, "")
+      chatStatePushedRef.current = true
+    }
+    if (!hasMessages && prevHadMessagesRef.current) {
+      chatStatePushedRef.current = false
+      leavingRef.current = false
+    }
+    prevHadMessagesRef.current = hasMessages
+  }, [state.messages.length])
+
+  // Debate guard: push/pop guard entry and warn before tab close
   useEffect(() => {
     if (!state.isDebating) {
       // Clean up guard entry when debate ends naturally (not during navigation)
@@ -91,29 +112,48 @@ function ChatPageContent() {
     history.pushState({ debateGuard: true }, "")
     guardPushedRef.current = true
 
-    const handlePopState = () => {
-      if (leavingRef.current) return
-      if (allowBackRef.current) {
-        allowBackRef.current = false
-        return
-      }
-      if (isDebatingRef.current) {
-        history.pushState({ debateGuard: true }, "")
-        setShowBackConfirm(true)
-      }
-    }
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ""
     }
-
-    window.addEventListener("popstate", handlePopState)
     window.addEventListener("beforeunload", handleBeforeUnload)
     return () => {
-      window.removeEventListener("popstate", handlePopState)
       window.removeEventListener("beforeunload", handleBeforeUnload)
     }
   }, [state.isDebating])
+
+  // Consolidated popstate listener for both debate guard and chat state
+  useEffect(() => {
+    const handlePopState = () => {
+      // Programmatic navigation (handleNewDebate / leave confirm) in progress
+      if (leavingRef.current) {
+        leavingRef.current = false
+        window.history.replaceState({}, "", "/")
+        return
+      }
+      // Debate guard cleanup just popped its entry
+      if (allowBackRef.current) {
+        allowBackRef.current = false
+        return
+      }
+      // Active debate: re-push guard and show confirmation
+      if (isDebatingRef.current) {
+        history.pushState({ debateGuard: true }, "")
+        setShowBackConfirm(true)
+        return
+      }
+      // Viewing completed debate or loaded thread: reset to welcome
+      if (chatStatePushedRef.current) {
+        chatStatePushedRef.current = false
+        resetToWelcomeRef.current()
+        window.history.replaceState({}, "", "/")
+        return
+      }
+      // Default: no-op, browser navigates normally (leave site)
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [])
 
   // Apply theme classes to <html>
   useEffect(() => {
@@ -377,7 +417,7 @@ function ChatPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.showSummary])
 
-  const handleNewDebate = useCallback(() => {
+  const resetToWelcome = useCallback(() => {
     creatingThreadRef.current = false
     threadLoaded.current = null
     prevMessageCount.current = 0
@@ -385,8 +425,21 @@ function ChatPageContent() {
     handleReset()
     setShowScrollDown(false)
     mainRef.current?.scrollTo({ top: 0 })
-    router.replace("/")
-  }, [persistence, handleReset, router])
+    chatStatePushedRef.current = false
+    guardPushedRef.current = false
+  }, [persistence, handleReset])
+  resetToWelcomeRef.current = resetToWelcome
+
+  const handleNewDebate = useCallback(() => {
+    const entriesToPop = (chatStatePushedRef.current ? 1 : 0) + (guardPushedRef.current ? 1 : 0)
+    resetToWelcome()
+    if (entriesToPop > 0) {
+      leavingRef.current = true
+      history.go(-entriesToPop)
+    } else {
+      router.replace("/")
+    }
+  }, [resetToWelcome, router])
 
   // When user continues a completed thread, mark it active again
   const prevShowSummary = useRef(state.showSummary)
@@ -715,19 +768,7 @@ function ChatPageContent() {
         onConfirm={() => {
           setShowBackConfirm(false)
           handleStop()
-          // Leaving flag so the popstate listener ignores the navigation
-          // we are about to trigger and never re-shows the dialog.
-          leavingRef.current = true
-          guardPushedRef.current = false
-          // Navigate directly to home via Next.js router instead of
-          // counting history entries and calling history.go(-N). The
-          // previous history.go(-2) approach assumed exactly two guard
-          // entries had been pushed, which held during Gemini's thinking
-          // phase but broke once additional renders pushed more entries
-          // after the first bubble finished streaming, leaving the user
-          // stranded on a middle chat entry that required a second
-          // back-click. router.replace is independent of stack depth.
-          router.replace("/")
+          handleNewDebate()
         }}
         onCancel={() => setShowBackConfirm(false)}
         destructive
