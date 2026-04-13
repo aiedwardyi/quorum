@@ -302,7 +302,7 @@ export default function WelcomeHero({
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 2.5, type: "spring", stiffness: 300, damping: 20 }}
-                  className="absolute -top-2 -right-2 z-10 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-950 text-emerald-500 border border-emerald-500/40"
+                  className="absolute -top-2 -right-2 z-10 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-500 dark:border-emerald-500/40"
                 >
                   {tryMeLabel[locale]}
                 </motion.span>
