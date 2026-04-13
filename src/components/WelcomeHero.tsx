@@ -280,12 +280,6 @@ export default function WelcomeHero({
                   transition={{ delay: 2.0 + i * 0.15, duration: 2.5, ease: "easeInOut" }}
                 />
 
-                {/* Glassmorphism highlight on hover */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                  style={{
-                    background: "radial-gradient(ellipse at 30% 50%, rgba(52, 211, 153, 0.04) 0%, transparent 70%)",
-                  }}
-                />
 
                 {/* Subtle top-edge shine */}
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-zinc-300/40 dark:via-zinc-600/20 to-transparent pointer-events-none" />
