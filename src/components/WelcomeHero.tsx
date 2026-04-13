@@ -6,18 +6,20 @@ import { Provider, Locale } from "@/types"
 
 const suggestions = {
   en: [
-    "Should I file a provisional or non-provisional patent?",
-    "Compare the pros and cons of nuclear vs. solar energy.",
-    "What's the best tech stack for a real-time collaborative app?",
-    "Remote vs. hybrid work: which is better for a startup?",
+    "Should I learn to code or learn to vibe code in 2026?",
+    "Should I lease or buy my next car?",
+    "What's the best way to price my product?",
+    "Is AI going to replace most jobs in the next 10 years?",
   ],
   ko: [
-    "가특허(Provisional)와 정식 특허 중 무엇을 신청해야 할까요?",
-    "원자력과 태양광 에너지의 장단점을 비교해 주세요.",
-    "실시간 협업 앱을 위한 최적의 기술 스택은 무엇인가요?",
-    "원격 근무 vs 하이브리드: 스타트업에 무엇이 더 좋을까요?",
+    "2026년에 코딩을 배워야 할까요, 바이브 코딩을 배워야 할까요?",
+    "다음 차는 리스가 나을까요, 구매가 나을까요?",
+    "제품 가격을 책정하는 가장 좋은 방법은 무엇인가요?",
+    "AI가 앞으로 10년 안에 대부분의 일자리를 대체할까요?",
   ],
 }
+
+const tryMeLabel = { en: "Try me", ko: "클릭해 보세요" }
 
 const translations = {
   en: {
@@ -78,7 +80,7 @@ const ModelIcon = ({ provider, size = 14 }: { provider: Provider; size?: number 
   }
 }
 
-/* ── Animated sparkle icon with shimmer ── */
+/* -- Animated sparkle icon with shimmer -- */
 function SparkleIcon() {
   return (
     <motion.div
@@ -124,7 +126,7 @@ function SparkleIcon() {
   )
 }
 
-/* ── Typewriter text effect ── */
+/* -- Typewriter text effect -- */
 function TypewriterText({ text, className, delay = 0 }: { text: string; className?: string; delay?: number }) {
   const words = text.split(" ")
   return (
@@ -148,16 +150,16 @@ function TypewriterText({ text, className, delay = 0 }: { text: string; classNam
   )
 }
 
-/* ── Card icons (themed to suggestion content) ── */
+/* -- Card icons (themed to suggestion content) -- */
 const cardIcons = [
-  // Patent - scale/balance
-  <svg key="patent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18"/><path d="M5 6l7-3 7 3"/><path d="M2 12h4l1-4"/><path d="M18 12h4l-1-4"/><circle cx="5" cy="16" r="2"/><circle cx="19" cy="16" r="2"/></svg>,
-  // Energy - zap
-  <svg key="energy" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-  // Tech stack - layers
-  <svg key="tech" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
-  // Remote work - building
-  <svg key="work" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="6" x2="9" y2="6.01"/><line x1="15" y1="6" x2="15" y2="6.01"/><line x1="9" y1="10" x2="9" y2="10.01"/><line x1="15" y1="10" x2="15" y2="10.01"/><line x1="9" y1="14" x2="9" y2="14.01"/><line x1="15" y1="14" x2="15" y2="14.01"/><path d="M9 18h6"/></svg>,
+  // Code brackets
+  <svg key="code" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
+  // Car
+  <svg key="car" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 001 14v2c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>,
+  // Dollar sign
+  <svg key="dollar" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
+  // CPU chip
+  <svg key="cpu" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>,
 ]
 
 const ALL_MODELS: Provider[] = ["perplexity", "claude", "gemini", "gpt"]
@@ -176,12 +178,12 @@ export default function WelcomeHero({
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 sm:px-6 py-8 sm:py-12">
       <div className="space-y-6 sm:space-y-8 max-w-2xl w-full">
 
-        {/* ── Sparkle icon ── */}
+        {/* -- Sparkle icon -- */}
         <div className="flex justify-center">
           <SparkleIcon />
         </div>
 
-        {/* ── Title + subtitle ── */}
+        {/* -- Title + subtitle -- */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -203,7 +205,7 @@ export default function WelcomeHero({
           </div>
         </motion.div>
 
-        {/* ── Description ── */}
+        {/* -- Description -- */}
         <motion.p
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -213,7 +215,7 @@ export default function WelcomeHero({
           {t.description}
         </motion.p>
 
-        {/* ── Model badges ── */}
+        {/* -- Model badges -- */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -249,41 +251,52 @@ export default function WelcomeHero({
           ))}
         </motion.div>
 
-        {/* ── Suggestion cards ── */}
+        {/* -- Suggestion cards -- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 sm:pt-4">
           {s.map((suggestion, i) => (
-            <motion.button
-              key={i}
-              initial={{ opacity: 0, y: 24, scale: 0.92 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{
-                delay: 1.2 + i * 0.12,
-                type: "spring",
-                stiffness: 200,
-                damping: 18,
-              }}
-              onClick={() => onSuggestionClick(suggestion)}
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.97 }}
-              className="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-300 overflow-hidden border border-zinc-200/60 dark:border-zinc-800/40 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm shadow-sm hover:shadow-lg hover:shadow-zinc-200/20 dark:hover:shadow-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700"
-            >
-              {/* Glassmorphism highlight on hover */}
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                style={{
-                  background: "radial-gradient(ellipse at 30% 50%, rgba(52, 211, 153, 0.04) 0%, transparent 70%)",
+            <div key={i} className="relative">
+              <motion.button
+                initial={{ opacity: 0, y: 24, scale: 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{
+                  delay: 1.2 + i * 0.12,
+                  type: "spring",
+                  stiffness: 200,
+                  damping: 18,
                 }}
-              />
+                onClick={() => onSuggestionClick(suggestion)}
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                className="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-300 overflow-hidden border border-zinc-200/60 dark:border-zinc-800/40 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm shadow-sm hover:shadow-lg hover:shadow-zinc-200/20 dark:hover:shadow-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700 w-full"
+              >
+                {/* Rainbow shimmer div */}
+                <div
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400%] aspect-square blur-xl will-change-transform pointer-events-none opacity-0"
+                  style={{
+                    animation: `shimmer-fade 2.5s ease-in-out ${2.0 + i * 0.15}s forwards, rotate-border 4s linear ${2.0 + i * 0.15}s infinite`,
+                    background: "conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444)",
+                  }}
+                />
 
-              {/* Subtle top-edge shine */}
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-zinc-300/40 dark:via-zinc-600/20 to-transparent pointer-events-none" />
+                {/* Subtle top-edge shine */}
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-zinc-300/40 dark:via-zinc-600/20 to-transparent pointer-events-none" />
 
-              <div className="relative p-2.5 rounded-xl bg-zinc-100/80 dark:bg-zinc-800/60 text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors duration-300">
-                {cardIcons[i]}
-              </div>
-              <span className="relative text-[13px] font-semibold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-100 line-clamp-2 leading-snug transition-colors duration-300">
-                {suggestion}
-              </span>
-            </motion.button>
+                <div className="relative p-2.5 rounded-xl bg-zinc-100/80 dark:bg-zinc-800/60 text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors duration-300">
+                  {cardIcons[i]}
+                </div>
+                <span className="relative text-[13px] font-semibold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-100 line-clamp-2 leading-snug transition-colors duration-300">
+                  {suggestion}
+                </span>
+              </motion.button>
+              {i === 0 && (
+                <span
+                  className="absolute -top-2 -right-2 z-10 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-500 dark:border-emerald-500/40 opacity-0"
+                  style={{ animation: "try-me-pop 0.4s ease-out 2.5s forwards" }}
+                >
+                  {tryMeLabel[locale]}
+                </span>
+              )}
+            </div>
           ))}
         </div>
       </div>
