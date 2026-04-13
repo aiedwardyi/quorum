@@ -255,13 +255,13 @@ export default function WelcomeHero({
             <motion.button
               key={i}
               initial={{ opacity: 0, y: 24, scale: 0.92 }}
-              animate={{ opacity: 1, y: 0, scale: 1, borderColor: ["rgba(52,211,153,0.4)", "rgba(52,211,153,0)", "rgba(52,211,153,0)"] }}
+              animate={{ opacity: 1, y: 0, scale: 1, boxShadow: ["0 0 0 1px rgba(52,211,153,0.4)", "0 0 0 1px rgba(52,211,153,0)", "0 0 0 0px rgba(52,211,153,0)"] }}
               transition={{
                 delay: 1.2 + i * 0.12,
                 type: "spring",
                 stiffness: 200,
                 damping: 18,
-                borderColor: { delay: 2.0 + i * 0.15, duration: 1.5, ease: "easeOut" },
+                boxShadow: { delay: 2.0 + i * 0.15, duration: 1.5, ease: "easeOut" },
               }}
               onClick={() => onSuggestionClick(suggestion)}
               whileHover={{ scale: 1.02, y: -2 }}
