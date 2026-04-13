@@ -60,8 +60,6 @@ function ChatPageContent() {
   const [showScrollDown, setShowScrollDown] = useState(false)
   // Ref so the early auto-send effect can call through the gate
   const handleSendWithGateRef = useRef<(text: string, target: Provider | "all") => void>(() => {})
-  // Bumped on bfcache restore to force framer-motion remount
-  const [mountKey, setMountKey] = useState(0)
 
   // Warn before browser back/refresh/tab close during active debate
   const [showBackConfirm, setShowBackConfirm] = useState(false)
@@ -144,7 +142,6 @@ function ChatPageContent() {
     const handlePageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
         reapplyTheme()
-        setMountKey((k) => k + 1)
       }
     }
     document.addEventListener("visibilitychange", handleVisibility)
@@ -579,7 +576,7 @@ function ChatPageContent() {
   /* ---- Render ---- */
 
   return (
-    <div key={mountKey} className="relative flex flex-col h-dvh bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
+    <div className="relative flex flex-col h-dvh bg-background overflow-hidden font-[family-name:var(--font-geist-sans)] text-foreground transition-colors duration-200">
       <ChatHeader
         currentRound={state.currentRound}
         maxRounds={maxRounds}
