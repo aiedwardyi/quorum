@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, type ComponentType } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise, Gift } from "lucide-react"
+import { X, User, Key, Settings, Wallet, Sparkles, Globe, CheckCircle2, Star, Heart, Eye, EyeOff, Bot, Palette, Sun, Moon, Flame, Cat, Snowflake, Check, Sunrise, Gift, Lock } from "lucide-react"
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 import { MODEL_INFO } from "@/lib/model-info"
@@ -62,6 +62,7 @@ export default function SettingsModal({
   balance,
   freeDebatesRemaining,
   tier,
+  allowedModels,
 }: {
   isOpen: boolean
   onClose: () => void
@@ -77,6 +78,7 @@ export default function SettingsModal({
   balance?: number
   freeDebatesRemaining?: number
   tier?: "anonymous" | "free" | "paid"
+  allowedModels?: Provider[]
 }) {
   const showPrefs = showPreferences !== false
   const [activeTab, setActiveTab] = useState<Tab>("account")
@@ -299,12 +301,13 @@ export default function SettingsModal({
                     <div className={cn("grid grid-cols-2 gap-2", isDebating && "pointer-events-none opacity-40")}>
                       {ALL_MODELS.map((model, modelIndex) => {
                         const isActive = activeModels.includes(model)
+                        const isLocked = allowedModels ? !allowedModels.includes(model) : false
                         const style = modelStyles[model]
                         return (
-                          <motion.button key={model} whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2, ease: "easeOut" }} onClick={() => { if (isActive && activeModels.length <= 2) return; onToggleModel(model) }} className={cn("relative flex items-center gap-2.5 p-2.5 rounded-xl border transition-colors duration-200 text-left group hover:z-10", isActive ? cn("bg-card", style.activeBorder, style.glow) : "bg-secondary/30 border-border/60 grayscale opacity-60 hover:grayscale-0 hover:opacity-100")}>
-                            <div className={cn("p-1.5 rounded-lg transition-colors shrink-0", isActive ? style.iconBg : "bg-secondary")}><ModelIcon provider={model} size={16} /></div>
-                            <span className={cn("text-[12px] font-bold tracking-tight flex-1", isActive ? "text-foreground" : "text-muted-foreground")}>{MODEL_INFO[model].name}</span>
-                            <div className={cn("w-2 h-2 rounded-full transition-all shrink-0", isActive ? style.dot : "bg-zinc-300 dark:bg-zinc-600")} />
+                          <motion.button key={model} disabled={isLocked} whileHover={isLocked ? undefined : { scale: 1.02, y: -2 }} whileTap={isLocked ? undefined : { scale: 0.98 }} transition={{ duration: 0.2, ease: "easeOut" }} onClick={() => { if (isLocked) return; if (isActive && activeModels.length <= 2) return; onToggleModel(model) }} className={cn("relative flex items-center gap-2.5 p-2.5 rounded-xl border transition-colors duration-200 text-left group hover:z-10", isLocked ? "bg-secondary/20 border-border/40 opacity-50 cursor-not-allowed grayscale" : isActive ? cn("bg-card", style.activeBorder, style.glow) : "bg-secondary/30 border-border/60 grayscale opacity-60 hover:grayscale-0 hover:opacity-100")}>
+                            <div className={cn("p-1.5 rounded-lg transition-colors shrink-0", isLocked ? "bg-secondary" : isActive ? style.iconBg : "bg-secondary")}><ModelIcon provider={model} size={16} /></div>
+                            <span className={cn("text-[12px] font-bold tracking-tight flex-1", isLocked ? "text-muted-foreground" : isActive ? "text-foreground" : "text-muted-foreground")}>{MODEL_INFO[model].name}</span>
+                            {isLocked ? <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <div className={cn("w-2 h-2 rounded-full transition-all shrink-0", isActive ? style.dot : "bg-zinc-300 dark:bg-zinc-600")} />}
                             <div className={cn("absolute left-1/2 -translate-x-1/2 px-2 py-1 bg-primary text-primary-foreground text-[10px] font-medium rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-sm", modelIndex < 2 ? "bottom-full mb-2" : "top-full mt-2")}>{descriptions[model]}</div>
                           </motion.button>
                         )

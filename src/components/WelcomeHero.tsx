@@ -1,5 +1,6 @@
 "use client"
 
+import type { CSSProperties } from "react"
 import { motion } from "framer-motion"
 import { Provider, Locale } from "@/types"
 
@@ -159,14 +160,14 @@ const cardIcons = [
   <svg key="work" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="6" x2="9" y2="6.01"/><line x1="15" y1="6" x2="15" y2="6.01"/><line x1="9" y1="10" x2="9" y2="10.01"/><line x1="15" y1="10" x2="15" y2="10.01"/><line x1="9" y1="14" x2="9" y2="14.01"/><line x1="15" y1="14" x2="15" y2="14.01"/><path d="M9 18h6"/></svg>,
 ]
 
+const ALL_MODELS: Provider[] = ["perplexity", "claude", "gemini", "gpt"]
+
 export default function WelcomeHero({
   locale,
   onSuggestionClick,
-  activeModels,
 }: {
   locale: Locale
   onSuggestionClick: (text: string) => void
-  activeModels: Provider[]
 }) {
   const t = translations[locale]
   const s = suggestions[locale]
@@ -219,29 +220,31 @@ export default function WelcomeHero({
           transition={{ delay: 1.0, duration: 0.4, ease: "easeOut" }}
           className="flex flex-wrap justify-center gap-2 sm:gap-3 py-1 sm:py-2"
         >
-          {activeModels.map((model, i) => (
+          {ALL_MODELS.map((model, i) => (
             <motion.div
               key={model}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 1.1 + i * 0.08, type: "spring", stiffness: 300, damping: 20 }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 hover:scale-105"
-              style={{
-                backgroundColor: `${modelMeta[model].color}08`,
-                borderColor: `${modelMeta[model].color}20`,
-              }}
-              whileHover={{
-                boxShadow: `0 0 20px ${modelMeta[model].glow}`,
-                borderColor: `${modelMeta[model].color}40`,
-              }}
             >
-              <ModelIcon provider={model} size={14} />
-              <span
-                className="text-[11px] font-bold uppercase tracking-widest"
-                style={{ color: `${modelMeta[model].color}cc` }}
+              <div
+                className="model-badge flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-default"
+                style={{
+                  '--badge-bg': `${modelMeta[model].color}08`,
+                  '--badge-border': `${modelMeta[model].color}20`,
+                  '--badge-glow': modelMeta[model].glow,
+                  '--badge-bg-hover': `${modelMeta[model].color}12`,
+                  '--badge-border-hover': `${modelMeta[model].color}50`,
+                } as CSSProperties}
               >
-                {model === "gpt" ? "GPT" : modelMeta[model].label}
-              </span>
+                <ModelIcon provider={model} size={14} />
+                <span
+                  className="text-[11px] font-bold uppercase tracking-widest"
+                  style={{ color: `${modelMeta[model].color}cc` }}
+                >
+                  {model === "gpt" ? "GPT" : modelMeta[model].label}
+                </span>
+              </div>
             </motion.div>
           ))}
         </motion.div>
