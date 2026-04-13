@@ -74,7 +74,7 @@ function ChatPageContent() {
   const leavingRef = useRef(false)
   // Tracks whether a { chatState: true } history entry has been pushed.
   // Initialized from history.state to stay in sync after reload/bfcache.
-  const chatStatePushedRef = useRef(!!history.state?.chatState)
+  const chatStatePushedRef = useRef(typeof window !== "undefined" && !!history.state?.chatState)
   const prevHadMessagesRef = useRef(false)
   const resetToWelcomeRef = useRef<() => void>(() => {})
   isDebatingRef.current = state.isDebating
