@@ -6,16 +6,16 @@ import { Provider, Locale } from "@/types"
 
 const suggestions = {
   en: [
-    "Should I file a provisional or non-provisional patent?",
-    "Compare the pros and cons of nuclear vs. solar energy.",
-    "What's the best tech stack for a real-time collaborative app?",
-    "Remote vs. hybrid work: which is better for a startup?",
+    "Should I learn to code or learn to vibe code in 2026?",
+    "Should I lease or buy my next car?",
+    "What's the best way to price my product?",
+    "Is AI going to replace most jobs in the next 10 years?",
   ],
   ko: [
-    "가특허(Provisional)와 정식 특허 중 무엇을 신청해야 할까요?",
-    "원자력과 태양광 에너지의 장단점을 비교해 주세요.",
-    "실시간 협업 앱을 위한 최적의 기술 스택은 무엇인가요?",
-    "원격 근무 vs 하이브리드: 스타트업에 무엇이 더 좋을까요?",
+    "2026년에 코딩을 배워야 할까요, 바이브 코딩을 배워야 할까요?",
+    "다음 차는 리스가 나을까요, 구매가 나을까요?",
+    "제품 가격을 책정하는 가장 좋은 방법은 무엇인가요?",
+    "AI가 앞으로 10년 안에 대부분의 일자리를 대체할까요?",
   ],
 }
 
@@ -150,14 +150,14 @@ function TypewriterText({ text, className, delay = 0 }: { text: string; classNam
 
 /* ── Card icons (themed to suggestion content) ── */
 const cardIcons = [
-  // Patent - scale/balance
-  <svg key="patent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18"/><path d="M5 6l7-3 7 3"/><path d="M2 12h4l1-4"/><path d="M18 12h4l-1-4"/><circle cx="5" cy="16" r="2"/><circle cx="19" cy="16" r="2"/></svg>,
-  // Energy - zap
-  <svg key="energy" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-  // Tech stack - layers
-  <svg key="tech" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
-  // Remote work - building
-  <svg key="work" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="6" x2="9" y2="6.01"/><line x1="15" y1="6" x2="15" y2="6.01"/><line x1="9" y1="10" x2="9" y2="10.01"/><line x1="15" y1="10" x2="15" y2="10.01"/><line x1="9" y1="14" x2="9" y2="14.01"/><line x1="15" y1="14" x2="15" y2="14.01"/><path d="M9 18h6"/></svg>,
+  // Code - terminal/brackets
+  <svg key="code" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
+  // Car - vehicle
+  <svg key="car" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-2.7-3.6A1.5 1.5 0 0014.1 6H9.9a1.5 1.5 0 00-1.2.4L6 10l-2.5 1.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>,
+  // Pricing - dollar sign
+  <svg key="price" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
+  // AI/Jobs - cpu/bot
+  <svg key="ai" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>,
 ]
 
 const tryMeLabel = { en: "Try me", ko: "클릭해 보세요" }
