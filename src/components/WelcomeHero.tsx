@@ -162,6 +162,8 @@ const cardIcons = [
 
 const ALL_MODELS: Provider[] = ["perplexity", "claude", "gemini", "gpt"]
 
+const tryMeLabel = { en: "Try me", ko: "클릭해 보세요" }
+
 export default function WelcomeHero({
   locale,
   onSuggestionClick,
@@ -266,7 +268,7 @@ export default function WelcomeHero({
               onClick={() => onSuggestionClick(suggestion)}
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.97 }}
-              className="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-300 overflow-hidden border border-zinc-200/60 dark:border-zinc-800/40 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm shadow-sm hover:shadow-lg hover:shadow-zinc-200/20 dark:hover:shadow-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700"
+              className="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-300 border border-zinc-200/60 dark:border-zinc-800/40 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm shadow-sm hover:shadow-lg hover:shadow-zinc-200/20 dark:hover:shadow-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700"
             >
               {/* Glassmorphism highlight on hover */}
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
@@ -284,6 +286,16 @@ export default function WelcomeHero({
               <span className="relative text-[13px] font-semibold text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-100 line-clamp-2 leading-snug transition-colors duration-300">
                 {suggestion}
               </span>
+              {i === 0 && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 2.5, type: "spring", stiffness: 300, damping: 20 }}
+                  className="absolute -top-2 -right-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-full shadow-sm"
+                >
+                  {tryMeLabel[locale]}
+                </motion.span>
+              )}
             </motion.button>
           ))}
         </div>

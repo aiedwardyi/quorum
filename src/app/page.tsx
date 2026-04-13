@@ -605,6 +605,7 @@ function ChatPageContent() {
         tier={debateBalance.tier}
         allowedModels={debateBalance.loading ? undefined : debateBalance.allowedModels}
         balanceLoading={debateBalance.loading}
+        onBuyDebates={() => setShowBuyModal(true)}
       />
 
       <SettingsModal

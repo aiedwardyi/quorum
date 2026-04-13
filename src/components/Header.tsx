@@ -79,6 +79,7 @@ export default function ChatHeader({
   tier,
   allowedModels,
   balanceLoading,
+  onBuyDebates,
 }: {
   currentRound: number
   maxRounds: number
@@ -101,6 +102,7 @@ export default function ChatHeader({
   tier?: "anonymous" | "free" | "paid"
   allowedModels?: Provider[]
   balanceLoading?: boolean
+  onBuyDebates?: () => void
 }) {
   const { data: session } = useSession()
   const router = useRouter()
@@ -190,7 +192,7 @@ export default function ChatHeader({
               className="flex items-center gap-1 sm:gap-1.5 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
             >
               <RotateCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 dark:text-zinc-500" />
-              <span className="text-[11px] sm:text-xs font-mono font-bold text-zinc-900 dark:text-zinc-100">
+              <span className="text-[11px] sm:text-xs font-medium text-zinc-600 dark:text-zinc-400">
                 {isDebating ? `${currentRound}/${maxRounds}` : `${maxRounds} ${maxRounds === 1 ? t.round : t.rounds}`}
               </span>
               <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 dark:text-zinc-500 opacity-50" />
@@ -312,13 +314,15 @@ export default function ChatHeader({
       {/* Right side controls */}
       <div className="flex items-center gap-2 sm:gap-4 ml-auto">
         <div className="flex items-center gap-2 sm:gap-3">
-          <motion.div
+          <motion.button
+            whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
-            className={cn("hidden sm:flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
+            onClick={onBuyDebates}
+            aria-label="Buy debates"
+            className={cn("hidden sm:flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
           >
-            <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
-            <span className={`text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-opacity duration-200 ${balanceLoading ? "opacity-0" : "opacity-100"}`}>{(() => { const val = tier === "paid" ? (debateBalance ?? 0) : (freeDebatesRemaining ?? 0); return val === 999 ? "\u221E" : Math.floor(val).toLocaleString() })()}</span>
-          </motion.div>
+            <Sparkles className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
+          </motion.button>
 
           <motion.button
             whileTap={{ scale: 0.95 }}
