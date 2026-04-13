@@ -39,6 +39,7 @@ const translations = {
     login: "Sign In",
     logout: "Log Out",
     settings: "Settings",
+    buyDebates: "Buy debates",
     ...leaveDebateStrings.en,
   },
   ko: {
@@ -53,6 +54,7 @@ const translations = {
     login: "로그인",
     logout: "로그아웃",
     settings: "설정",
+    buyDebates: "토론 구매",
     ...leaveDebateStrings.ko,
   },
 }
@@ -318,7 +320,7 @@ export default function ChatHeader({
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             onClick={onBuyDebates}
-            aria-label="Buy debates"
+            aria-label={t.buyDebates}
             className={cn("w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />

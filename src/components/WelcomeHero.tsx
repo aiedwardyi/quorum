@@ -269,14 +269,21 @@ export default function WelcomeHero({
                 whileTap={{ scale: 0.97 }}
                 className="group relative flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-300 overflow-hidden border border-zinc-200/60 dark:border-zinc-800/40 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm shadow-sm hover:shadow-lg hover:shadow-zinc-200/20 dark:hover:shadow-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700 w-full"
               >
-                {/* Rainbow shimmer div */}
+                {/* Rainbow shimmer div - split into outer (fade+center) and inner (rotate) to avoid transform conflicts */}
                 <div
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400%] aspect-square blur-xl will-change-transform pointer-events-none opacity-0"
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400%] aspect-square blur-xl pointer-events-none opacity-0 welcome-card-shimmer"
                   style={{
-                    animation: `shimmer-fade 2.5s ease-in-out ${2.0 + i * 0.15}s forwards, rotate-border 4s linear ${2.0 + i * 0.15}s infinite`,
-                    background: "conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444)",
+                    animation: `shimmer-fade 2.5s ease-in-out ${2.0 + i * 0.15}s forwards`,
                   }}
-                />
+                >
+                  <div
+                    className="w-full h-full will-change-transform"
+                    style={{
+                      animation: `rotate-border 4s linear ${2.0 + i * 0.15}s infinite`,
+                      background: "conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444)",
+                    }}
+                  />
+                </div>
 
                 {/* Subtle top-edge shine */}
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-zinc-300/40 dark:via-zinc-600/20 to-transparent pointer-events-none" />
@@ -290,7 +297,7 @@ export default function WelcomeHero({
               </motion.button>
               {i === 0 && (
                 <span
-                  className="absolute -top-2 -right-2 z-10 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-500 dark:border-emerald-500/40 opacity-0"
+                  className="absolute -top-2 -right-2 z-10 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950 dark:text-emerald-500 dark:border-emerald-500/40 opacity-0 pointer-events-none"
                   style={{ animation: "try-me-pop 0.4s ease-out 2.5s forwards" }}
                 >
                   {tryMeLabel[locale]}
