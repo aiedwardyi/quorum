@@ -267,9 +267,10 @@ export default function WelcomeHero({
               onClick={() => onSuggestionClick(suggestion)}
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.97 }}
-              className="group relative p-[1.5px] rounded-2xl overflow-hidden text-left"
+              className="group relative p-[1.5px] rounded-2xl text-left"
             >
-              {/* Rainbow border - fades out after initial animation */}
+              {/* Rainbow border - clipped to card shape */}
+              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
               <motion.div
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400%] aspect-square animate-rotate-border blur-xl will-change-transform"
                 initial={{ opacity: 0 }}
@@ -279,6 +280,7 @@ export default function WelcomeHero({
                   background: "conic-gradient(from 0deg, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)",
                 }}
               />
+              </div>
               <div className="relative flex items-center gap-4 p-4 rounded-[14px] bg-white dark:bg-zinc-900 shadow-sm group-hover:shadow-md border border-zinc-200/60 dark:border-zinc-800/40 group-hover:border-zinc-300 dark:group-hover:border-zinc-700 transition-[border-color,box-shadow] duration-150">
                 <div className="p-2.5 rounded-xl bg-zinc-100/80 dark:bg-zinc-800/60 text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-200 transition-colors duration-150">
                   {cardIcons[i]}
