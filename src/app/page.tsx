@@ -512,8 +512,25 @@ function ChatPageContent() {
 
   // Anonymous debate counting is now handled by deductAnonymous() in handleSendWithGate
 
+  // Sync activeModels with allowedModels so locked models can't stay enabled
+  const allowedModelsKey = debateBalance.allowedModels.join(",")
+  useEffect(() => {
+    if (debateBalance.loading) return
+    const allowed = new Set(debateBalance.allowedModels)
+    const filtered = state.activeModels.filter((m) => allowed.has(m))
+    // If too few remain, fall back to all allowed models
+    const next = filtered.length >= 2 ? filtered : [...debateBalance.allowedModels]
+    if (next.length !== state.activeModels.length || next.some((m, i) => m !== state.activeModels[i])) {
+      dispatch({ type: "SET_MODELS", models: next })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debateBalance.loading, allowedModelsKey])
+
   // Gate: check balance + deduct before sending
   const handleSendWithGate = useCallback(async (text: string, target: Provider | "all") => {
+    // Wait for balance data before gating - prevents false "model_locked" from stale fallback
+    if (debateBalance.loading) return
+
     const models = state.activeModels
     const check = debateBalance.canStartDebate(models)
 
@@ -529,25 +546,34 @@ function ChatPageContent() {
       return
     }
 
-    // Server-side deduction for logged-in users
+    // Anonymous: deduct from localStorage (sync)
+    if (!debateBalance.isLoggedIn) {
+      debateBalance.deductAnonymous()
+    }
+
+    // Start debate immediately - deduct optimistically in background
+    handleSend(text, target)
+
+    // Server-side deduction for logged-in users (non-blocking)
     if (debateBalance.isLoggedIn) {
-      const res = await fetch("/api/debates/deduct", {
+      fetch("/api/debates/deduct", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ models, threadId: persistence.threadId.current }),
       })
-      if (!res.ok) {
-        setUpgradePrompt({ show: true, variant: "buy" })
-        return
-      }
-      debateBalance.refresh()
-    } else {
-      // Anonymous: deduct from localStorage
-      debateBalance.deductAnonymous()
+        .then((res) => {
+          if (!res.ok) {
+            handleStop()
+            setUpgradePrompt({ show: true, variant: "buy" })
+          }
+          debateBalance.refresh()
+        })
+        .catch(() => {
+          handleStop()
+          setUpgradePrompt({ show: true, variant: "buy" })
+        })
     }
-
-    handleSend(text, target)
-  }, [state.activeModels, debateBalance, handleSend, persistence.threadId])
+  }, [state.activeModels, debateBalance, handleSend, handleStop, persistence.threadId])
   handleSendWithGateRef.current = handleSendWithGate
 
   /* ---- Render ---- */

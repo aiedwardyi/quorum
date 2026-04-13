@@ -225,22 +225,25 @@ export default function WelcomeHero({
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 1.1 + i * 0.08, type: "spring", stiffness: 300, damping: 20 }}
-              className="model-badge flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-default"
-              style={{
-                '--badge-bg': `${modelMeta[model].color}08`,
-                '--badge-border': `${modelMeta[model].color}20`,
-                '--badge-glow': modelMeta[model].glow,
-                '--badge-bg-hover': `${modelMeta[model].color}12`,
-                '--badge-border-hover': `${modelMeta[model].color}50`,
-              } as React.CSSProperties}
             >
-              <ModelIcon provider={model} size={14} />
-              <span
-                className="text-[11px] font-bold uppercase tracking-widest"
-                style={{ color: `${modelMeta[model].color}cc` }}
+              <div
+                className="model-badge flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-default"
+                style={{
+                  '--badge-bg': `${modelMeta[model].color}08`,
+                  '--badge-border': `${modelMeta[model].color}20`,
+                  '--badge-glow': modelMeta[model].glow,
+                  '--badge-bg-hover': `${modelMeta[model].color}12`,
+                  '--badge-border-hover': `${modelMeta[model].color}50`,
+                } as React.CSSProperties}
               >
-                {model === "gpt" ? "GPT" : modelMeta[model].label}
-              </span>
+                <ModelIcon provider={model} size={14} />
+                <span
+                  className="text-[11px] font-bold uppercase tracking-widest"
+                  style={{ color: `${modelMeta[model].color}cc` }}
+                >
+                  {model === "gpt" ? "GPT" : modelMeta[model].label}
+                </span>
+              </div>
             </motion.div>
           ))}
         </motion.div>
