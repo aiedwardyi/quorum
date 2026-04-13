@@ -59,6 +59,7 @@ export default function SettingsModal({
   theme,
   onChangeTheme,
   onBuyDebates,
+  onBalanceRefresh,
   balance,
   freeDebatesRemaining,
   tier,
@@ -75,6 +76,7 @@ export default function SettingsModal({
   theme?: Theme
   onChangeTheme?: (theme: Theme) => void
   onBuyDebates?: () => void
+  onBalanceRefresh?: () => void
   balance?: number
   freeDebatesRemaining?: number
   tier?: "anonymous" | "free" | "paid"
@@ -105,6 +107,7 @@ export default function SettingsModal({
       if (res.ok) {
         setPromoStatus({ type: "success", message: `+${data.debatesAdded} ${t.promoSuccess}` })
         setPromoInput("")
+        onBalanceRefresh?.()
       } else {
         setPromoStatus({ type: "error", message: data.error === "Already redeemed" ? (locale === "ko" ? "이미 사용된 코드입니다" : "Already redeemed") : t.promoError })
       }

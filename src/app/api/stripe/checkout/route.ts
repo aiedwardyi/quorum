@@ -27,24 +27,29 @@ export async function POST(req: Request) {
     ? `https://${process.env.VERCEL_URL}`
     : "http://localhost:3000")
 
-  const checkoutSession = await getStripe().checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    line_items: [
-      {
-        price: pkg.stripePriceId,
-        quantity: 1,
+  try {
+    const checkoutSession = await getStripe().checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price: pkg.stripePriceId,
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        userId: session.user.id,
+        packageId: pkg.id,
+        debateCount: String(pkg.debateCount),
       },
-    ],
-    metadata: {
-      userId: session.user.id,
-      packageId: pkg.id,
-      debateCount: String(pkg.debateCount),
-    },
-    customer_email: session.user.email,
-    success_url: `${baseUrl}/?purchase=success`,
-    cancel_url: `${baseUrl}/?purchase=cancelled`,
-  })
+      customer_email: session.user.email,
+      success_url: `${baseUrl}/?purchase=success`,
+      cancel_url: `${baseUrl}/?purchase=cancelled`,
+    })
 
-  return NextResponse.json({ url: checkoutSession.url })
+    return NextResponse.json({ url: checkoutSession.url })
+  } catch (err) {
+    console.error("[stripe] Checkout error:", err)
+    return NextResponse.json({ error: "Payment service unavailable" }, { status: 503 })
+  }
 }

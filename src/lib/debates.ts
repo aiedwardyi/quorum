@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma"
 import type { Provider } from "@/types"
 
+// ---- USER TEST MODE ----
+// Set to true to give everyone unlimited debates + all models.
+// TODO: Remove after user testing week.
+const USER_TEST_MODE = true
+// -------------------------
+
 const FREE_MONTHLY_LIMIT = 10
 const FREE_MODELS: Provider[] = ["gpt", "perplexity", "gemini"]
 const ALL_MODELS: Provider[] = ["gpt", "perplexity", "gemini", "claude"]
@@ -17,6 +23,16 @@ export async function getOrCreateBalance(userId: string) {
 }
 
 export async function getBalanceInfo(userId: string) {
+  if (USER_TEST_MODE) {
+    return {
+      tier: "paid" as const,
+      balance: 999,
+      freeDebatesRemaining: 999,
+      hasUsedClaudeBonus: false,
+      allowedModels: ALL_MODELS,
+    }
+  }
+
   const bal = await getOrCreateBalance(userId)
 
   // Lazy monthly reset - conditional to avoid race with concurrent requests
@@ -60,6 +76,10 @@ export async function deductDebate(
   models: Provider[],
   threadId?: string
 ) {
+  if (USER_TEST_MODE) {
+    return { allowed: true, balance: 999, freeRemaining: 999 }
+  }
+
   const bal = await getOrCreateBalance(userId)
 
   // Lazy monthly reset - conditional to avoid race with concurrent requests

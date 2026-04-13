@@ -622,6 +622,7 @@ function ChatPageContent() {
         theme={theme}
         onChangeTheme={changeTheme}
         onBuyDebates={() => { setIsSettingsOpen(false); setShowBuyModal(true) }}
+        onBalanceRefresh={() => debateBalance.refresh()}
         balance={debateBalance.balance}
         freeDebatesRemaining={debateBalance.freeDebatesRemaining}
         tier={debateBalance.tier}

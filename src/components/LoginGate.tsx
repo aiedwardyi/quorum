@@ -4,9 +4,14 @@ import { signIn } from "next-auth/react"
 import { X } from "lucide-react"
 import type { Locale } from "@/types"
 
+// ---- USER TEST MODE ----
+// Mirror the flag in src/lib/debates.ts. Flip both back to false together.
+const USER_TEST_MODE = true
+// -------------------------
+
 // ---- Constants ----
 // Aligned with useDebateBalance hook - single source of truth for anon limits
-export const FREE_DEBATE_LIMIT = 3
+export const FREE_DEBATE_LIMIT = USER_TEST_MODE ? 999 : 3
 const STORAGE_KEY = "quorum_anon_debates"
 const PENDING_KEY = "quorum_pending"
 

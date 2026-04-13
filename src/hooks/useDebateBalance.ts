@@ -4,8 +4,14 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { useSession } from "next-auth/react"
 import type { Provider, DebateBalanceInfo } from "@/types"
 
-const ANON_MODELS: Provider[] = ["gpt", "perplexity"]
-const ANON_LIMIT = 3
+// ---- USER TEST MODE ----
+// Mirror the flag in src/lib/debates.ts. Flip both back to false together.
+const USER_TEST_MODE = true
+// -------------------------
+
+const ALL_MODELS: Provider[] = ["gpt", "perplexity", "gemini", "claude"]
+const ANON_MODELS: Provider[] = USER_TEST_MODE ? ALL_MODELS : ["gpt", "perplexity"]
+const ANON_LIMIT = USER_TEST_MODE ? 999 : 3
 const ANON_STORAGE_KEY = "quorum_anon_debates"
 
 function getAnonCount(): number {
@@ -21,7 +27,7 @@ function incrementAnonCount(): number {
 
 const ANON_DEFAULT: DebateBalanceInfo = {
   tier: "anonymous",
-  balance: 0,
+  balance: USER_TEST_MODE ? 999 : 0,
   freeDebatesRemaining: ANON_LIMIT,
   hasUsedClaudeBonus: false,
   allowedModels: ANON_MODELS,
@@ -56,6 +62,15 @@ export function useDebateBalance() {
 
   // Compute anonymous info synchronously (no effect needed)
   const anonInfo = useMemo<DebateBalanceInfo>(() => {
+    if (USER_TEST_MODE) {
+      return {
+        tier: "anonymous" as const,
+        balance: 999,
+        freeDebatesRemaining: 999,
+        hasUsedClaudeBonus: false,
+        allowedModels: ALL_MODELS,
+      }
+    }
     const used = getAnonCount()
     return {
       tier: "anonymous",
@@ -84,6 +99,8 @@ export function useDebateBalance() {
 
   const canStartDebate = useCallback(
     (models: Provider[]): { allowed: boolean; reason?: string } => {
+      if (USER_TEST_MODE) return { allowed: true }
+
       if (!isLoggedIn) {
         const remaining = Math.max(0, ANON_LIMIT - getAnonCount())
         if (remaining <= 0) {
