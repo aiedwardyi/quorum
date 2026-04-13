@@ -41,8 +41,8 @@ const ModelIcon = ({ provider, size = 16 }: { provider: Provider; size?: number 
 }
 
 const translations = {
-  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Debates", availableBalance: "Available Balance", buyCredits: "Buy Debates", keysDesc: "Use your own API keys or buy debates to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme", promoCode: "Invite Code", promoPlaceholder: "Enter invite code", promoRedeem: "Redeem", promoSuccess: "debates added!", promoError: "Invalid or expired code" },
-  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "토론", availableBalance: "사용 가능 잔액", buyCredits: "토론 구매", keysDesc: "자신의 API 키를 사용하거나 토론을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마", promoCode: "초대 코드", promoPlaceholder: "초대 코드를 입력하세요", promoRedeem: "사용", promoSuccess: "토론이 추가되었습니다!", promoError: "유효하지 않거나 만료된 코드입니다" },
+  en: { settings: "Settings", account: "Account", preferences: "Preferences", apiKeys: "API Keys", credits: "Debates", availableBalance: "Available Balance", buyCredits: "Buy Debates", keysDesc: "Use your own API keys or buy debates to use any model.", save: "Save Changes", saved: "Saved!", language: "Language", logout: "Sign Out", activeModels: "Active Models", geminiKey: "Gemini API Key", perplexityKey: "Perplexity API Key", claudeKey: "Claude API Key", gptKey: "GPT API Key", toggle: "Toggle", theme: "Theme", promoCode: "Invite Code", promoPlaceholder: "Enter invite code", promoRedeem: "Redeem", promoSuccess: "debates added!", promoError: "Invalid or expired code", unlimited: "Unlimited" },
+  ko: { settings: "설정", account: "계정", preferences: "환경설정", apiKeys: "API 키", credits: "토론", availableBalance: "사용 가능 잔액", buyCredits: "토론 구매", keysDesc: "자신의 API 키를 사용하거나 토론을 구매하여 모든 모델을 사용하세요.", save: "변경사항 저장", saved: "저장됨!", language: "언어", logout: "로그아웃", activeModels: "활성 모델", geminiKey: "Gemini API 키", perplexityKey: "Perplexity API 키", claudeKey: "Claude API 키", gptKey: "GPT API 키", toggle: "전환", theme: "테마", promoCode: "초대 코드", promoPlaceholder: "초대 코드를 입력하세요", promoRedeem: "사용", promoSuccess: "토론이 추가되었습니다!", promoError: "유효하지 않거나 만료된 코드입니다", unlimited: "무제한" },
 }
 
 type Tab = "account" | "preferences"
@@ -92,6 +92,7 @@ export default function SettingsModal({
   const [promoLoading, setPromoLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const t = translations[locale]
+  const displayBalance = tier === "anonymous" || tier === "free" ? (freeDebatesRemaining ?? 0) : (balance ?? 0)
 
   const handleRedeemPromo = async () => {
     if (!promoInput.trim() || promoLoading) return
@@ -174,7 +175,7 @@ export default function SettingsModal({
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{t.availableBalance}</p>
-                        <div className="flex items-center gap-2"><span className="text-3xl font-mono font-light tracking-tighter text-foreground">{tier === "anonymous" || tier === "free" ? (freeDebatesRemaining ?? 0) : (balance ?? 0).toLocaleString()}</span><Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /></div>
+                        <div className="flex items-center gap-2"><span className="text-2xl font-semibold tracking-tight text-foreground">{displayBalance === 999 ? t.unlimited : displayBalance.toLocaleString()}</span><Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /></div>
                       </div>
                       <motion.button onClick={onBuyDebates} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2, ease: "easeOut" }} className="relative group overflow-hidden px-4 py-2 bg-primary text-primary-foreground text-[12px] font-bold rounded-lg shadow-md transition-colors">
                         <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
@@ -192,7 +193,7 @@ export default function SettingsModal({
                       onChange={(e) => { setPromoInput(e.target.value.toUpperCase()); setPromoStatus(null) }}
                       onKeyDown={(e) => { if (e.key === "Enter") handleRedeemPromo() }}
                       placeholder={t.promoPlaceholder}
-                      className="flex-1 px-3.5 py-2.5 bg-card border border-border rounded-xl text-[13px] text-foreground focus:border-ring focus:outline-none placeholder:text-muted-foreground/50 font-mono tracking-wider"
+                      className="flex-1 px-3.5 py-2.5 bg-card border border-border rounded-xl text-[13px] text-foreground focus:border-ring focus:outline-none placeholder:text-muted-foreground/50 tracking-wider"
                     />
                     <button
                       onClick={handleRedeemPromo}
