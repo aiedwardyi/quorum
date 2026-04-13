@@ -23,12 +23,10 @@ export default function ConsensusMeter({
   score,
   result,
   locale,
-  scrollButton,
 }: {
   score: number | null
   result: VerdictResult | null
   locale: Locale
-  scrollButton?: React.ReactNode
 }) {
   const t = translations[locale]
   const isFinal = !!result
@@ -104,21 +102,18 @@ export default function ConsensusMeter({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {scrollButton}
-            {score !== null ? (
-              <div
-                className={cn("flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500", getTextColor(score), isFinal && "drop-shadow-[0_0_8px_var(--theme-accent-glow)]")}
-              >
-                <span>{displayScore}</span>
-                <span className="text-xs ml-0.5">%</span>
-              </div>
-            ) : (
-              <span className="text-[10px] font-mono font-medium text-zinc-400 dark:text-zinc-600 tracking-widest animate-pulse">
-                {t.analyzing}
-              </span>
-            )}
-          </div>
+          {score !== null ? (
+            <div
+              className={cn("flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500", getTextColor(score), isFinal && "drop-shadow-[0_0_8px_var(--theme-accent-glow)]")}
+            >
+              <span>{displayScore}</span>
+              <span className="text-xs ml-0.5">%</span>
+            </div>
+          ) : (
+            <span className="text-[10px] font-mono font-medium text-zinc-400 dark:text-zinc-600 tracking-widest animate-pulse">
+              {t.analyzing}
+            </span>
+          )}
         </div>
 
         <div className={cn("h-1.5 w-full rounded-full overflow-hidden transition-colors duration-500 bg-muted", isFinal && "ring-1 ring-border")}>

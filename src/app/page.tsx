@@ -681,22 +681,15 @@ function ChatPageContent() {
 
       {/* Bottom bar: consensus rail + input */}
       <div className="w-full shrink-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-2 z-10">
-        {(state.isDebating || state.typingModel !== null || state.verdict !== null) ? (
+        {(state.isDebating || state.typingModel !== null || state.verdict !== null) && (
           <ConsensusMeter
             score={state.verdict?.confidence ?? null}
             result={state.showSummary ? state.verdict : null}
             locale={locale}
-            scrollButton={showScrollDown ? (
-              <button
-                onClick={() => mainRef.current?.scrollTo({ top: mainRef.current.scrollHeight, behavior: "smooth" })}
-                className="w-6 h-6 rounded-full bg-zinc-500/20 dark:bg-zinc-400/15 backdrop-blur-sm text-zinc-500 dark:text-zinc-400 flex items-center justify-center hover:bg-zinc-500/30 dark:hover:bg-zinc-400/25 transition-all duration-200"
-              >
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
-            ) : null}
           />
-        ) : showScrollDown ? (
-          <div className="flex justify-center mb-1">
+        )}
+        {showScrollDown && (
+          <div className="flex justify-center -mb-1">
             <button
               onClick={() => mainRef.current?.scrollTo({ top: mainRef.current.scrollHeight, behavior: "smooth" })}
               className="w-7 h-7 rounded-full bg-zinc-500/20 dark:bg-zinc-400/15 backdrop-blur-sm text-zinc-500 dark:text-zinc-400 flex items-center justify-center hover:bg-zinc-500/30 dark:hover:bg-zinc-400/25 transition-all duration-200"
@@ -704,7 +697,7 @@ function ChatPageContent() {
               <ChevronDown className="w-4 h-4" />
             </button>
           </div>
-        ) : null}
+        )}
 
         <MessageInput
           onSend={handleSendWithGate}
