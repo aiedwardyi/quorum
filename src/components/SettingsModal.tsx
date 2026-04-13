@@ -174,7 +174,7 @@ export default function SettingsModal({
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{t.availableBalance}</p>
-                        <div className="flex items-center gap-2"><span className="text-3xl font-mono font-light tracking-tighter text-foreground">{tier === "anonymous" || tier === "free" ? (freeDebatesRemaining ?? 0) : (balance ?? 0).toLocaleString()}</span><Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /></div>
+                        <div className="flex items-center gap-2"><span className="text-2xl font-semibold tracking-tight text-foreground">{(tier === "paid" ? (balance ?? 0) : (freeDebatesRemaining ?? 0)) === 999 ? (locale === "ko" ? "무제한" : "Unlimited") : (tier === "anonymous" || tier === "free" ? (freeDebatesRemaining ?? 0) : (balance ?? 0).toLocaleString())}</span><Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /></div>
                       </div>
                       <motion.button onClick={onBuyDebates} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2, ease: "easeOut" }} className="relative group overflow-hidden px-4 py-2 bg-primary text-primary-foreground text-[12px] font-bold rounded-lg shadow-md transition-colors">
                         <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
@@ -192,7 +192,7 @@ export default function SettingsModal({
                       onChange={(e) => { setPromoInput(e.target.value.toUpperCase()); setPromoStatus(null) }}
                       onKeyDown={(e) => { if (e.key === "Enter") handleRedeemPromo() }}
                       placeholder={t.promoPlaceholder}
-                      className="flex-1 px-3.5 py-2.5 bg-card border border-border rounded-xl text-[13px] text-foreground focus:border-ring focus:outline-none placeholder:text-muted-foreground/50 font-mono tracking-wider"
+                      className="flex-1 px-3.5 py-2.5 bg-card border border-border rounded-xl text-[13px] text-foreground focus:border-ring focus:outline-none placeholder:text-muted-foreground/50 tracking-wider"
                     />
                     <button
                       onClick={handleRedeemPromo}
