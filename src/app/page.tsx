@@ -383,6 +383,7 @@ function ChatPageContent() {
     prevMessageCount.current = 0
     persistence.reset()
     handleReset()
+    setShowScrollDown(false)
     mainRef.current?.scrollTo({ top: 0 })
     router.replace("/")
   }, [persistence, handleReset, router])
