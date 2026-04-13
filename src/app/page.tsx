@@ -36,7 +36,7 @@ export default function ChatPage() {
 function ChatPageContent() {
   // Config loaded from sessionStorage (set by homepage)
   const [locale, setLocale] = useState<Locale>("ko")
-  const [responseLength, setResponseLength] = useState<ResponseLength>("short")
+  const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(1)
   const [theme, setTheme] = useState<Theme>("dark")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)

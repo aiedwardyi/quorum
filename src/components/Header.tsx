@@ -179,9 +179,9 @@ export default function ChatHeader({
         )}
 
         <div className="flex items-center gap-1.5 sm:gap-4">
-          <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-800 shrink-0" />
+          <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-800 shrink-0 hidden sm:block" />
 
-          <div className={cn("relative shrink-0 group", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
+          <div className={cn("relative shrink-0 group hidden sm:block", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => { setShowRoundsDropdown(!showRoundsDropdown); setShowLengthDropdown(false); setShowUserMenu(false) }}
@@ -191,7 +191,7 @@ export default function ChatHeader({
             >
               <RotateCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 dark:text-zinc-500" />
               <span className="text-[11px] sm:text-xs font-mono font-bold text-zinc-900 dark:text-zinc-100">
-                {currentRound}/{maxRounds}
+                {isDebating ? `${currentRound}/${maxRounds}` : `${maxRounds} ${maxRounds === 1 ? t.round : t.rounds}`}
               </span>
               <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 dark:text-zinc-500 opacity-50" />
             </motion.button>
@@ -238,9 +238,9 @@ export default function ChatHeader({
             </AnimatePresence>
           </div>
 
-          <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-800 shrink-0" />
+          <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-800 shrink-0 hidden sm:block" />
 
-          <div className={cn("relative shrink-0 group", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
+          <div className={cn("relative shrink-0 group hidden sm:block", isDebating && "pointer-events-none opacity-40")} data-header-dropdown>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => { setShowLengthDropdown(!showLengthDropdown); setShowRoundsDropdown(false); setShowUserMenu(false) }}
@@ -317,7 +317,7 @@ export default function ChatHeader({
             className={cn("hidden sm:flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all cursor-default group", theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60", theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40", theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50", theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50", theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50", theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50")}
           >
             <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
-            <span className={`text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-opacity duration-200 ${balanceLoading ? "opacity-0" : "opacity-100"}`}>{Math.floor(tier === "paid" ? (debateBalance ?? 0) : (freeDebatesRemaining ?? 0)).toLocaleString()}</span>
+            <span className={`text-[10px] sm:text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 transition-opacity duration-200 ${balanceLoading ? "opacity-0" : "opacity-100"}`}>{(() => { const val = tier === "paid" ? (debateBalance ?? 0) : (freeDebatesRemaining ?? 0); return val >= 999 ? "\u221E" : Math.floor(val).toLocaleString() })()}</span>
           </motion.div>
 
           <motion.button
