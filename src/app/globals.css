@@ -1059,5 +1059,6 @@ button:not(:disabled) {
   .animate-verdict-phrase { animation: none; }
   .model-badge { transition: none; }
   .welcome-card-shimmer, .welcome-card-shimmer > div { animation: none !important; }
+  [style*="try-me-pop"] { animation: none !important; }
   .model-badge:hover { transform: none; box-shadow: none; }
 }
