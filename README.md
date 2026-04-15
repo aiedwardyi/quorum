@@ -132,7 +132,6 @@ Push the Prisma schema to your database, then run:
 
 ```bash
 npx prisma db push
-npx prisma generate
 npm run dev
 ```
 
