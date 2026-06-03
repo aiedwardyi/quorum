@@ -15,7 +15,7 @@ function getClient() {
 // breakpoint, so round N+1 reads round N's prefix instead of rewriting it.
 // A single growing block never matches: its breakpoint moves mid-block each
 // round, and Anthropic only reuses cached prefixes at block boundaries.
-function buildUserContent(messages: Message[]): Anthropic.TextBlockParam[] {
+export function buildUserContent(messages: Message[]): Anthropic.TextBlockParam[] {
   const blocks: Anthropic.TextBlockParam[] = messages.map((m, i) => ({
     type: "text",
     text:
@@ -25,7 +25,9 @@ function buildUserContent(messages: Message[]): Anthropic.TextBlockParam[] {
   }))
   if (blocks.length > 0) {
     blocks[0].cache_control = { type: "ephemeral" }
-    blocks[blocks.length - 1].cache_control = { type: "ephemeral" }
+    if (blocks.length > 1) {
+      blocks[blocks.length - 1].cache_control = { type: "ephemeral" }
+    }
   }
   blocks.push({ type: "text", text: "\n\nPlease respond to the discussion above." })
   return blocks
