@@ -5,7 +5,7 @@ import type { Message } from "@/types"
 function msg(displayName: string, content: string): Message {
   return {
     id: `${displayName}-${content}`,
-    sender: "claude",
+    sender: displayName.toLowerCase() as Message["sender"],
     displayName,
     content,
     timestamp: new Date(0),
