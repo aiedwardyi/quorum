@@ -20,8 +20,8 @@ export default function DemoPage() {
                 Quorum Pipeline Demo
               </h1>
               <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-                Auto-playing demo cut with the typed intro, multi-model debate, and polished final verdict.
-                Optimized for desktop viewing.
+                Auto-playing demo cut with the typed intro, multi-model debate, and polished final
+                verdict. Optimized for desktop viewing.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -53,7 +53,8 @@ export default function DemoPage() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Share this page as <span className="font-mono">/demo</span>, or send the direct HTML link for the full-screen version.
+          Share this page as <span className="font-mono">/demo</span>, or send the direct HTML link
+          for the full-screen version.
         </p>
       </div>
     </main>

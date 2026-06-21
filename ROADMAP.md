@@ -14,7 +14,7 @@ Quorum is moving away from a neutral "consensus recap" and toward a decision-ori
 - users can continue the same thread after verdict
 - logged-in users can reopen saved threads later
 
-## ✅ v1: Working Group Chat *(Complete)*
+## ✅ v1: Working Group Chat _(Complete)_
 
 The core experience — a group chat where you + Gemini + Perplexity discuss a topic together.
 
@@ -73,21 +73,20 @@ Make the ending state decisive and make debates reusable.
 
 ---
 
-## 🎨 v3: Accounts + Saved Work + Decision UX Polish
+## 🎨 v3: Accounts + Saved Work + BYOK
 
-Make saved work, identity, and recommendation UX feel complete.
+Make saved work, identity, user-owned model access, and recommendation UX feel complete.
 
 - [x] User login modal with Google OAuth
-- [x] User accounts (persist settings, keys, history)
+- [x] User accounts (persist settings, encrypted keys, history)
 - [x] Saved thread sidebar / history browser
 - [ ] Follow-up question shortcuts from verdict card
 - [ ] Korean / English i18n polish for decision-oriented verdict copy
-- [ ] API key management — server-side encrypted storage (users don't re-enter every session)
-- [ ] BYOK — users input their own API keys (UI exists, backend pending)
-- [ ] Token/credit tracking system (foundation for payment)
-- [ ] Credits button on chat header — functional (currently cosmetic)
+- [x] API key management — server-side encrypted storage (saved keys are never returned to the browser)
+- [x] BYOK backend — provider calls prefer the signed-in user's key, with server env keys as fallback
+- [ ] BYOK settings UX polish
 - [x] Default to dark mode
-- [x] Theme system — 9 themes (Light/Dark/Tokyo Night/Lovelace/Gruvbox/Catppuccin/Nord/Solarized/Rose Pine) with icon grid picker in Settings
+- [x] Theme system — 8 themes (Light/Dark/Tokyo Night/Lovelace/Gruvbox/Catppuccin/Nord/Solarized) with icon grid picker in Settings
 - [x] Theme-aware semantic color tokens (success/warning/danger) — ConsensusMeter + SummaryCard respond to active theme
 - [ ] Additional custom themes (accent colors, more palettes)
 - [x] Settings page - Account + Preferences tabs
@@ -108,20 +107,17 @@ Make saved work, identity, and recommendation UX feel complete.
 
 ---
 
-## ⚡ v4: Differentiation + Monetization
+## ⚡ v4: Differentiation + Sharing
 
 Differentiate beyond generic multi-model chat.
 
-- [ ] Buy Credits flow — package selection, Stripe payment, balance update
-- [ ] Subscription model — flat fee -> token pool for all models (targets non-technical users)
 - [ ] Korean-first decision workflows (shopping, career, startup, study, local comparisons)
 - [ ] Grounded decision mode with web-backed debate for real-world choices
 - [ ] Devil's advocate mode — force one model to argue against consensus
 - [ ] Debate templates (patent review, architecture decision, risk analysis)
 - [ ] Custom model support (any OpenAI-compatible endpoint)
-- [ ] Cost tracking dashboard
-- [ ] Share full sessions via link
-- [ ] Analytics dashboard (signups, active users, debates, model usage, language distribution)
+- [ ] Share full sessions via link with explicit privacy controls
+- [ ] Usage dashboard (active users, debates, model usage, language distribution)
 - [x] File reading support (PDF, DOCX, Excel) - parse and send as context to AI models
 - [ ] Move settings into avatar dropdown (pending user test feedback)
 - [ ] Rounds selector in chat header (pending user test feedback)
@@ -130,13 +126,12 @@ Differentiate beyond generic multi-model chat.
 
 ## 🔑 Key Decisions (Decide Later)
 
-| Decision | When | Options |
-|----------|------|---------|
-| Database | ✅ Decided | PostgreSQL on Neon + Prisma ORM |
-| API key storage | Before v3 | Browser-only vs encrypted DB vs hybrid |
-| Auth system | ✅ Decided | NextAuth v5 + Google OAuth |
-| Payment system | Before v4 | Stripe vs custom token system |
-| Deployment | ✅ Decided | AWS Amplify (Seoul, ap-northeast-2) |
+| Decision        | When       | Options                                                               |
+| --------------- | ---------- | --------------------------------------------------------------------- |
+| Database        | ✅ Decided | PostgreSQL on Neon + Prisma ORM                                       |
+| API key storage | ✅ Decided | Encrypted DB storage; plaintext keys are never returned to the client |
+| Auth system     | ✅ Decided | NextAuth v5 + Google OAuth                                            |
+| Deployment      | ✅ Decided | AWS Amplify (Seoul, ap-northeast-2)                                   |
 
 ---
 
@@ -145,4 +140,4 @@ Differentiate beyond generic multi-model chat.
 - **Less is more** — lightweight, minimal, user knows what to do on page load
 - **Customization is good, clutter is bad** — good amount of options with clean UI/UX
 - **One source of truth** — no duplicate information displays
-- **Non-technical users welcome** — subscription model over raw API key input
+- **Non-technical users welcome** — sensible defaults first, BYOK when users want control

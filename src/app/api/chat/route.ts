@@ -4,6 +4,7 @@ import { streamClaude } from "@/lib/providers/claude"
 import { streamGPT } from "@/lib/providers/gpt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import { getUrlCapabilityInstruction } from "@/lib/url-access"
+import { redactSecrets } from "@/lib/redact-secrets"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
 const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
@@ -59,7 +60,6 @@ function clampToWordLimit(text: string, wordLimit: number): { text: string; trun
 
   return { text, truncated: false }
 }
-
 
 function stripUnmatchedPair(text: string, token: string): string {
   const count = text.split(token).length - 1
@@ -155,7 +155,9 @@ export function polishTruncatedResponse(text: string, wordLimit: number): string
   const sentenceMatches = [...result.matchAll(/[.!?。！？](?=\s|$)/g)]
   if (sentenceMatches.length > 0) {
     const lastSentence = sentenceMatches[sentenceMatches.length - 1]
-    const sentenceSafe = result.slice(0, (lastSentence.index ?? 0) + lastSentence[0].length).trimEnd()
+    const sentenceSafe = result
+      .slice(0, (lastSentence.index ?? 0) + lastSentence[0].length)
+      .trimEnd()
     // Accept if we keep at least 30% of the content (works for both EN and KO)
     if (sentenceSafe.length >= result.length * 0.3) {
       result = sentenceSafe
@@ -166,7 +168,12 @@ export function polishTruncatedResponse(text: string, wordLimit: number): string
   result = stripUnmatchedPair(result, "__")
   result = stripUnmatchedPair(result, "`")
   result = result.replace(/[,:;\-–]\s*$/u, "").trimEnd()
-  result = result.replace(/\s+(and|or|but|while|because|if|so|that|which|with|to|for|of|in|on|at|by|from)$/iu, "").trimEnd()
+  result = result
+    .replace(
+      /\s+(and|or|but|while|because|if|so|that|which|with|to|for|of|in|on|at|by|from)$/iu,
+      ""
+    )
+    .trimEnd()
 
   // Drop dangling markdown structure (heading with no body, lone bullet,
   // half-written table row). Runs after the pair-strip so any markers the
@@ -223,7 +230,12 @@ Structure is a tool, not decoration. Use it when it aids comprehension of the sp
   }
 }
 
-function getSystemPrompt(provider: Provider, locale: Locale, responseLength: ResponseLength, forceKorean: boolean): string {
+function getSystemPrompt(
+  provider: Provider,
+  locale: Locale,
+  responseLength: ResponseLength,
+  forceKorean: boolean
+): string {
   const lengthLine = getResponseLengthInstruction(responseLength)
   const isKorean = locale === "ko" || forceKorean
   const shortLimitBlock = responseLength === "short" ? `${lengthLine}\n\n` : ""
@@ -263,7 +275,12 @@ function getStreamFn(provider: Provider) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { messages, provider, locale = "en", responseLength = "medium" } = body as {
+    const {
+      messages,
+      provider,
+      locale = "en",
+      responseLength = "medium",
+    } = body as {
       messages: Message[]
       provider: Provider
       locale?: Locale
@@ -277,17 +294,17 @@ export async function POST(request: Request) {
         : "medium"
 
     if (!messages || !Array.isArray(messages) || !provider) {
-      return new Response(
-        JSON.stringify({ error: "Missing messages or provider" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      )
+      return new Response(JSON.stringify({ error: "Missing messages or provider" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      })
     }
 
     if (!VALID_PROVIDERS.includes(provider)) {
-      return new Response(
-        JSON.stringify({ error: `Invalid provider: ${provider}` }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      )
+      return new Response(JSON.stringify({ error: `Invalid provider: ${provider}` }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      })
     }
 
     const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
@@ -295,23 +312,36 @@ export async function POST(request: Request) {
     // conversation language. Otherwise one AI that hallucinates a Korean
     // summary mid-response tips the ratio and forces every subsequent
     // provider in the debate to respond entirely in Korean - the
-    // cascading Korean drift bug Eddie hit on 2026-04-11.
+    // cascading Korean drift bug observed on 2026-04-11.
     const userOnlyMessages = inputMessages.filter((m) => m.sender === "user")
     const forceKorean = validatedLocale !== "ko" && isPredominantlyKorean(userOnlyMessages)
     const streamFn = getStreamFn(provider)
-    const systemPrompt = getSystemPrompt(provider, validatedLocale, validatedResponseLength, forceKorean)
+    const systemPrompt = getSystemPrompt(
+      provider,
+      validatedLocale,
+      validatedResponseLength,
+      forceKorean
+    )
     const maxTokens = getMaxTokens(validatedResponseLength)
+    let userApiKey: string | undefined
+    const { auth } = await import("@/lib/auth")
+    const session = await auth()
+    if (session?.user?.id) {
+      try {
+        const { getUserProviderApiKey } = await import("@/lib/user-api-keys")
+        userApiKey = await getUserProviderApiKey(session.user.id, provider)
+      } catch (error) {
+        const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
+        console.error(`[chat/${provider}] failed to load user API key:`, msg)
+      }
+    }
     // Hard word caps per response length. These sit behind the prompt
     // instruction as a belt-and-suspenders guard: when a provider (Gemini
     // especially) decides to run 2x longer than requested, the server
     // clamps the stream mid-flight instead of letting the oversized
     // bubble dominate the debate feed.
     const wordLimit =
-      validatedResponseLength === "short"
-        ? 75
-        : validatedResponseLength === "medium"
-          ? 170
-          : 500
+      validatedResponseLength === "short" ? 75 : validatedResponseLength === "medium" ? 170 : 500
     const encoder = new TextEncoder()
     let fullContent = ""
     // Whether any clampToWordLimit pass actually truncated the stream.
@@ -355,7 +385,13 @@ export async function POST(request: Request) {
         }
 
         try {
-          for await (const chunk of streamFn(systemPrompt, inputMessages, providerSignal, maxTokens)) {
+          for await (const chunk of streamFn(
+            systemPrompt,
+            inputMessages,
+            providerSignal,
+            maxTokens,
+            userApiKey
+          )) {
             if (request.signal?.aborted) break
             const nextContent = fullContent + chunk
             const limited = clampToWordLimit(nextContent, wordLimit)
@@ -417,9 +453,7 @@ export async function POST(request: Request) {
           // friendly "stepped out for a snack break" system message.
           // The raw detail still lands in the server log for debugging.
           const msg = error instanceof Error ? error.message : "Unknown error"
-          const sanitized = msg
-            .replace(/sk-[a-zA-Z0-9-_]+/g, "sk-***")
-            .replace(/pplx-[a-zA-Z0-9-_]+/g, "pplx-***")
+          const sanitized = redactSecrets(msg)
           console.error(`[chat/${provider}] stream failed:`, sanitized)
           enqueueEvent({ error: sanitized })
           closeController()

@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest"
-import {
-  buildSaveMessages,
-  shouldAutoSave,
-} from "@/hooks/useThreadPersistence"
+import { buildSaveMessages, shouldAutoSave } from "@/hooks/useThreadPersistence"
 import type { Message } from "@/types"
 
 const makeMsg = (sender: string, content: string, index: number): Message => ({
@@ -15,10 +12,7 @@ const makeMsg = (sender: string, content: string, index: number): Message => ({
 
 describe("buildSaveMessages", () => {
   it("maps messages to DB format with orderIndex starting from offset", () => {
-    const msgs = [
-      makeMsg("user", "hello", 0),
-      makeMsg("gemini", "hi there", 1),
-    ]
+    const msgs = [makeMsg("user", "hello", 0), makeMsg("gemini", "hi there", 1)]
     const result = buildSaveMessages(msgs, 0)
     expect(result).toEqual([
       { sender: "user", displayName: "user", content: "hello", orderIndex: 0 },

@@ -51,44 +51,51 @@ export interface ParseOptions {
 }
 
 function joinPDFPages(pages: Array<string | null | undefined>): string {
-  return pages.map((page) => page?.trim() ?? '').filter(Boolean).join('\n\n')
+  return pages
+    .map((page) => page?.trim() ?? "")
+    .filter(Boolean)
+    .join("\n\n")
 }
 
 export async function parseFile(file: File, options?: ParseOptions): Promise<ParseResult> {
   const sizeMB = file.size / (1024 * 1024)
   if (sizeMB > MAX_FILE_SIZE_MB) {
-    return { text: '', warning: 'too_large' }
+    return { text: "", warning: "too_large" }
   }
 
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
 
   let result: string
   try {
-    if (ext === 'pdf') {
+    if (ext === "pdf") {
       const pdfResult = await parsePDF(file, options)
       if (pdfResult.usedOCR) {
-        if (!pdfResult.text.trim()) return { text: '', warning: 'empty', usedOCR: true }
+        if (!pdfResult.text.trim()) return { text: "", warning: "empty", usedOCR: true }
         if (pdfResult.text.length > MAX_FILE_CHARS) {
-          return { text: pdfResult.text.slice(0, MAX_FILE_CHARS) + '\n[...file truncated]', warning: 'truncated', usedOCR: true }
+          return {
+            text: pdfResult.text.slice(0, MAX_FILE_CHARS) + "\n[...file truncated]",
+            warning: "truncated",
+            usedOCR: true,
+          }
         }
         return { text: pdfResult.text, usedOCR: true }
       }
       result = pdfResult.text
-    } else if (ext === 'docx') result = await parseDOCX(file)
-    else if (ext === 'xlsx' || ext === 'xls') result = await parseExcel(file)
-    else if (ext === 'txt' || ext === 'md' || ext === 'csv') result = await parseText(file)
+    } else if (ext === "docx") result = await parseDOCX(file)
+    else if (ext === "xlsx" || ext === "xls") result = await parseExcel(file)
+    else if (ext === "txt" || ext === "md" || ext === "csv") result = await parseText(file)
     else return { text: `[Unsupported file type: ${file.name}]` }
   } catch (err) {
     console.error(`[file-parser] Failed to parse ${file.name}:`, err)
-    return { text: '', warning: 'parse_error' }
+    return { text: "", warning: "parse_error" }
   }
 
   if (!result.trim()) {
-    return { text: '', warning: 'empty' }
+    return { text: "", warning: "empty" }
   }
 
   if (result.length > MAX_FILE_CHARS) {
-    return { text: result.slice(0, MAX_FILE_CHARS) + '\n[...file truncated]', warning: 'truncated' }
+    return { text: result.slice(0, MAX_FILE_CHARS) + "\n[...file truncated]", warning: "truncated" }
   }
   return { text: result }
 }
@@ -97,10 +104,13 @@ async function parseText(file: File): Promise<string> {
   return file.text()
 }
 
-async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: string; usedOCR: boolean }> {
-  const pdfjsLib = await import('pdfjs-dist')
+async function parsePDF(
+  file: File,
+  options?: ParseOptions
+): Promise<{ text: string; usedOCR: boolean }> {
+  const pdfjsLib = await import("pdfjs-dist")
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
 
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
@@ -124,7 +134,7 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
   const textFirstPage = new Map<string, number>()
   let totalLength = 0
 
-  options?.onProgress?.('Reading PDF...', 2)
+  options?.onProgress?.("Reading PDF...", 2)
 
   // First pass: extract text from all pages and decide which need OCR.
   // A page is queued for OCR if any of the following hold:
@@ -150,8 +160,8 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     const content = await page.getTextContent()
     const text = content.items
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((item: any) => item.str ?? '')
-      .join(' ')
+      .map((item: any) => item.str ?? "")
+      .join(" ")
     const trimmed = text.trim()
     const pageIndex = i - 1
 
@@ -241,7 +251,7 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
 
   // OCR short/empty pages via the server-side OCR endpoint.
   const ocrTargets = ocrPageIndices.slice(0, MAX_OCR_PAGES)
-  options?.onProgress?.('Preparing pages...', 5)
+  options?.onProgress?.("Preparing pages...", 5)
 
   // Render OCR candidates to images first.
   const renderedPages: Array<{ pageNumber: number; base64: string }> = []
@@ -252,15 +262,15 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
     const pageNumber = ocrTargets[idx]
     const page = await pdf.getPage(pageNumber)
     const viewport = page.getViewport({ scale: OCR_RENDER_SCALE })
-    const canvas = document.createElement('canvas')
+    const canvas = document.createElement("canvas")
     canvas.width = viewport.width
     canvas.height = viewport.height
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext("2d")
     if (!ctx) continue
 
     await page.render({ canvas, viewport }).promise
-    const dataUrl = canvas.toDataURL('image/png')
-    renderedPages.push({ pageNumber, base64: dataUrl.split(',')[1] })
+    const dataUrl = canvas.toDataURL("image/png")
+    renderedPages.push({ pageNumber, base64: dataUrl.split(",")[1] })
   }
 
   if (renderedPages.length === 0) {
@@ -275,29 +285,29 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
       const pct = Math.round(25 + ((idx + 1) / renderedPages.length) * 70)
       options?.onProgress?.(`Reading page ${idx + 1}/${renderedPages.length}`, pct - 5)
 
-      const res = await fetch('/api/ocr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ images: [base64] }),
       })
 
       if (!res.ok) throw new Error(`OCR API error: ${res.status}`)
       const { text: ocrText } = await res.json()
-      const trimmed = (ocrText ?? '').trim()
+      const trimmed = (ocrText ?? "").trim()
       if (trimmed) pages[pageNumber - 1] = trimmed
 
       options?.onProgress?.(`Reading page ${idx + 1}/${renderedPages.length}`, pct)
     }
 
-    options?.onProgress?.('Done', 100)
+    options?.onProgress?.("Done", 100)
     return { text: joinPDFPages(pages), usedOCR: true }
   } catch (err) {
-    console.error('[file-parser] Gemini OCR failed, falling back to Tesseract:', err)
-    options?.onProgress?.('Fallback OCR...', 70)
+    console.error("[file-parser] Gemini OCR failed, falling back to Tesseract:", err)
+    options?.onProgress?.("Fallback OCR...", 70)
 
     // Fallback: client-side Tesseract OCR
-    const { createWorker } = await import('tesseract.js')
-    const worker = await createWorker('kor+eng')
+    const { createWorker } = await import("tesseract.js")
+    const worker = await createWorker("kor+eng")
     try {
       for (let idx = 0; idx < renderedPages.length; idx++) {
         const pageNumber = renderedPages[idx].pageNumber
@@ -306,14 +316,16 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
 
         const page = await pdf.getPage(pageNumber)
         const viewport = page.getViewport({ scale: OCR_RENDER_SCALE })
-        const canvas = document.createElement('canvas')
+        const canvas = document.createElement("canvas")
         canvas.width = viewport.width
         canvas.height = viewport.height
-        const ctx = canvas.getContext('2d')
+        const ctx = canvas.getContext("2d")
         if (!ctx) continue
 
         await page.render({ canvas, viewport }).promise
-        const { data: { text } } = await worker.recognize(canvas)
+        const {
+          data: { text },
+        } = await worker.recognize(canvas)
         const trimmed = text.trim()
         if (trimmed) {
           pages[pageNumber - 1] = trimmed
@@ -327,16 +339,16 @@ async function parsePDF(file: File, options?: ParseOptions): Promise<{ text: str
 }
 
 async function parseDOCX(file: File): Promise<string> {
-  const mammoth = await import('mammoth')
+  const mammoth = await import("mammoth")
   const arrayBuffer = await file.arrayBuffer()
   const result = await mammoth.extractRawText({ arrayBuffer })
   return result.value
 }
 
 async function parseExcel(file: File): Promise<string> {
-  const XLSX = await import('xlsx')
+  const XLSX = await import("xlsx")
   const arrayBuffer = await file.arrayBuffer()
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+  const workbook = XLSX.read(arrayBuffer, { type: "array" })
 
   const sheets: string[] = []
   let totalLength = 0
@@ -350,5 +362,5 @@ async function parseExcel(file: File): Promise<string> {
     }
   }
 
-  return sheets.join('\n\n')
+  return sheets.join("\n\n")
 }

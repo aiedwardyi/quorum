@@ -83,8 +83,8 @@ export default function ConsensusMeter({
                     score !== null && score >= 60
                       ? "bg-theme-accent"
                       : score !== null && score >= 40
-                      ? "bg-theme-accent-light"
-                      : "bg-danger"
+                        ? "bg-theme-accent-light"
+                        : "bg-danger"
                   )}
                 />
               ) : (
@@ -94,7 +94,12 @@ export default function ConsensusMeter({
                 </>
               )}
             </div>
-            <span className={cn("text-[10px] font-bold uppercase tracking-[0.2em] transition-colors", isFinal ? "text-theme-accent" : "text-zinc-500 dark:text-zinc-400")}>
+            <span
+              className={cn(
+                "text-[10px] font-bold uppercase tracking-[0.2em] transition-colors",
+                isFinal ? "text-theme-accent" : "text-zinc-500 dark:text-zinc-400"
+              )}
+            >
               {result ? t.verdict : t.confidence}
             </span>
             <div className="absolute bottom-full left-0 mb-2 px-2 py-1 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] font-medium rounded opacity-0 group-hover/label:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-sm">
@@ -104,7 +109,11 @@ export default function ConsensusMeter({
 
           {score !== null ? (
             <div
-              className={cn("flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500", getTextColor(score), isFinal && "drop-shadow-[0_0_8px_var(--theme-accent-glow)]")}
+              className={cn(
+                "flex items-center text-sm font-mono font-bold tracking-tight transition-colors duration-500",
+                getTextColor(score),
+                isFinal && "drop-shadow-[0_0_8px_var(--theme-accent-glow)]"
+              )}
             >
               <span>{displayScore}</span>
               <span className="text-xs ml-0.5">%</span>
@@ -116,10 +125,18 @@ export default function ConsensusMeter({
           )}
         </div>
 
-        <div className={cn("h-1.5 w-full rounded-full overflow-hidden transition-colors duration-500 bg-muted", isFinal && "ring-1 ring-border")}>
+        <div
+          className={cn(
+            "h-1.5 w-full rounded-full overflow-hidden transition-colors duration-500 bg-muted",
+            isFinal && "ring-1 ring-border"
+          )}
+        >
           {score !== null && (
             <div
-              className={cn("h-full rounded-full transition-all duration-700 ease-out", getColor(score))}
+              className={cn(
+                "h-full rounded-full transition-all duration-700 ease-out",
+                getColor(score)
+              )}
               style={{ width: `${displayScore}%` }}
             />
           )}

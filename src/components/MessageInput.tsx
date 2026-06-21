@@ -7,8 +7,35 @@ import { cn } from "@/lib/utils"
 import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
 
 const translations = {
-  en: { placeholder: "Type your message...", send: "Send", stop: "Stop", attach: "Attach file", parsing: "Reading files...", unsupported: "Supported: PDF, DOCX, Excel, and text files", truncated: (name: string) => `"${name}" is too long - only the first part was included`, empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`, too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`, parse_error: (name: string) => `"${name}" could not be read - the file may be corrupted or password-protected`, ocrDone: (name: string) => `"${name}" scanned via OCR` },
-  ko: { placeholder: "메시지를 입력하세요...", send: "보내기", stop: "중지", attach: "파일 첨부", parsing: "파일 읽는 중...", unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일", truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`, empty: (name: string) => `"${name}" 파일에 읽을 수 있는 텍스트가 없습니다 - 스캔 이미지일 수 있음`, too_large: (name: string) => `"${name}" 파일이 50MB 크기 제한을 초과합니다`, parse_error: (name: string) => `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)`, ocrDone: (name: string) => `"${name}" OCR 스캔 완료` },
+  en: {
+    placeholder: "Type your message...",
+    send: "Send",
+    stop: "Stop",
+    attach: "Attach file",
+    parsing: "Reading files...",
+    unsupported: "Supported: PDF, DOCX, Excel, and text files",
+    truncated: (name: string) => `"${name}" is too long - only the first part was included`,
+    empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`,
+    too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`,
+    parse_error: (name: string) =>
+      `"${name}" could not be read - the file may be corrupted or password-protected`,
+    ocrDone: (name: string) => `"${name}" scanned via OCR`,
+  },
+  ko: {
+    placeholder: "메시지를 입력하세요...",
+    send: "보내기",
+    stop: "중지",
+    attach: "파일 첨부",
+    parsing: "파일 읽는 중...",
+    unsupported: "지원 형식: PDF, DOCX, Excel, 텍스트 파일",
+    truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`,
+    empty: (name: string) =>
+      `"${name}" 파일에 읽을 수 있는 텍스트가 없습니다 - 스캔 이미지일 수 있음`,
+    too_large: (name: string) => `"${name}" 파일이 50MB 크기 제한을 초과합니다`,
+    parse_error: (name: string) =>
+      `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)`,
+    ocrDone: (name: string) => `"${name}" OCR 스캔 완료`,
+  },
 }
 
 interface AttachedFile {
@@ -61,7 +88,9 @@ export default function MessageInput({
 
   useEffect(() => {
     return () => {
-      attachedFilesRef.current.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview) })
+      attachedFilesRef.current.forEach((f) => {
+        if (f.preview) URL.revokeObjectURL(f.preview)
+      })
     }
   }, [])
 
@@ -87,7 +116,9 @@ export default function MessageInput({
 
     onSend(messageText, "all")
     setText("")
-    attachedFiles.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview) })
+    attachedFiles.forEach((f) => {
+      if (f.preview) URL.revokeObjectURL(f.preview)
+    })
     setAttachedFiles([])
     if (textareaRef.current) textareaRef.current.style.height = "auto"
   }
@@ -149,23 +180,32 @@ export default function MessageInput({
     newFiles.forEach(async (af) => {
       const parsed = await parseFile(af.file, {
         onProgress: (status, progress) => {
-          setAttachedFiles((prev) => prev.map((f) =>
-            f.id === af.id ? { ...f, parseStatus: status, parseProgress: progress } : f
-          ))
+          setAttachedFiles((prev) =>
+            prev.map((f) =>
+              f.id === af.id ? { ...f, parseStatus: status, parseProgress: progress } : f
+            )
+          )
         },
       })
       // Bail if file was removed while parsing
       if (!attachedFilesRef.current.some((f) => f.id === af.id)) return
-      const warningMsg = parsed.warning === "empty" ? t.empty(af.file.name)
-        : parsed.warning === "too_large" ? t.too_large(af.file.name)
-        : parsed.warning === "parse_error" ? t.parse_error(af.file.name)
-        : parsed.warning === "truncated" ? t.truncated(af.file.name)
-        : null
+      const warningMsg =
+        parsed.warning === "empty"
+          ? t.empty(af.file.name)
+          : parsed.warning === "too_large"
+            ? t.too_large(af.file.name)
+            : parsed.warning === "parse_error"
+              ? t.parse_error(af.file.name)
+              : parsed.warning === "truncated"
+                ? t.truncated(af.file.name)
+                : null
       if (warningMsg) setFileError(warningMsg)
       if (parsed.usedOCR && !parsed.warning) setFileError(t.ocrDone(af.file.name))
-      setAttachedFiles((prev) => prev.map((f) =>
-        f.id === af.id ? { ...f, parsing: false, parseStatus: undefined, parsed } : f
-      ))
+      setAttachedFiles((prev) =>
+        prev.map((f) =>
+          f.id === af.id ? { ...f, parsing: false, parseStatus: undefined, parsed } : f
+        )
+      )
     })
   }
 
@@ -192,13 +232,20 @@ export default function MessageInput({
             isFocused ? "opacity-100" : "opacity-30"
           )}
           style={{
-            background: "conic-gradient(from 0deg, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)",
+            background:
+              "conic-gradient(from 0deg, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)",
           }}
         />
 
         <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-          onDragLeave={(e) => { e.preventDefault(); setIsDragging(false) }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setIsDragging(true)
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault()
+            setIsDragging(false)
+          }}
           onDrop={(e) => {
             e.preventDefault()
             setIsDragging(false)
@@ -226,7 +273,14 @@ export default function MessageInput({
                   {file.parsing ? (
                     <div className="relative shrink-0 w-9 h-9">
                       <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
-                        <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" className="stroke-zinc-300 dark:stroke-zinc-700" />
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          strokeWidth="3"
+                          className="stroke-zinc-300 dark:stroke-zinc-700"
+                        />
                         <circle
                           cx="18"
                           cy="18"
@@ -236,7 +290,13 @@ export default function MessageInput({
                           strokeLinecap="round"
                           className="stroke-blue-500 dark:stroke-blue-400 transition-[stroke-dashoffset] duration-500 ease-out"
                           strokeDasharray={2 * Math.PI * 15}
-                          strokeDashoffset={2 * Math.PI * 15 * (1 - Math.max(1, Math.min(100, Math.round(file.parseProgress ?? 1))) / 100)}
+                          strokeDashoffset={
+                            2 *
+                            Math.PI *
+                            15 *
+                            (1 -
+                              Math.max(1, Math.min(100, Math.round(file.parseProgress ?? 1))) / 100)
+                          }
                         />
                       </svg>
                       <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold tabular-nums text-blue-600 dark:text-blue-400">
@@ -251,15 +311,29 @@ export default function MessageInput({
                     <File className="w-4 h-4 text-zinc-400" />
                   )}
                   <div className="flex flex-col">
-                    <span className={cn("text-xs font-medium max-w-[100px] truncate", file.parsed?.warning === "empty" || file.parsed?.warning === "too_large" || file.parsed?.warning === "parse_error" ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300")}>
+                    <span
+                      className={cn(
+                        "text-xs font-medium max-w-[100px] truncate",
+                        file.parsed?.warning === "empty" ||
+                          file.parsed?.warning === "too_large" ||
+                          file.parsed?.warning === "parse_error"
+                          ? "text-amber-500"
+                          : "text-zinc-700 dark:text-zinc-300"
+                      )}
+                    >
                       {file.file.name}
                     </span>
                     {file.parseStatus && (
-                      <span className="text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[120px]">{file.parseStatus}</span>
+                      <span className="text-[10px] text-blue-500 dark:text-blue-400 truncate max-w-[120px]">
+                        {file.parseStatus}
+                      </span>
                     )}
                   </div>
                   <button
-                    onClick={(e) => { e.stopPropagation(); removeFile(file.id) }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      removeFile(file.id)
+                    }}
                     className="p-1 text-zinc-400 hover:text-red-500 transition-colors"
                   >
                     <X className="w-3 h-3" />
@@ -284,9 +358,22 @@ export default function MessageInput({
 
           <div className="flex items-center justify-between px-3 pb-3 pt-1">
             <div className="flex items-center gap-1">
-              <input type="file" ref={fileInputRef} onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)); e.target.value = "" }} className="hidden" multiple accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv" />
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={(e) => {
+                  if (e.target.files) addFiles(Array.from(e.target.files))
+                  e.target.value = ""
+                }}
+                className="hidden"
+                multiple
+                accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv"
+              />
               <button
-                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  fileInputRef.current?.click()
+                }}
                 disabled={anyParsing}
                 title={t.attach}
                 aria-label={t.attach}
@@ -302,7 +389,10 @@ export default function MessageInput({
               </span>
               {disabled ? (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onStop() }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onStop()
+                  }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-xs font-medium rounded-lg transition-colors"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
@@ -310,7 +400,10 @@ export default function MessageInput({
                 </button>
               ) : (
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleSend() }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSend()
+                  }}
                   disabled={sendDisabled}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
                 >

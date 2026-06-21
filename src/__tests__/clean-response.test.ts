@@ -14,9 +14,7 @@ describe("stripHeadingMarkersForPlainText", () => {
   })
 
   it("removes #### markers", () => {
-    expect(stripHeadingMarkersForPlainText("#### Subsection\nText")).toBe(
-      "Subsection\nText"
-    )
+    expect(stripHeadingMarkersForPlainText("#### Subsection\nText")).toBe("Subsection\nText")
   })
 
   it("removes any 1-6 hash marker for plain-text display", () => {
@@ -25,9 +23,7 @@ describe("stripHeadingMarkersForPlainText", () => {
   })
 
   it("leaves mid-line hashes alone", () => {
-    expect(stripHeadingMarkersForPlainText("tag #hashtag here")).toBe(
-      "tag #hashtag here"
-    )
+    expect(stripHeadingMarkersForPlainText("tag #hashtag here")).toBe("tag #hashtag here")
   })
 
   it("is a no-op on plain prose", () => {
@@ -59,9 +55,7 @@ describe("stripHeadingMarkersForPlainText", () => {
   })
 
   it("leaves 7+ hashes alone (not a valid heading level)", () => {
-    expect(stripHeadingMarkersForPlainText("####### Not a heading")).toBe(
-      "####### Not a heading"
-    )
+    expect(stripHeadingMarkersForPlainText("####### Not a heading")).toBe("####### Not a heading")
   })
 
   it("strips '###' with multiple spaces before text", () => {
@@ -128,18 +122,14 @@ describe("trimUnclosedTrailingMarkdown", () => {
   })
 
   it("keeps balanced ** pairs intact", () => {
-    expect(trimUnclosedTrailingMarkdown("Hello **world** bye")).toBe(
-      "Hello **world** bye"
-    )
+    expect(trimUnclosedTrailingMarkdown("Hello **world** bye")).toBe("Hello **world** bye")
   })
 
   it("keeps partially-closed ** followed by a new unclosed pair", () => {
     // Two complete pairs + a third unclosed one: count = 5 (odd).
     // Only the LAST (unclosed) ** marker gets stripped; its content
     // stays in place.
-    expect(
-      trimUnclosedTrailingMarkdown("a **b** c **d** e **f")
-    ).toBe("a **b** c **d** e f")
+    expect(trimUnclosedTrailingMarkdown("a **b** c **d** e **f")).toBe("a **b** c **d** e f")
   })
 
   it("removes an unclosed backtick and keeps the code chars visible", () => {
@@ -147,22 +137,18 @@ describe("trimUnclosedTrailingMarkdown", () => {
   })
 
   it("keeps balanced backticks intact", () => {
-    expect(trimUnclosedTrailingMarkdown("run `npm test` now")).toBe(
-      "run `npm test` now"
-    )
+    expect(trimUnclosedTrailingMarkdown("run `npm test` now")).toBe("run `npm test` now")
   })
 
   it("handles both unclosed ** and unclosed `", () => {
     // ** is odd (3) and ` is odd (1). Both markers stripped, content kept.
-    expect(
-      trimUnclosedTrailingMarkdown("a **b** c **d** e **f with `code")
-    ).toBe("a **b** c **d** e f with code")
+    expect(trimUnclosedTrailingMarkdown("a **b** c **d** e **f with `code")).toBe(
+      "a **b** c **d** e f with code"
+    )
   })
 
   it("is a no-op on plain text with no markers", () => {
-    expect(trimUnclosedTrailingMarkdown("nothing to see here")).toBe(
-      "nothing to see here"
-    )
+    expect(trimUnclosedTrailingMarkdown("nothing to see here")).toBe("nothing to see here")
   })
 
   it("is monotonic: removing a marker never shortens visible content", () => {
@@ -189,26 +175,24 @@ describe("trimUnclosedTrailingMarkdown", () => {
   })
 
   it("leaves '```' alone when only the fence is visible", () => {
-    expect(trimUnclosedTrailingMarkdown("Here's code:\n```")).toBe(
-      "Here's code:\n```"
-    )
+    expect(trimUnclosedTrailingMarkdown("Here's code:\n```")).toBe("Here's code:\n```")
   })
 
   it("handles inline '`code`' alongside a fenced block", () => {
     // Two inline backticks (even, not stripped) plus one opening fence
     // (three backticks, skipped). Count of non-fence backticks is 2.
-    expect(
-      trimUnclosedTrailingMarkdown("Run `npm test` then:\n```bash\nrun")
-    ).toBe("Run `npm test` then:\n```bash\nrun")
+    expect(trimUnclosedTrailingMarkdown("Run `npm test` then:\n```bash\nrun")).toBe(
+      "Run `npm test` then:\n```bash\nrun"
+    )
   })
 
   it("still strips an unclosed inline backtick when a fence is present", () => {
     // Inline `cmd with one unclosed backtick; the fence is balanced.
     // The fence backticks must be ignored so we correctly identify the
     // single `cmd backtick as odd and strip it.
-    expect(
-      trimUnclosedTrailingMarkdown("Before\n```\nconst x\n```\nInline `cmd")
-    ).toBe("Before\n```\nconst x\n```\nInline cmd")
+    expect(trimUnclosedTrailingMarkdown("Before\n```\nconst x\n```\nInline `cmd")).toBe(
+      "Before\n```\nconst x\n```\nInline cmd"
+    )
   })
 
   // Fenced code block contents must stay byte-for-byte stable during
@@ -418,13 +402,11 @@ describe("cleanResponse", () => {
 
   it("decodes HTML entities", () => {
     expect(cleanResponse("a &lt; b &amp; c &gt; d")).toBe("a < b & c > d")
-    expect(cleanResponse("it&#x27;s &quot;quoted&quot;")).toBe("it's \"quoted\"")
+    expect(cleanResponse("it&#x27;s &quot;quoted&quot;")).toBe('it\'s "quoted"')
   })
 
   it("strips leftover HTML tags", () => {
-    expect(cleanResponse("Hello <b>world</b> and <br/> more.")).toBe(
-      "Hello world and more."
-    )
+    expect(cleanResponse("Hello <b>world</b> and <br/> more.")).toBe("Hello world and more.")
   })
 
   it("removes escaped hex control sequences", () => {
@@ -455,15 +437,11 @@ describe("cleanResponse", () => {
   })
 
   it("strips trailing '(Word count: N)' annotation", () => {
-    expect(cleanResponse("Response text. (Word count: 75)")).toBe(
-      "Response text."
-    )
+    expect(cleanResponse("Response text. (Word count: 75)")).toBe("Response text.")
   })
 
   it("strips trailing '(Word count: N)' on its own line", () => {
-    expect(cleanResponse("Line 1\nLine 2.\n\n(Word count: 398)")).toBe(
-      "Line 1\nLine 2."
-    )
+    expect(cleanResponse("Line 1\nLine 2.\n\n(Word count: 398)")).toBe("Line 1\nLine 2.")
   })
 
   it("strips trailing '(N words)' with no period before it", () => {
@@ -477,16 +455,14 @@ describe("cleanResponse", () => {
   })
 
   it("leaves mid-text parentheticals with numbers + words alone", () => {
-    expect(
-      cleanResponse("The brief was 500 words (roughly 5 paragraphs) long.")
-    ).toBe("The brief was 500 words (roughly 5 paragraphs) long.")
+    expect(cleanResponse("The brief was 500 words (roughly 5 paragraphs) long.")).toBe(
+      "The brief was 500 words (roughly 5 paragraphs) long."
+    )
   })
 
   it("leaves standalone numeric parentheticals alone (no 'words' suffix)", () => {
     // (75) without 'words' is not a word-count annotation - could be
     // a footnote, citation, year, etc. Leave it.
-    expect(cleanResponse("The year was important. (75)")).toBe(
-      "The year was important. (75)"
-    )
+    expect(cleanResponse("The year was important. (75)")).toBe("The year was important. (75)")
   })
 })

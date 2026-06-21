@@ -4,7 +4,16 @@ export type Locale = "en" | "ko"
 
 export type ResponseLength = "short" | "medium" | "long"
 
-export const THEMES = ["light", "solarized", "dark", "tokyonight", "lovelace", "gruvbox", "catppuccin", "nord"] as const
+export const THEMES = [
+  "light",
+  "solarized",
+  "dark",
+  "tokyonight",
+  "lovelace",
+  "gruvbox",
+  "catppuccin",
+  "nord",
+] as const
 export type Theme = (typeof THEMES)[number]
 
 export type Message = {
@@ -48,14 +57,4 @@ export type ThreadSummary = {
     recommendation: string
     confidence: number
   }[]
-}
-
-export type DebateTier = "anonymous" | "free" | "paid"
-
-export type DebateBalanceInfo = {
-  tier: DebateTier
-  balance: number
-  freeDebatesRemaining: number
-  hasUsedClaudeBonus: boolean
-  allowedModels: Provider[]
 }

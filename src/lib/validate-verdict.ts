@@ -27,9 +27,22 @@ function coerceToDisplayString(value: unknown): string | null {
     const obj = value as Record<string, unknown>
     // Common Pro patterns: { label|title|term|heading|name, text|description|explanation|detail|content|body }
     const labelKeys = ["label", "title", "term", "heading", "name", "key", "point"]
-    const textKeys = ["text", "description", "explanation", "detail", "content", "body", "value", "summary"]
-    const label = labelKeys.map((k) => obj[k]).find((v) => typeof v === "string" && (v as string).trim())
-    const text = textKeys.map((k) => obj[k]).find((v) => typeof v === "string" && (v as string).trim())
+    const textKeys = [
+      "text",
+      "description",
+      "explanation",
+      "detail",
+      "content",
+      "body",
+      "value",
+      "summary",
+    ]
+    const label = labelKeys
+      .map((k) => obj[k])
+      .find((v) => typeof v === "string" && (v as string).trim())
+    const text = textKeys
+      .map((k) => obj[k])
+      .find((v) => typeof v === "string" && (v as string).trim())
     if (label && text) return `${(label as string).trim()} - ${(text as string).trim()}`
     if (label) return (label as string).trim()
     if (text) return (text as string).trim()
@@ -72,7 +85,12 @@ export function validateVerdictResult(raw: unknown): VerdictResult {
     throw new Error("voteSplit must be a non-empty string")
   }
 
-  if (typeof obj.confidence !== "number" || !Number.isFinite(obj.confidence) || obj.confidence < 0 || obj.confidence > 100) {
+  if (
+    typeof obj.confidence !== "number" ||
+    !Number.isFinite(obj.confidence) ||
+    obj.confidence < 0 ||
+    obj.confidence > 100
+  ) {
     throw new Error("confidence must be a finite number between 0 and 100")
   }
 
@@ -94,7 +112,12 @@ export function validateVerdictResult(raw: unknown): VerdictResult {
   }
 
   if (obj.modelAgreement !== undefined) {
-    if (typeof obj.modelAgreement !== "number" || !Number.isFinite(obj.modelAgreement) || obj.modelAgreement < 0 || obj.modelAgreement > 100) {
+    if (
+      typeof obj.modelAgreement !== "number" ||
+      !Number.isFinite(obj.modelAgreement) ||
+      obj.modelAgreement < 0 ||
+      obj.modelAgreement > 100
+    ) {
       throw new Error("modelAgreement must be a finite number between 0 and 100")
     }
   }

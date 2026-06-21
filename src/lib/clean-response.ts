@@ -57,9 +57,7 @@ function mapLinesOutsideFences(text: string, transform: (line: string) => string
  * both during streaming AND in the settled ReactMarkdown view.
  */
 export function sanitizeHeadings(text: string): string {
-  return mapLinesOutsideFences(text, (line) =>
-    line.replace(/^#{1,2}(?=\s|$)/, "###")
-  )
+  return mapLinesOutsideFences(text, (line) => line.replace(/^#{1,2}(?=\s|$)/, "###"))
 }
 
 /**
@@ -93,9 +91,7 @@ export function sanitizeHeadings(text: string): string {
  * ReactMarkdown renders the fenced block verbatim at settle otherwise).
  */
 export function stripHeadingMarkersForPlainText(text: string): string {
-  return mapLinesOutsideFences(text, (line) =>
-    line.replace(/^#{1,6}(?:[ \t]+|$)/, "")
-  )
+  return mapLinesOutsideFences(text, (line) => line.replace(/^#{1,6}(?:[ \t]+|$)/, ""))
 }
 
 /**
@@ -210,33 +206,35 @@ const TRAILING_WORD_COUNT =
 // meta-annotations ("(62 words)", "(Word count: 75)") that the models
 // occasionally echo back from the response-length instruction.
 export function cleanResponse(text: string): string {
-  return sanitizeHeadings(text)
-    // Remove inline citation markers like [1], [2][3], [1][2] - only numeric/short refs
-    .replace(/\[\d+\](\[\d+\])*/g, "")
-    // Remove trailing "Refs:", "References:", "Sources:" blocks and everything after
-    .replace(/\n*-{0,3}\s*(Refs?|References|Sources)\s*:[\s\S]*$/i, "")
-    // Strip trailing "(N words)" / "(Word count: N)" meta-annotations.
-    // Runs before the double-space collapse / trim so the regex's own
-    // leading `\s*` can eat any preceding newlines cleanly.
-    .replace(TRAILING_WORD_COUNT, "")
-    // Remove markdown horizontal rules (--- or ***) that some models add
-    .replace(/^\s*[-*]{3,}\s*$/gm, "")
-    // Remove leftover HTML/XML tags
-    .replace(/<\/?[a-zA-Z][^>]*>/g, "")
-    // Decode HTML entities (decode &amp; first to handle double-encoded like &amp;lt;)
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#x27;/g, "'")
-    .replace(/&quot;/g, '"')
-    // Strip any tags that were entity-encoded (e.g. &lt;b&gt; -> <b>)
-    .replace(/<\/?[a-zA-Z][^>]*>/g, "")
-    // Remove escaped control sequences like \x08, \n08lt, etc.
-    .replace(/\\[xX][0-9a-fA-F]{2}/g, "")
-    .replace(/\\n[0-9]+[a-zA-Z]*/g, "")
-    // Remove stray backslash-escaped fragments at end of text
-    .replace(/\\[a-zA-Z]+\s*$/g, "")
-    // Clean up any double spaces left behind
-    .replace(/  +/g, " ")
-    .trim()
+  return (
+    sanitizeHeadings(text)
+      // Remove inline citation markers like [1], [2][3], [1][2] - only numeric/short refs
+      .replace(/\[\d+\](\[\d+\])*/g, "")
+      // Remove trailing "Refs:", "References:", "Sources:" blocks and everything after
+      .replace(/\n*-{0,3}\s*(Refs?|References|Sources)\s*:[\s\S]*$/i, "")
+      // Strip trailing "(N words)" / "(Word count: N)" meta-annotations.
+      // Runs before the double-space collapse / trim so the regex's own
+      // leading `\s*` can eat any preceding newlines cleanly.
+      .replace(TRAILING_WORD_COUNT, "")
+      // Remove markdown horizontal rules (--- or ***) that some models add
+      .replace(/^\s*[-*]{3,}\s*$/gm, "")
+      // Remove leftover HTML/XML tags
+      .replace(/<\/?[a-zA-Z][^>]*>/g, "")
+      // Decode HTML entities (decode &amp; first to handle double-encoded like &amp;lt;)
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&#x27;/g, "'")
+      .replace(/&quot;/g, '"')
+      // Strip any tags that were entity-encoded (e.g. &lt;b&gt; -> <b>)
+      .replace(/<\/?[a-zA-Z][^>]*>/g, "")
+      // Remove escaped control sequences like \x08, \n08lt, etc.
+      .replace(/\\[xX][0-9a-fA-F]{2}/g, "")
+      .replace(/\\n[0-9]+[a-zA-Z]*/g, "")
+      // Remove stray backslash-escaped fragments at end of text
+      .replace(/\\[a-zA-Z]+\s*$/g, "")
+      // Clean up any double spaces left behind
+      .replace(/  +/g, " ")
+      .trim()
+  )
 }

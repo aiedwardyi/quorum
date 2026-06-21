@@ -6,7 +6,7 @@ import type { Message } from "@/types"
 const testMessage: Message = {
   id: "test-1",
   sender: "user",
-  displayName: "Eddie",
+  displayName: "User",
   content: "Hello! Introduce yourself in one sentence.",
   timestamp: new Date(),
 }
@@ -17,10 +17,9 @@ async function testProviders() {
   // Test Gemini
   console.log("🔵 Testing Gemini (gemini-2.5-pro)...")
   try {
-    const geminiResponse = await queryGemini(
-      "You are a helpful assistant. Respond briefly.",
-      [testMessage]
-    )
+    const geminiResponse = await queryGemini("You are a helpful assistant. Respond briefly.", [
+      testMessage,
+    ])
     console.log("✅ Gemini response:", geminiResponse)
   } catch (error) {
     console.error("❌ Gemini failed:", (error as Error).message)

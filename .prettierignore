@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+build
+coverage
+public/pdf.worker.min.mjs
+package-lock.json
+analysis
+docs/demo/*.html
+public/demo/*.html

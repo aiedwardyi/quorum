@@ -163,9 +163,7 @@ export default function ChatThread({
       const SCROLL_SETTLE_MS = 800
       const poll = () => {
         if (cancelled) return
-        const verdictEl = main?.querySelector(
-          `[data-message-id="${msgId}"]`
-        ) as HTMLElement | null
+        const verdictEl = main?.querySelector(`[data-message-id="${msgId}"]`) as HTMLElement | null
         if (verdictEl && verdictEl.offsetHeight > SKELETON_H) {
           const viewportH = main?.clientHeight ?? window.innerHeight
           const cardFits = verdictEl.offsetHeight <= viewportH - 40
@@ -173,7 +171,9 @@ export default function ChatThread({
             behavior: "smooth",
             block: cardFits ? "end" : "start",
           })
-          timerId = setTimeout(() => { verdictScrollActiveRef.current = false }, SCROLL_SETTLE_MS)
+          timerId = setTimeout(() => {
+            verdictScrollActiveRef.current = false
+          }, SCROLL_SETTLE_MS)
           return
         }
         attempts++
@@ -183,7 +183,9 @@ export default function ChatThread({
           if (verdictEl) {
             verdictEl.scrollIntoView({ behavior: "smooth", block: "start" })
           }
-          timerId = setTimeout(() => { verdictScrollActiveRef.current = false }, SCROLL_SETTLE_MS)
+          timerId = setTimeout(() => {
+            verdictScrollActiveRef.current = false
+          }, SCROLL_SETTLE_MS)
         }
       }
       poll()

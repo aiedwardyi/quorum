@@ -46,7 +46,9 @@ describe("validateVerdictResult", () => {
   })
 
   it("throws when recommendedAnswer is empty", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, recommendedAnswer: "   " })).toThrow("recommendedAnswer")
+    expect(() => validateVerdictResult({ ...validVerdict, recommendedAnswer: "   " })).toThrow(
+      "recommendedAnswer"
+    )
   })
 
   it("throws when voteSplit is missing", () => {
@@ -71,7 +73,9 @@ describe("validateVerdictResult", () => {
   })
 
   it("throws when confidence is not a number", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, confidence: "high" })).toThrow("confidence")
+    expect(() => validateVerdictResult({ ...validVerdict, confidence: "high" })).toThrow(
+      "confidence"
+    )
   })
 
   it("throws when reasons is empty array", () => {
@@ -79,9 +83,7 @@ describe("validateVerdictResult", () => {
   })
 
   it("throws when reasons is empty after coercion (all elements empty objects)", () => {
-    expect(() =>
-      validateVerdictResult({ ...validVerdict, reasons: [{}, {}] })
-    ).toThrow("reasons")
+    expect(() => validateVerdictResult({ ...validVerdict, reasons: [{}, {}] })).toThrow("reasons")
   })
 
   it("coerces numeric reasons to strings rather than rejecting", () => {
@@ -115,7 +117,9 @@ describe("validateVerdictResult", () => {
   })
 
   it("throws when minorityView is empty", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, minorityView: "  " })).toThrow("minorityView")
+    expect(() => validateVerdictResult({ ...validVerdict, minorityView: "  " })).toThrow(
+      "minorityView"
+    )
   })
 
   it("throws when oppositeCase is missing", () => {
@@ -124,20 +128,29 @@ describe("validateVerdictResult", () => {
   })
 
   it("throws when oppositeCase is empty", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, oppositeCase: "" })).toThrow("oppositeCase")
+    expect(() => validateVerdictResult({ ...validVerdict, oppositeCase: "" })).toThrow(
+      "oppositeCase"
+    )
   })
 
   it("throws when modelAgreement is out of range", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, modelAgreement: 150 })).toThrow("modelAgreement")
+    expect(() => validateVerdictResult({ ...validVerdict, modelAgreement: 150 })).toThrow(
+      "modelAgreement"
+    )
   })
 
   it("throws when modelAgreement is not a number", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, modelAgreement: "high" })).toThrow("modelAgreement")
+    expect(() => validateVerdictResult({ ...validVerdict, modelAgreement: "high" })).toThrow(
+      "modelAgreement"
+    )
   })
 
   // Optional structured fields
   it("passes with valid analysis string", () => {
-    const result = validateVerdictResult({ ...validVerdict, analysis: "Models agreed on the core approach." })
+    const result = validateVerdictResult({
+      ...validVerdict,
+      analysis: "Models agreed on the core approach.",
+    })
     expect(result.analysis).toBe("Models agreed on the core approach.")
   })
 
@@ -161,11 +174,13 @@ describe("validateVerdictResult", () => {
   })
 
   it("throws when keyTakeaways is not an array", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, keyTakeaways: "not array" })).toThrow("keyTakeaways")
+    expect(() => validateVerdictResult({ ...validVerdict, keyTakeaways: "not array" })).toThrow(
+      "keyTakeaways"
+    )
   })
 
   it("coerces {label, text} keyTakeaways objects to strings", () => {
-    // This is the exact failure mode that broke Eddie's live test
+    // This is the exact failure mode that broke live testing.
     // under gemini-2.5-pro: Pro returned keyTakeaways as an array of
     // {label, text} objects instead of strings, and the old strict
     // validator threw "keyTakeaways[0] must be a string" and the UI
@@ -211,21 +226,17 @@ describe("validateVerdictResult", () => {
   })
 
   it("throws when actionItems is not an array", () => {
-    expect(() => validateVerdictResult({ ...validVerdict, actionItems: "not array" })).toThrow("actionItems")
+    expect(() => validateVerdictResult({ ...validVerdict, actionItems: "not array" })).toThrow(
+      "actionItems"
+    )
   })
 
   it("coerces {label, text} actionItems objects to strings", () => {
     const result = validateVerdictResult({
       ...validVerdict,
-      actionItems: [
-        { label: "Prototype", text: "Build an MVP this week." },
-        "Ship it by Friday",
-      ],
+      actionItems: [{ label: "Prototype", text: "Build an MVP this week." }, "Ship it by Friday"],
     })
-    expect(result.actionItems).toEqual([
-      "Prototype - Build an MVP this week.",
-      "Ship it by Friday",
-    ])
+    expect(result.actionItems).toEqual(["Prototype - Build an MVP this week.", "Ship it by Friday"])
   })
 
   it("accepts confidence at boundary 0", () => {

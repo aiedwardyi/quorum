@@ -34,7 +34,7 @@ Quorum:        "Recommended answer: Start with a monolith for the MVP.
                move toward services earlier.
 ```
 
-Each model sees what the others said, debates across rounds, and then Quorum is moving toward returning a decisive recommendation, not just a neutral recap.
+Each model sees what the others said, debates across rounds, and then Quorum returns a decisive recommendation rather than a neutral recap.
 
 ---
 
@@ -99,10 +99,13 @@ cp .env.example .env.local
 Copy-Item .env.example .env.local
 ```
 
-Fill in your credentials (see `.env.example` for all required variables):
+Fill in your credentials (see `.env.example` for all placeholders). Quorum is BYOK-first: you can run it with server-side provider keys in `.env.local`, and signed-in users can save their own encrypted provider keys from Settings.
 
 ```env
-# Google Vertex AI
+# Gemini option A: Google AI Studio API key
+GEMINI_API_KEY=your_gemini_api_key
+
+# Gemini option B: Vertex AI with Application Default Credentials
 VERTEX_PROJECT_ID=your_google_cloud_project_id
 VERTEX_LOCATION=us-central1
 
@@ -118,20 +121,32 @@ DATABASE_URL=postgresql://user:password@host/neondb?sslmode=require
 AUTH_SECRET=generate_with_openssl_rand_-base64_32
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+
+# Encryption for user-supplied API keys
+KEY_ENCRYPTION_SECRET=generate_with_openssl_rand_-base64_32
 ```
 
-> **Important:** Prefer `.env.local` for local secrets — it takes precedence over `.env` and is gitignored by default.
+> **Important:** Prefer `.env.local` for local secrets. It takes precedence over `.env` and is gitignored by default.
 
-Gemini uses Google Cloud Application Default Credentials:
+Gemini supports two server-side auth paths:
+
+- Google AI Studio/API key: set `GEMINI_API_KEY`.
+- Vertex AI ADC: leave `GEMINI_API_KEY` empty, set `VERTEX_PROJECT_ID` and `VERTEX_LOCATION`, then authenticate locally:
 
 ```bash
 gcloud auth application-default login
 ```
 
-Push the Prisma schema to your database, then run:
+For local Google login, create a Google OAuth client and add this authorized redirect URI:
+
+```text
+http://localhost:3000/api/auth/callback/google
+```
+
+Then initialize the database and run the app:
 
 ```bash
-npx prisma db push
+npx prisma migrate dev
 npm run dev
 ```
 
@@ -141,29 +156,28 @@ Open [localhost:3000](http://localhost:3000) and start debating.
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16, React 19, TypeScript 5 |
-| Styling | Tailwind CSS 4, shadcn/ui, Framer Motion |
-| AI Models | Gemini 2.5 Flash (Vertex AI), Perplexity Sonar Pro, Claude (Anthropic), GPT-4o (OpenAI) |
-| Database | PostgreSQL on Neon, Prisma 7 |
-| Auth | NextAuth v5 + Google OAuth |
-| Streaming | Server-Sent Events (SSE) |
-| i18n | English / Korean |
-| Themes | Light, Dark, Tokyo Night, Lovelace, Gruvbox, Catppuccin, Nord, Solarized, Rose Pine |
+| Layer     | Technology                                                                                                      |
+| --------- | --------------------------------------------------------------------------------------------------------------- |
+| Framework | Next.js 16, React 19, TypeScript 5                                                                              |
+| Styling   | Tailwind CSS 4, shadcn/ui, Framer Motion                                                                        |
+| AI Models | Gemini 2.5 Flash/Pro (Google AI Studio or Vertex AI), Perplexity Sonar Pro, Claude (Anthropic), GPT-4o (OpenAI) |
+| Database  | PostgreSQL on Neon, Prisma 7                                                                                    |
+| Auth      | NextAuth v5 + Google OAuth                                                                                      |
+| Streaming | Server-Sent Events (SSE)                                                                                        |
+| i18n      | English / Korean                                                                                                |
+| Themes    | Light, Dark, Tokyo Night, Lovelace, Gruvbox, Catppuccin, Nord, Solarized                                        |
 
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) for details.
 
-| Version | Focus | Status |
-|---------|-------|--------|
-| **v1** | Core group chat - Gemini + Perplexity | Done |
-| **v2** | Claude + GPT, decisive verdict, continue-thread, 9 themes | Done |
-| **v3** | Persistence, OAuth, thread history | In Progress |
-| **v4** | BYOK, share verdicts, monetization | Future |
+| Version | Focus                                                     | Status      |
+| ------- | --------------------------------------------------------- | ----------- |
+| **v1**  | Core group chat - Gemini + Perplexity                     | Done        |
+| **v2**  | Claude + GPT, decisive verdict, continue-thread, 8 themes | Done        |
+| **v3**  | Persistence, OAuth, thread history, BYOK backend          | In Progress |
+| **v4**  | Share verdicts, decision workflows, custom models         | Future      |
 
 ## License
 
-This project is proprietary software. Copyright (c) 2026 Edward Yi. All rights reserved.
-Unauthorized copying, modification, or distribution is prohibited. See [LICENSE](./LICENSE) for full terms.
+MIT. See [LICENSE](./LICENSE) for full terms.

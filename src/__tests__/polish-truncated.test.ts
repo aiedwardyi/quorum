@@ -40,16 +40,12 @@ describe("stripDanglingStructure", () => {
 
   it("keeps a full bullet list where the last bullet has content", () => {
     const input = "Summary:\n\n- First\n- Second\n- Third"
-    expect(stripDanglingStructure(input)).toBe(
-      "Summary:\n\n- First\n- Second\n- Third"
-    )
+    expect(stripDanglingStructure(input)).toBe("Summary:\n\n- First\n- Second\n- Third")
   })
 
   it("drops a truncated table row that never closed with a pipe", () => {
     const input = "Intro.\n\n| Name | Age |\n|------|-----|\n| Bob | "
-    expect(stripDanglingStructure(input)).toBe(
-      "Intro.\n\n| Name | Age |\n|------|-----|"
-    )
+    expect(stripDanglingStructure(input)).toBe("Intro.\n\n| Name | Age |\n|------|-----|")
   })
 
   it("keeps a complete table row", () => {
@@ -66,9 +62,7 @@ describe("stripDanglingStructure", () => {
 describe("polishTruncatedResponse", () => {
   it("keeps a response that already ends in a sentence-terminator", () => {
     const input = "This is the full response. It ends cleanly."
-    expect(polishTruncatedResponse(input, 500)).toBe(
-      "This is the full response. It ends cleanly."
-    )
+    expect(polishTruncatedResponse(input, 500)).toBe("This is the full response. It ends cleanly.")
   })
 
   it("trims to the last complete sentence when the cut lands mid-sentence", () => {

@@ -1,10 +1,22 @@
-import {
-  VertexAI,
-  HarmCategory,
-  HarmBlockThreshold,
-} from "@google-cloud/vertexai"
+import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai"
 import type { Message } from "@/types"
 import { getVertexConfig } from "@/lib/vertex-config"
+import { redactSecrets } from "@/lib/redact-secrets"
+
+const GOOGLE_AI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+type GoogleAiPart = { text: string } | { inlineData: { mimeType: string; data: string } }
+
+type GoogleAiContent = {
+  role: "user" | "model"
+  parts: GoogleAiPart[]
+}
+
+export function getConfiguredGeminiApiKey(): string | undefined {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+  if (!apiKey || apiKey.startsWith("your_")) return undefined
+  return apiKey
+}
 
 function getModel() {
   const { projectId, location } = getVertexConfig()
@@ -58,26 +70,160 @@ function getModel() {
 // speaker-attribution explicit in-text, and Gemini just responds as
 // itself per the system prompt. No more identity bleed.
 function buildContents(messages: Message[]) {
-  const thread = messages
-    .map((m) => `[${m.displayName}]: ${m.content}`)
-    .join("\n\n")
   return [
     {
       role: "user" as const,
       parts: [
         {
-          text: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
+          text: buildUserPrompt(messages),
         },
       ],
     },
   ]
 }
 
+function buildThread(messages: Message[]): string {
+  return messages.map((m) => `[${m.displayName}]: ${m.content}`).join("\n\n")
+}
+
+function buildUserPrompt(messages: Message[]): string {
+  return `Here is the discussion so far:\n\n${buildThread(messages)}\n\nPlease respond to the discussion above.`
+}
+
+function googleAiUrl(
+  modelName: string,
+  action: "generateContent" | "streamGenerateContent",
+  apiKey: string
+): string {
+  const params = new URLSearchParams({ key: apiKey })
+  if (action === "streamGenerateContent") params.set("alt", "sse")
+  return `${GOOGLE_AI_API_BASE}/${modelName}:${action}?${params.toString()}`
+}
+
+function buildGoogleAiBody(
+  systemPrompt: string,
+  userPrompt: string,
+  generationConfig?: Record<string, unknown>
+) {
+  return {
+    systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: userPrompt }],
+      },
+    ],
+    ...(generationConfig ? { generationConfig } : {}),
+  }
+}
+
+export async function generateGoogleAiContentWithApiKey({
+  apiKey,
+  modelName,
+  contents,
+  systemPrompt,
+  generationConfig,
+  signal,
+}: {
+  apiKey: string
+  modelName: string
+  contents: GoogleAiContent[]
+  systemPrompt?: string
+  generationConfig?: Record<string, unknown>
+  signal?: AbortSignal
+}): Promise<string> {
+  const response = await fetch(googleAiUrl(modelName, "generateContent", apiKey), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...(systemPrompt
+        ? { systemInstruction: { role: "system", parts: [{ text: systemPrompt }] } }
+        : {}),
+      contents,
+      ...(generationConfig ? { generationConfig } : {}),
+    }),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Gemini API error (${response.status}): ${await readGoogleAiError(response)}`)
+  }
+
+  const data = await response.json()
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+}
+
+async function readGoogleAiError(response: Response): Promise<string> {
+  const raw = await response.text()
+  try {
+    const parsed = JSON.parse(raw)
+    return redactSecrets(parsed?.error?.message || raw)
+  } catch {
+    return redactSecrets(raw)
+  }
+}
+
+async function generateWithGoogleAiKey({
+  apiKey,
+  modelName,
+  systemPrompt,
+  userPrompt,
+  generationConfig,
+  signal,
+}: {
+  apiKey: string
+  modelName: string
+  systemPrompt: string
+  userPrompt: string
+  generationConfig?: Record<string, unknown>
+  signal?: AbortSignal
+}): Promise<string> {
+  return generateGoogleAiContentWithApiKey({
+    apiKey,
+    modelName,
+    systemPrompt,
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: userPrompt }],
+      },
+    ],
+    generationConfig,
+    signal,
+  })
+}
+
+export async function generateGeminiVerdictWithApiKey(args: {
+  apiKey: string
+  modelName: string
+  systemPrompt: string
+  userPrompt: string
+  generationConfig?: Record<string, unknown>
+  signal?: AbortSignal
+}): Promise<string> {
+  return generateWithGoogleAiKey(args)
+}
+
 // Non-streaming (used by consensus check later)
 export async function queryGemini(
   systemPrompt: string,
-  messages: Message[]
+  messages: Message[],
+  userApiKey?: string
 ): Promise<string> {
+  const apiKey = userApiKey || getConfiguredGeminiApiKey()
+  if (apiKey) {
+    const text = await generateWithGoogleAiKey({
+      apiKey,
+      modelName: "gemini-2.5-flash",
+      systemPrompt,
+      userPrompt: buildUserPrompt(messages),
+    })
+    if (!text) {
+      throw new Error("Gemini returned an empty response")
+    }
+    return text
+  }
+
   const model = getModel()
   const contents = buildContents(messages)
 
@@ -86,8 +232,7 @@ export async function queryGemini(
     contents,
   })
 
-  const text =
-    result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+  const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
   if (!text) {
     throw new Error("Gemini returned an empty response")
@@ -160,8 +305,15 @@ export async function* streamGemini(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
-  maxTokens = 1024
+  maxTokens = 1024,
+  userApiKey?: string
 ): AsyncGenerator<string> {
+  const apiKey = userApiKey || getConfiguredGeminiApiKey()
+  if (apiKey) {
+    yield* streamGeminiWithApiKey(systemPrompt, messages, signal, maxTokens, apiKey)
+    return
+  }
+
   let yielded = false
   for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens)) {
     yielded = true
@@ -175,3 +327,55 @@ export async function* streamGemini(
   }
 }
 
+async function* streamGeminiWithApiKey(
+  systemPrompt: string,
+  messages: Message[],
+  signal: AbortSignal | undefined,
+  maxTokens: number,
+  apiKey: string
+): AsyncGenerator<string> {
+  const response = await fetch(googleAiUrl("gemini-2.5-flash", "streamGenerateContent", apiKey), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(
+      buildGoogleAiBody(systemPrompt, buildUserPrompt(messages), {
+        maxOutputTokens: maxTokens,
+      })
+    ),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Gemini API error (${response.status}): ${await readGoogleAiError(response)}`)
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error("No response body from Gemini")
+
+  const decoder = new TextDecoder()
+  let buffer = ""
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split("\n")
+    buffer = lines.pop() ?? ""
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith("data:")) continue
+
+      try {
+        const parsed = JSON.parse(trimmed.slice(5).trim())
+        const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text
+        if (text) {
+          yield text
+        }
+      } catch {
+        // Skip malformed SSE chunks.
+      }
+    }
+  }
+}
