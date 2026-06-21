@@ -22,6 +22,8 @@ function isConfiguredSecret(secret: string | undefined): secret is string {
   return Boolean(secret && !secret.startsWith("generate_with_") && !secret.startsWith("your_"))
 }
 
+// Existing stored keys are encrypted with the configured secret at save time.
+// Changing KEY_ENCRYPTION_SECRET or AUTH_SECRET later makes them undecryptable until re-saved.
 function getEncryptionSecret(): string {
   const keyEncryptionSecret = process.env.KEY_ENCRYPTION_SECRET
   if (isConfiguredSecret(keyEncryptionSecret)) {

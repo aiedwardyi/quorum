@@ -40,6 +40,16 @@ function createEmptyKeyStatus(): Record<Provider, boolean> {
   )
 }
 
+function createEmptyKeys(): Record<Provider, string> {
+  return ALL_MODELS.reduce(
+    (acc, provider) => {
+      acc[provider] = ""
+      return acc
+    },
+    {} as Record<Provider, string>
+  )
+}
+
 const THEME_SWATCHES: {
   id: Theme
   bg: string
@@ -342,7 +352,8 @@ export default function SettingsModal({
 }) {
   const showPrefs = showPreferences !== false
   const [activeTab, setActiveTab] = useState<Tab>("account")
-  const [keys, setKeys] = useState({ gemini: "", claude: "", gpt: "", perplexity: "" })
+  const [keys, setKeys] = useState<Record<Provider, string>>(createEmptyKeys)
+  const [touchedKeys, setTouchedKeys] = useState<Record<Provider, boolean>>(createEmptyKeyStatus)
   const [keyStatus, setKeyStatus] = useState<Record<Provider, boolean>>(createEmptyKeyStatus)
   const [keyError, setKeyError] = useState<string | null>(null)
   const [keySaving, setKeySaving] = useState(false)
@@ -358,6 +369,8 @@ export default function SettingsModal({
   useEffect(() => {
     if (!isOpen) return
     let cancelled = false
+    setKeys(createEmptyKeys())
+    setTouchedKeys(createEmptyKeyStatus())
 
     fetch("/api/user-api-keys")
       .then((res) => (res.ok ? res.json() : null))
@@ -386,13 +399,13 @@ export default function SettingsModal({
     const keysToSave = ALL_MODELS.reduce(
       (acc, provider) => {
         const value = keys[provider].trim()
-        if (value) acc[provider] = value
+        if (touchedKeys[provider] && value) acc[provider] = value
         return acc
       },
       {} as Partial<Record<Provider, string>>
     )
     const keysToClear = ALL_MODELS.filter(
-      (provider) => keyStatus[provider] && !keys[provider].trim()
+      (provider) => touchedKeys[provider] && keyStatus[provider] && !keys[provider].trim()
     )
 
     try {
@@ -413,7 +426,8 @@ export default function SettingsModal({
         next[provider] = data.keys?.[provider]?.configured === true
       }
       setKeyStatus(next)
-      setKeys({ gemini: "", claude: "", gpt: "", perplexity: "" })
+      setKeys(createEmptyKeys())
+      setTouchedKeys(createEmptyKeyStatus())
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch {
@@ -574,7 +588,10 @@ export default function SettingsModal({
                           <input
                             type={visibleKeys[provider] ? "text" : "password"}
                             value={keys[provider]}
-                            onChange={(e) => setKeys({ ...keys, [provider]: e.target.value })}
+                            onChange={(e) => {
+                              setKeys((prev) => ({ ...prev, [provider]: e.target.value }))
+                              setTouchedKeys((prev) => ({ ...prev, [provider]: true }))
+                            }}
                             placeholder={placeholder}
                             className="flex-1 bg-transparent border-none p-0 text-[13px] text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 font-medium"
                           />
