@@ -6,7 +6,9 @@ const keys = [
   "AUTH_SECRET",
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
+  "KEY_ENCRYPTION_SECRET",
   "NEXTAUTH_URL",
+  "GEMINI_API_KEY",
   "VERTEX_PROJECT_ID",
   "VERTEX_LOCATION",
   "PERPLEXITY_API_KEY",
@@ -25,4 +27,4 @@ for (const key of keys) {
 
 // Write to .env so Next.js loads it at both build and runtime
 fs.writeFileSync(".env", content)
-console.log(`Wrote ${keys.filter(k => process.env[k]).length} env vars to .env`)
+console.log(`Wrote ${keys.filter((k) => process.env[k]).length} env vars to .env`)

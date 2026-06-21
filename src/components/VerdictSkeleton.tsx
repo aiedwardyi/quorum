@@ -18,12 +18,7 @@ const statusPhrases: Record<Locale, string[]> = {
     "Finding common ground...",
     "Finalizing recommendation...",
   ],
-  ko: [
-    "관점 비교 중...",
-    "근거 분석 중...",
-    "공통점 찾는 중...",
-    "추천 정리 중...",
-  ],
+  ko: ["관점 비교 중...", "근거 분석 중...", "공통점 찾는 중...", "추천 정리 중..."],
 }
 
 const PHRASE_INTERVAL_MS = 1400

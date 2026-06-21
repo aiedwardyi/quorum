@@ -49,7 +49,9 @@ describe("hasDirectUrlReference", () => {
 
   it("ignores URLs that only appear inside extracted file text", () => {
     expect(
-      hasDirectUrlReference("Summarize this.\n\n--- File: brief.txt ---\nSource: https://example.com/policy")
+      hasDirectUrlReference(
+        "Summarize this.\n\n--- File: brief.txt ---\nSource: https://example.com/policy"
+      )
     ).toBe(false)
   })
 })
@@ -60,7 +62,9 @@ describe("latestUserMessageHasDirectUrl", () => {
       latestUserMessageHasDirectUrl([
         makeUserMessage("https://example.com/old-link"),
         makeAssistantMessage("I cannot access that link directly."),
-        makeUserMessage("Please summarize the attached draft.\n\n--- File: draft.txt ---\nClause 1."),
+        makeUserMessage(
+          "Please summarize the attached draft.\n\n--- File: draft.txt ---\nClause 1."
+        ),
       ])
     ).toBe(false)
   })
@@ -87,10 +91,6 @@ describe("prioritizePerplexity", () => {
   })
 
   it("leaves model order unchanged when Perplexity is absent", () => {
-    expect(prioritizePerplexity(["gemini", "claude", "gpt"])).toEqual([
-      "gemini",
-      "claude",
-      "gpt",
-    ])
+    expect(prioritizePerplexity(["gemini", "claude", "gpt"])).toEqual(["gemini", "claude", "gpt"])
   })
 })

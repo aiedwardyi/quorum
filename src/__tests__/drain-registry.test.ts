@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
-import {
-  waitForDrain,
-  reportDrained,
-  _resetDrainRegistry,
-} from "@/lib/drain-registry"
+import { waitForDrain, reportDrained, _resetDrainRegistry } from "@/lib/drain-registry"
 
 // Use fake timers throughout so the timeout-related assertions are
 // deterministic on slow or contended CI runners. The earlier version

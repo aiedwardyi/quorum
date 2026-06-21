@@ -1,9 +1,13 @@
 import type { Locale, ResponseLength } from "@/types"
 
-export function getVerdictPrompt(locale: Locale, responseLength: ResponseLength = "medium"): string {
-  const localeRule = locale === "ko"
-    ? `\n- Return ALL text fields in Korean. This includes every string value in the JSON${responseLength === "long" ? " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase, analysis, keyTakeaways, actionItems)" : responseLength === "medium" ? " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase, keyTakeaways)" : " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase)"}.`
-    : ""
+export function getVerdictPrompt(
+  locale: Locale,
+  responseLength: ResponseLength = "medium"
+): string {
+  const localeRule =
+    locale === "ko"
+      ? `\n- Return ALL text fields in Korean. This includes every string value in the JSON${responseLength === "long" ? " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase, analysis, keyTakeaways, actionItems)" : responseLength === "medium" ? " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase, keyTakeaways)" : " (recommendedAnswer, voteSplit, reasons, minorityView, oppositeCase)"}.`
+      : ""
 
   const shortSchema = `{
   "recommendedAnswer": "One short decisive sentence. Maximum 15 words. Start with a verb.",
@@ -49,15 +53,15 @@ export function getVerdictPrompt(locale: Locale, responseLength: ResponseLength 
   ]
 }`
 
-  const schema = responseLength === "short" ? shortSchema
-    : responseLength === "long" ? longSchema
-    : mediumSchema
+  const schema =
+    responseLength === "short" ? shortSchema : responseLength === "long" ? longSchema : mediumSchema
 
-  const lengthGuidance = responseLength === "short"
-    ? "Keep all fields concise. recommendedAnswer must be maximum 15 words."
-    : responseLength === "long"
-    ? "Provide thorough, detailed responses in all fields. Include analysis, keyTakeaways (with bold-style labels like 'Type safety - catches bugs early'), and actionItems."
-    : "Provide moderate detail. Include keyTakeaways with labeled points. Do NOT include analysis or actionItems."
+  const lengthGuidance =
+    responseLength === "short"
+      ? "Keep all fields concise. recommendedAnswer must be maximum 15 words."
+      : responseLength === "long"
+        ? "Provide thorough, detailed responses in all fields. Include analysis, keyTakeaways (with bold-style labels like 'Type safety - catches bugs early'), and actionItems."
+        : "Provide moderate detail. Include keyTakeaways with labeled points. Do NOT include analysis or actionItems."
 
   return `You are a decision advisor. A user asked a question and multiple AI models debated it. Your job is to deliver a clear, decisive recommendation based on the debate.
 

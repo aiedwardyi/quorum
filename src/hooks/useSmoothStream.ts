@@ -163,10 +163,7 @@ export function useSmoothStream(
         }
         return
       }
-      if (
-        rafRef.current == null &&
-        targetRef.current.length > displayedLengthRef.current
-      ) {
+      if (rafRef.current == null && targetRef.current.length > displayedLengthRef.current) {
         lastTsRef.current = null
         rafRef.current = requestAnimationFrame((t) => tickRef.current(t))
       }

@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -22,7 +19,19 @@ export async function POST(
   }
 
   const body = await req.json()
-  const { recommendation, voteSplit, confidence, reasons, minorityView, oppositeCase, analysis, keyTakeaways, actionItems, afterMessageIndex, expectedVersion } = body
+  const {
+    recommendation,
+    voteSplit,
+    confidence,
+    reasons,
+    minorityView,
+    oppositeCase,
+    analysis,
+    keyTakeaways,
+    actionItems,
+    afterMessageIndex,
+    expectedVersion,
+  } = body
 
   if (!recommendation || typeof recommendation !== "string") {
     return NextResponse.json({ error: "recommendation is required" }, { status: 400 })
@@ -46,8 +55,13 @@ export async function POST(
           minorityView,
           oppositeCase,
           ...(typeof analysis === "string" ? { analysis } : {}),
-          ...(Array.isArray(keyTakeaways) && keyTakeaways.every((k: unknown) => typeof k === "string") ? { keyTakeaways } : {}),
-          ...(Array.isArray(actionItems) && actionItems.every((a: unknown) => typeof a === "string") ? { actionItems } : {}),
+          ...(Array.isArray(keyTakeaways) &&
+          keyTakeaways.every((k: unknown) => typeof k === "string")
+            ? { keyTakeaways }
+            : {}),
+          ...(Array.isArray(actionItems) && actionItems.every((a: unknown) => typeof a === "string")
+            ? { actionItems }
+            : {}),
           afterMessageIndex: afterMessageIndex ?? 0,
         },
       })

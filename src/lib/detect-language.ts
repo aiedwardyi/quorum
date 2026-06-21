@@ -25,10 +25,7 @@ export function isPredominantlyKorean(messages: Pick<Message, "content">[]): boo
       (code >= 0x3130 && code <= 0x318f)
     ) {
       koreanChars++
-    } else if (
-      (code >= 0x0041 && code <= 0x005a) ||
-      (code >= 0x0061 && code <= 0x007a)
-    ) {
+    } else if ((code >= 0x0041 && code <= 0x005a) || (code >= 0x0061 && code <= 0x007a)) {
       latinChars++
     }
   }

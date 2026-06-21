@@ -75,7 +75,13 @@ describe("computeNextDisplayedLength", () => {
       // the default TURBO_CPS tuning.
       const pacing: PacingConfig = { baseCps: 55, maxCps: 180, rampThreshold: 150, turboCps: 1200 }
       const normal = computeNextDisplayedLength({ displayed: 0, target: 1000, dtMs: 16, pacing })
-      const turbo = computeNextDisplayedLength({ displayed: 0, target: 1000, dtMs: 16, turbo: true, pacing })
+      const turbo = computeNextDisplayedLength({
+        displayed: 0,
+        target: 1000,
+        dtMs: 16,
+        turbo: true,
+        pacing,
+      })
       expect(turbo).toBeGreaterThan(normal * 3)
     })
 
@@ -94,17 +100,32 @@ describe("computeNextDisplayedLength", () => {
     })
 
     it("never overshoots the target in turbo", () => {
-      const result = computeNextDisplayedLength({ displayed: 990, target: 1000, dtMs: 100, turbo: true })
+      const result = computeNextDisplayedLength({
+        displayed: 990,
+        target: 1000,
+        dtMs: 100,
+        turbo: true,
+      })
       expect(result).toBe(1000)
     })
 
     it("snaps on truncation regardless of turbo", () => {
-      const result = computeNextDisplayedLength({ displayed: 500, target: 100, dtMs: 16, turbo: true })
+      const result = computeNextDisplayedLength({
+        displayed: 500,
+        target: 100,
+        dtMs: 16,
+        turbo: true,
+      })
       expect(result).toBe(100)
     })
 
     it("still clamps dtMs under turbo (no huge jumps after tab unfocus)", () => {
-      const result = computeNextDisplayedLength({ displayed: 0, target: 100000, dtMs: 10000, turbo: true })
+      const result = computeNextDisplayedLength({
+        displayed: 0,
+        target: 100000,
+        dtMs: 10000,
+        turbo: true,
+      })
       const cap = Math.ceil((TURBO_CPS * 100) / 1000) + 1
       expect(result).toBeLessThanOrEqual(cap)
     })
@@ -165,22 +186,26 @@ describe("computeNextDisplayedLength", () => {
 
     it("saturated GPT tick advances fewer chars than saturated Claude tick", () => {
       const claudeAdvance = computeNextDisplayedLength({
-        displayed: 0, target: 10000, dtMs: 100, pacing: PROVIDER_PACING.claude,
+        displayed: 0,
+        target: 10000,
+        dtMs: 100,
+        pacing: PROVIDER_PACING.claude,
       })
       const gptAdvance = computeNextDisplayedLength({
-        displayed: 0, target: 10000, dtMs: 100, pacing: PROVIDER_PACING.gpt,
+        displayed: 0,
+        target: 10000,
+        dtMs: 100,
+        pacing: PROVIDER_PACING.gpt,
       })
       expect(gptAdvance).toBeLessThan(claudeAdvance)
     })
 
     it("all providers still honor truncation and minimum advance", () => {
       for (const pacing of Object.values(PROVIDER_PACING)) {
-        expect(
-          computeNextDisplayedLength({ displayed: 500, target: 100, dtMs: 16, pacing })
-        ).toBe(100)
-        expect(
-          computeNextDisplayedLength({ displayed: 0, target: 10, dtMs: 1, pacing })
-        ).toBe(1)
+        expect(computeNextDisplayedLength({ displayed: 500, target: 100, dtMs: 16, pacing })).toBe(
+          100
+        )
+        expect(computeNextDisplayedLength({ displayed: 0, target: 10, dtMs: 1, pacing })).toBe(1)
       }
     })
   })

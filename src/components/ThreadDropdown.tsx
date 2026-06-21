@@ -94,7 +94,10 @@ export default function ThreadDropdown({
   // Debounced search (only when user types, not on programmatic reset)
   useEffect(() => {
     if (!isOpen) return
-    if (skipNextSearchEffect.current) { skipNextSearchEffect.current = false; return }
+    if (skipNextSearchEffect.current) {
+      skipNextSearchEffect.current = false
+      return
+    }
     const timer = setTimeout(() => fetchThreads(search || undefined), 300)
     return () => clearTimeout(timer)
   }, [search, isOpen, fetchThreads])
@@ -166,7 +169,9 @@ export default function ThreadDropdown({
         className="flex items-center gap-1.5 text-sm font-semibold text-[var(--foreground)] hover:text-[var(--foreground)]/80 transition-colors max-w-[200px] sm:max-w-[300px]"
       >
         <span className="truncate hidden sm:inline">{displayTitle}</span>
-        <ChevronDown className={cn("w-3.5 h-3.5 shrink-0 transition-transform", isOpen && "rotate-180")} />
+        <ChevronDown
+          className={cn("w-3.5 h-3.5 shrink-0 transition-transform", isOpen && "rotate-180")}
+        />
       </button>
 
       <AnimatePresence mode="wait">
@@ -198,8 +203,11 @@ export default function ThreadDropdown({
             <button
               onClick={() => {
                 setIsOpen(false)
-                const go = () => { onNewDebate() }
-                if (confirmBeforeNav) confirmBeforeNav(go); else go()
+                const go = () => {
+                  onNewDebate()
+                }
+                if (confirmBeforeNav) confirmBeforeNav(go)
+                else go()
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--accent)] transition-colors"
             >
@@ -222,7 +230,12 @@ export default function ThreadDropdown({
                     role="button"
                     tabIndex={0}
                     onClick={() => handleSelect(thread.id)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(thread.id) } }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        handleSelect(thread.id)
+                      }
+                    }}
                     className={cn(
                       "w-full text-left px-3 py-2.5 hover:bg-[var(--accent)] transition-colors group cursor-pointer min-h-[48px]",
                       thread.id === currentThreadId && "bg-[var(--accent)]",
@@ -254,7 +267,10 @@ export default function ThreadDropdown({
                       {confirmDeleteId === thread.id ? (
                         <div className="flex items-center gap-1 shrink-0">
                           <button
-                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null) }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setConfirmDeleteId(null)
+                            }}
                             className="p-1 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                           >
                             {locale === "ko" ? "취소" : "Cancel"}

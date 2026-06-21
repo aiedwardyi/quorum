@@ -40,8 +40,7 @@ const SYSTEM_DISPLAY_NAMES: Record<Locale, string> = {
 export const SYSTEM_MESSAGES = {
   round: (locale: Locale, round: number) =>
     locale === "ko" ? `라운드 ${round}` : `Round ${round}`,
-  analyzing: (locale: Locale) =>
-    locale === "ko" ? "토론 분석 중..." : "Analyzing discussion...",
+  analyzing: (locale: Locale) => (locale === "ko" ? "토론 분석 중..." : "Analyzing discussion..."),
   analysisFailed: (locale: Locale) =>
     locale === "ko"
       ? "분석을 완료할 수 없습니다. 새 메시지를 보내 계속하세요."
@@ -159,7 +158,12 @@ export type Action =
   | { type: "SET_MODELS"; models: Provider[] }
   | { type: "SET_THREAD_ID"; id: string | null }
   | { type: "UPDATE_MESSAGE"; id: string; content: string }
-  | { type: "HYDRATE_THREAD"; messages: Message[]; verdict: VerdictResult | null; showSummary: boolean }
+  | {
+      type: "HYDRATE_THREAD"
+      messages: Message[]
+      verdict: VerdictResult | null
+      showSummary: boolean
+    }
   | { type: "RESET" }
 
 function makeInitialState(models: Provider[]): State {
@@ -363,8 +367,7 @@ export function useDebateEngine(config: {
             }
             if (data.error) throw new Error(String(data.error))
             if (data.done) {
-              finalContent =
-                typeof data.content === "string" ? data.content : fullContent
+              finalContent = typeof data.content === "string" ? data.content : fullContent
               if (data.empty === true) providerEmpty = true
             }
             if (data.chunk) {
@@ -401,12 +404,8 @@ export function useDebateEngine(config: {
           clearTypingIfCurrentSession()
           // Distinguish timeout from user-initiated stop
           const wasTimeout =
-            sessionIdRef.current === sessionId &&
-            !stopRef.current &&
-            !stoppingRef.current
-          const msg = wasTimeout
-            ? `${DISPLAY_NAMES[provider]} timed out.`
-            : "Response cancelled."
+            sessionIdRef.current === sessionId && !stopRef.current && !stoppingRef.current
+          const msg = wasTimeout ? `${DISPLAY_NAMES[provider]} timed out.` : "Response cancelled."
           logDebate("callModel:abort", { provider, wasTimeout })
           updatePlaceholder(msg)
           return null
@@ -520,196 +519,196 @@ export function useDebateEngine(config: {
       // Claim a new session - any in-flight debate with old ID will bail
       const thisSession = ++sessionIdRef.current
       try {
-      const orderedModels =
-        target === "all" && hasDirectUrlReference(text)
-          ? prioritizePerplexity(models)
-          : models
+        const orderedModels =
+          target === "all" && hasDirectUrlReference(text) ? prioritizePerplexity(models) : models
 
-      logDebate("debate:start", { session: thisSession, models: orderedModels, maxRounds: maxRoundsRef.current })
+        logDebate("debate:start", {
+          session: thisSession,
+          models: orderedModels,
+          maxRounds: maxRoundsRef.current,
+        })
 
-      // Abort any in-flight request from the previous session
-      abortRef.current?.abort()
+        // Abort any in-flight request from the previous session
+        abortRef.current?.abort()
 
-      // Reset all coordination refs
-      stopRef.current = false
-      stoppingRef.current = false
-      abortRef.current = null
-      finalVerdictLandedRef.current = false
+        // Reset all coordination refs
+        stopRef.current = false
+        stoppingRef.current = false
+        abortRef.current = null
+        finalVerdictLandedRef.current = false
 
-      // Clear any lingering "Analyzing discussion..." dividers from a
-      // prior stop-interrupted debate. If the user hit Stop mid-verdict
-      // and then started a new debate, the previous analyzing divider
-      // (and its skeleton card) would otherwise stay in the thread
-      // animating forever underneath the new debate's content.
-      for (const m of messagesRef.current) {
-        if (
-          m.sender === "system" &&
-          (m.content === SYSTEM_MESSAGES.analyzing("en") ||
-            m.content === SYSTEM_MESSAGES.analyzing("ko"))
-        ) {
-          dispatch({ type: "UPDATE_MESSAGE", id: m.id, content: "" })
+        // Clear any lingering "Analyzing discussion..." dividers from a
+        // prior stop-interrupted debate. If the user hit Stop mid-verdict
+        // and then started a new debate, the previous analyzing divider
+        // (and its skeleton card) would otherwise stay in the thread
+        // animating forever underneath the new debate's content.
+        for (const m of messagesRef.current) {
+          if (
+            m.sender === "system" &&
+            (m.content === SYSTEM_MESSAGES.analyzing("en") ||
+              m.content === SYSTEM_MESSAGES.analyzing("ko"))
+          ) {
+            dispatch({ type: "UPDATE_MESSAGE", id: m.id, content: "" })
+          }
         }
-      }
 
-      const userMsg: Message = {
-        id: createMessageId("user"),
-        sender: "user",
-        displayName: "You",
-        content: text,
-        timestamp: new Date(),
-      }
+        const userMsg: Message = {
+          id: createMessageId("user"),
+          sender: "user",
+          displayName: "You",
+          content: text,
+          timestamp: new Date(),
+        }
 
-      if (state.showSummary) {
-        dispatch({ type: "CONTINUE_THREAD" })
-      }
-      dispatch({ type: "ADD_MESSAGE", message: userMsg })
-      dispatch({ type: "SET_DEBATING", value: true })
+        if (state.showSummary) {
+          dispatch({ type: "CONTINUE_THREAD" })
+        }
+        dispatch({ type: "ADD_MESSAGE", message: userMsg })
+        dispatch({ type: "SET_DEBATING", value: true })
 
-      // Build messages from current ref (avoids stale closure)
-      const allMessages = [...messagesRef.current, userMsg]
+        // Build messages from current ref (avoids stale closure)
+        const allMessages = [...messagesRef.current, userMsg]
 
-      if (target === "all") {
-        let msgs = allMessages
-        // Read from ref to avoid stale closure when auto-sending on mount
-        const rounds = orderedModels.length >= 2 ? maxRoundsRef.current : 1
-        let stoppedEarly = false
+        if (target === "all") {
+          let msgs = allMessages
+          // Read from ref to avoid stale closure when auto-sending on mount
+          const rounds = orderedModels.length >= 2 ? maxRoundsRef.current : 1
+          let stoppedEarly = false
 
-        for (let r = 0; r < rounds; r++) {
-          if (stopRef.current || sessionIdRef.current !== thisSession) break
-          dispatch({ type: "SET_ROUND", round: r + 1 })
-          const result = await runRound(msgs, orderedModels, thisSession)
-          // Post-await guards: a newer debate may have started or the user
-          // may have clicked stop while runRound was in-flight. Bail before
-          // pushing the next round divider or starting another iteration
-          // for a round that will not actually run.
-          if (sessionIdRef.current !== thisSession) break
-          if (stopRef.current || stoppingRef.current) {
-            stoppedEarly = true
+          for (let r = 0; r < rounds; r++) {
+            if (stopRef.current || sessionIdRef.current !== thisSession) break
+            dispatch({ type: "SET_ROUND", round: r + 1 })
+            const result = await runRound(msgs, orderedModels, thisSession)
+            // Post-await guards: a newer debate may have started or the user
+            // may have clicked stop while runRound was in-flight. Bail before
+            // pushing the next round divider or starting another iteration
+            // for a round that will not actually run.
+            if (sessionIdRef.current !== thisSession) break
+            if (stopRef.current || stoppingRef.current) {
+              stoppedEarly = true
+              msgs = result.msgs
+              break
+            }
             msgs = result.msgs
-            break
+            if (result.done) {
+              stoppedEarly = true
+              break
+            }
+            // Insert round divider between rounds (not after the last)
+            if (orderedModels.length >= 2 && r < rounds - 1) {
+              const roundDivider = createSystemMessage(SYSTEM_MESSAGES.round(locale, r + 2), locale)
+              dispatch({ type: "ADD_MESSAGE", message: roundDivider })
+              msgs = [...msgs, roundDivider]
+            }
           }
-          msgs = result.msgs
-          if (result.done) {
-            stoppedEarly = true
-            break
-          }
-          // Insert round divider between rounds (not after the last)
-          if (orderedModels.length >= 2 && r < rounds - 1) {
-            const roundDivider = createSystemMessage(
-              SYSTEM_MESSAGES.round(locale, r + 2),
-              locale
-            )
-            dispatch({ type: "ADD_MESSAGE", message: roundDivider })
-            msgs = [...msgs, roundDivider]
-          }
-        }
 
-        // Session guard
-        if (sessionIdRef.current !== thisSession) return
+          // Session guard
+          if (sessionIdRef.current !== thisSession) return
 
-        // Final verdict - only if not stopped and not superseded
-        if (
-          !stoppedEarly &&
-          !stopRef.current &&
-          !stoppingRef.current &&
-          orderedModels.length >= 2
-        ) {
-          const aiCount = getAIMessageCount(msgs)
-          if (aiCount >= 2) {
-            const analyzingMsg = createSystemMessage(
-              SYSTEM_MESSAGES.analyzing(locale),
-              locale
-            )
-            dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
-            msgs = [...msgs, analyzingMsg]
+          // Final verdict - only if not stopped and not superseded
+          if (
+            !stoppedEarly &&
+            !stopRef.current &&
+            !stoppingRef.current &&
+            orderedModels.length >= 2
+          ) {
+            const aiCount = getAIMessageCount(msgs)
+            if (aiCount >= 2) {
+              const analyzingMsg = createSystemMessage(SYSTEM_MESSAGES.analyzing(locale), locale)
+              dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
+              msgs = [...msgs, analyzingMsg]
 
-            try {
-              const res = await fetch("/api/consensus", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ messages: getConsensusMessages(msgs), locale, responseLength }),
-              })
-
-              // Guard: if user stopped during fetch, let handleStop own the verdict
-              if (stopRef.current || stoppingRef.current) {
-                logDebate("verdict:skipped-stopped", {})
-              } else if (!res.ok) {
-                // Surface the server's error detail via logDebate so a
-                // dev running the app can still see *why* the verdict
-                // failed ("Verdict response is not an object", confidence
-                // out of range, timeout, etc.) but we no longer trigger
-                // Next.js's red-box dev overlay for what is already a
-                // handled rejection with a visible UI fallback.
-                try {
-                  const errBody = await res.json()
-                  logDebate("verdict:failed", {
-                    status: res.status,
-                    error: errBody?.error,
-                    detail: errBody?.detail,
-                  })
-                } catch {
-                  logDebate("verdict:failed", { status: res.status })
-                }
-                dispatch({
-                  type: "UPDATE_MESSAGE",
-                  id: analyzingMsg.id,
-                  content: SYSTEM_MESSAGES.analysisFailed(locale),
+              try {
+                const res = await fetch("/api/consensus", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    messages: getConsensusMessages(msgs),
+                    locale,
+                    responseLength,
+                  }),
                 })
-              } else if (sessionIdRef.current === thisSession) {
-                const result = await res.json()
 
-                if (!isValidVerdict(result)) {
-                  logDebate("verdict:invalid", { type: typeof result })
+                // Guard: if user stopped during fetch, let handleStop own the verdict
+                if (stopRef.current || stoppingRef.current) {
+                  logDebate("verdict:skipped-stopped", {})
+                } else if (!res.ok) {
+                  // Surface the server's error detail via logDebate so a
+                  // dev running the app can still see *why* the verdict
+                  // failed ("Verdict response is not an object", confidence
+                  // out of range, timeout, etc.) but we no longer trigger
+                  // Next.js's red-box dev overlay for what is already a
+                  // handled rejection with a visible UI fallback.
+                  try {
+                    const errBody = await res.json()
+                    logDebate("verdict:failed", {
+                      status: res.status,
+                      error: errBody?.error,
+                      detail: errBody?.detail,
+                    })
+                  } catch {
+                    logDebate("verdict:failed", { status: res.status })
+                  }
                   dispatch({
                     type: "UPDATE_MESSAGE",
                     id: analyzingMsg.id,
                     content: SYSTEM_MESSAGES.analysisFailed(locale),
                   })
-                } else {
-                  // Clear the "Analyzing discussion..." divider (and its
-                  // skeleton card) now that the real verdict is ready.
-                  // ChatBubble renders empty-content system messages as null.
-                  dispatch({
-                    type: "UPDATE_MESSAGE",
-                    id: analyzingMsg.id,
-                    content: "",
-                  })
-                  // Add verdict as inline message
-                  const verdictMsg: Message = {
-                    id: createMessageId("verdict"),
-                    sender: "verdict",
-                    displayName: "Verdict",
-                    content: result.recommendedAnswer,
-                    timestamp: new Date(),
-                    verdictData: result,
+                } else if (sessionIdRef.current === thisSession) {
+                  const result = await res.json()
+
+                  if (!isValidVerdict(result)) {
+                    logDebate("verdict:invalid", { type: typeof result })
+                    dispatch({
+                      type: "UPDATE_MESSAGE",
+                      id: analyzingMsg.id,
+                      content: SYSTEM_MESSAGES.analysisFailed(locale),
+                    })
+                  } else {
+                    // Clear the "Analyzing discussion..." divider (and its
+                    // skeleton card) now that the real verdict is ready.
+                    // ChatBubble renders empty-content system messages as null.
+                    dispatch({
+                      type: "UPDATE_MESSAGE",
+                      id: analyzingMsg.id,
+                      content: "",
+                    })
+                    // Add verdict as inline message
+                    const verdictMsg: Message = {
+                      id: createMessageId("verdict"),
+                      sender: "verdict",
+                      displayName: "Verdict",
+                      content: result.recommendedAnswer,
+                      timestamp: new Date(),
+                      verdictData: result,
+                    }
+                    // Block any late-resolving mid-debate consensus
+                    // dispatch from clobbering the final result.
+                    finalVerdictLandedRef.current = true
+                    dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
+                    dispatch({ type: "SET_VERDICT", result })
+                    dispatch({ type: "SHOW_SUMMARY" })
                   }
-                  // Block any late-resolving mid-debate consensus
-                  // dispatch from clobbering the final result.
-                  finalVerdictLandedRef.current = true
-                  dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
-                  dispatch({ type: "SET_VERDICT", result })
-                  dispatch({ type: "SHOW_SUMMARY" })
                 }
+              } catch (err) {
+                logDebate("verdict:thrown", {
+                  error: err instanceof Error ? err.message : String(err),
+                })
+                dispatch({
+                  type: "UPDATE_MESSAGE",
+                  id: analyzingMsg.id,
+                  content: SYSTEM_MESSAGES.analysisFailed(locale),
+                })
               }
-            } catch (err) {
-              logDebate("verdict:thrown", {
-                error: err instanceof Error ? err.message : String(err),
-              })
-              dispatch({
-                type: "UPDATE_MESSAGE",
-                id: analyzingMsg.id,
-                content: SYSTEM_MESSAGES.analysisFailed(locale),
-              })
             }
           }
+        } else {
+          await callModel(target, allMessages, thisSession)
         }
-      } else {
-        await callModel(target, allMessages, thisSession)
-      }
 
-      if (sessionIdRef.current === thisSession) {
-        dispatch({ type: "SET_DEBATING", value: false })
-      }
+        if (sessionIdRef.current === thisSession) {
+          dispatch({ type: "SET_DEBATING", value: false })
+        }
       } catch (err) {
         logDebate("debate:unhandled", {
           error: err instanceof Error ? err.message : String(err),
@@ -758,10 +757,8 @@ export function useDebateEngine(config: {
       const existingAnalyzing = currentMessages.find(
         (m) => m.sender === "system" && m.content === SYSTEM_MESSAGES.analyzing(locale)
       )
-      const analyzingMsg = existingAnalyzing ?? createSystemMessage(
-        SYSTEM_MESSAGES.analyzing(locale),
-        locale
-      )
+      const analyzingMsg =
+        existingAnalyzing ?? createSystemMessage(SYSTEM_MESSAGES.analyzing(locale), locale)
       if (!existingAnalyzing) {
         dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
       }
@@ -769,7 +766,11 @@ export function useDebateEngine(config: {
       fetch("/api/consensus", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: getConsensusMessages(currentMessages), locale, responseLength }),
+        body: JSON.stringify({
+          messages: getConsensusMessages(currentMessages),
+          locale,
+          responseLength,
+        }),
       })
         .then(async (res) => {
           if (!res.ok) throw new Error(`API error: ${res.status}`)

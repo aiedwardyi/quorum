@@ -1,22 +1,21 @@
-import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { SessionProvider } from "next-auth/react";
-import "./globals.css";
+import type { Metadata, Viewport } from "next"
+import { Geist, Geist_Mono } from "next/font/google"
+import { SessionProvider } from "next-auth/react"
+import "./globals.css"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
-});
+})
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
+})
 
 export const metadata: Metadata = {
   title: "Quorum | AI Group Chat",
-  description:
-    "Multi-AI group chat for consensus",
+  description: "Multi-AI group chat for consensus",
   openGraph: {
     title: "Quorum | AI Group Chat",
     description:
@@ -34,11 +33,11 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
-};
+}
 
 export const viewport: Viewport = {
   themeColor: "#09090b",
-};
+}
 
 // Runs synchronously in the browser before React hydrates so the theme
 // is applied to <html> on first paint. Without this, navigating from
@@ -57,7 +56,7 @@ const themeInitScript = `(function(){try{var t=localStorage.getItem('quorum_them
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   // suppressHydrationWarning on <html> below: the inline theme-init
   // script mutates <html>.className before React hydrates, so the
@@ -69,11 +68,9 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
-  );
+  )
 }

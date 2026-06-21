@@ -403,12 +403,7 @@ describe("reducer - default case (unknown action)", () => {
 
 describe("resolveProviderContent", () => {
   it("returns cleaned content when stream had real text", () => {
-    const result = resolveProviderContent(
-      "Option A is the better choice.",
-      false,
-      "en",
-      "gemini"
-    )
+    const result = resolveProviderContent("Option A is the better choice.", false, "en", "gemini")
     expect(result).toBe("Option A is the better choice.")
   })
 

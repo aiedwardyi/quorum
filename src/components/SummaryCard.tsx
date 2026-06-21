@@ -45,8 +45,14 @@ const translations = {
 }
 
 function getConfidenceColor(confidence: number) {
-  if (confidence >= 60) return { text: "text-theme-accent", bg: "bg-theme-accent", border: "border-theme-accent/30" }
-  if (confidence >= 40) return { text: "text-theme-accent-light", bg: "bg-theme-accent-light", border: "border-theme-accent-light/30" }
+  if (confidence >= 60)
+    return { text: "text-theme-accent", bg: "bg-theme-accent", border: "border-theme-accent/30" }
+  if (confidence >= 40)
+    return {
+      text: "text-theme-accent-light",
+      bg: "bg-theme-accent-light",
+      border: "border-theme-accent-light/30",
+    }
   return { text: "text-danger", bg: "bg-danger", border: "border-danger/30" }
 }
 
@@ -89,11 +95,18 @@ export default function SummaryCard({
     if (result.actionItems && result.actionItems.length > 0) {
       lines.push("", `${t.actionItems}:`, ...result.actionItems.map((r, i) => `  ${i + 1}. ${r}`))
     }
-    lines.push("", `${t.minorityView}: ${result.minorityView}`, `${t.oppositeCase}: ${result.oppositeCase}`)
-    navigator.clipboard.writeText(lines.join("\n")).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }).catch(() => {})
+    lines.push(
+      "",
+      `${t.minorityView}: ${result.minorityView}`,
+      `${t.oppositeCase}: ${result.oppositeCase}`
+    )
+    navigator.clipboard
+      .writeText(lines.join("\n"))
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(() => {})
   }
 
   return (
@@ -102,38 +115,64 @@ export default function SummaryCard({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       className="relative overflow-hidden w-full max-w-3xl mx-auto mt-8 mb-12 rounded-[28px] p-6 sm:p-8"
       style={{
-        background: 'var(--summary-card-bg)',
-        border: '1px solid var(--summary-card-border)',
-        boxShadow: 'var(--summary-card-shadow)',
+        background: "var(--summary-card-bg)",
+        border: "1px solid var(--summary-card-border)",
+        boxShadow: "var(--summary-card-shadow)",
       }}
     >
-      <div className="pointer-events-none absolute inset-0" style={{ background: 'var(--summary-card-overlay)' }} />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "var(--summary-card-overlay)" }}
+      />
 
       {/* Header - verdict badge + confidence pills */}
-      <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-5" style={{ borderBottom: '1px solid var(--summary-callout-border)' }}>
+      <div
+        className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-5"
+        style={{ borderBottom: "1px solid var(--summary-callout-border)" }}
+      >
         <div className="flex items-center gap-3">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-theme-accent-border bg-theme-accent-bg text-[10px] font-bold uppercase tracking-[0.14em] text-theme-accent">
             {t.verdict}
           </div>
-          <span className={`text-xs font-semibold ${colors.text}`}>{getStatusText(result.confidence)}</span>
+          <span className={`text-xs font-semibold ${colors.text}`}>
+            {getStatusText(result.confidence)}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           {/* Vote split badge */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold" style={{ border: '1px solid var(--summary-callout-border)', background: 'var(--summary-callout-bg)', color: 'var(--summary-secondary-text)' }}>
+          <div
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{
+              border: "1px solid var(--summary-callout-border)",
+              background: "var(--summary-callout-bg)",
+              color: "var(--summary-secondary-text)",
+            }}
+          >
             {result.voteSplit}
           </div>
           {/* Confidence badge */}
-          <div className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border ${colors.border}`} style={{ background: 'var(--summary-callout-bg)' }}>
+          <div
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border ${colors.border}`}
+            style={{ background: "var(--summary-callout-bg)" }}
+          >
             <div className={`w-1.5 h-1.5 rounded-full ${colors.bg}`} />
-            <span className={`text-xs font-bold font-mono ${colors.text}`}>{result.confidence}%</span>
+            <span className={`text-xs font-bold font-mono ${colors.text}`}>
+              {result.confidence}%
+            </span>
           </div>
         </div>
       </div>
 
       <div className="relative space-y-6">
         {/* THE ANSWER - hero text */}
-        <div className={`rounded-2xl border-l-4 ${colors.border} px-5 py-4`} style={{ background: 'var(--summary-callout-bg)' }}>
-          <p className="text-xl sm:text-2xl leading-snug font-bold tracking-tight" style={{ color: 'var(--summary-main-text)' }}>
+        <div
+          className={`rounded-2xl border-l-4 ${colors.border} px-5 py-4`}
+          style={{ background: "var(--summary-callout-bg)" }}
+        >
+          <p
+            className="text-xl sm:text-2xl leading-snug font-bold tracking-tight"
+            style={{ color: "var(--summary-main-text)" }}
+          >
             {result.recommendedAnswer}
           </p>
         </div>
@@ -145,7 +184,10 @@ export default function SummaryCard({
               <Info className="w-3.5 h-3.5" />
               {t.analysis}
             </h3>
-            <p className="px-3.5 py-2 text-sm leading-relaxed" style={{ color: 'var(--summary-secondary-text)' }}>
+            <p
+              className="px-3.5 py-2 text-sm leading-relaxed"
+              style={{ color: "var(--summary-secondary-text)" }}
+            >
               {result.analysis}
             </p>
           </div>
@@ -160,7 +202,11 @@ export default function SummaryCard({
             </h3>
             <div className="space-y-1">
               {result.reasons.map((item, i) => (
-                <div key={i} className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
+                <div
+                  key={i}
+                  className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug"
+                  style={{ color: "var(--summary-secondary-text)" }}
+                >
                   <span className="text-theme-accent mt-0.5 text-sm leading-none shrink-0">•</span>
                   <span>{item}</span>
                 </div>
@@ -181,15 +227,25 @@ export default function SummaryCard({
                 const dashIdx = item.indexOf(" - ")
                 const hasLabel = dashIdx > 0 && dashIdx < 40
                 return (
-                  <div key={i} className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
-                    <span className="text-theme-accent mt-0.5 text-sm leading-none shrink-0">•</span>
+                  <div
+                    key={i}
+                    className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug"
+                    style={{ color: "var(--summary-secondary-text)" }}
+                  >
+                    <span className="text-theme-accent mt-0.5 text-sm leading-none shrink-0">
+                      •
+                    </span>
                     <span>
                       {hasLabel ? (
                         <>
-                          <strong style={{ color: 'var(--summary-main-text)' }}>{item.slice(0, dashIdx)}</strong>
+                          <strong style={{ color: "var(--summary-main-text)" }}>
+                            {item.slice(0, dashIdx)}
+                          </strong>
                           {item.slice(dashIdx)}
                         </>
-                      ) : item}
+                      ) : (
+                        item
+                      )}
                     </span>
                   </div>
                 )
@@ -201,12 +257,23 @@ export default function SummaryCard({
         {/* Minority View */}
         {result.minorityView && (
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5" style={{ color: 'var(--summary-muted-text)' }}>
+            <h3
+              className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5"
+              style={{ color: "var(--summary-muted-text)" }}
+            >
               <AlertTriangle className="w-3.5 h-3.5" />
               {t.minorityView}
             </h3>
-            <div className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
-              <span className="mt-0.5 text-sm leading-none shrink-0" style={{ color: 'var(--summary-muted-text)' }}>•</span>
+            <div
+              className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug"
+              style={{ color: "var(--summary-secondary-text)" }}
+            >
+              <span
+                className="mt-0.5 text-sm leading-none shrink-0"
+                style={{ color: "var(--summary-muted-text)" }}
+              >
+                •
+              </span>
               <span>{result.minorityView}</span>
             </div>
           </div>
@@ -221,8 +288,14 @@ export default function SummaryCard({
             </h3>
             <div className="space-y-1">
               {result.actionItems.map((item, i) => (
-                <div key={i} className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug" style={{ color: 'var(--summary-secondary-text)' }}>
-                  <span className="text-theme-accent mt-0.5 text-xs font-bold leading-none shrink-0">{i + 1}.</span>
+                <div
+                  key={i}
+                  className="flex items-start gap-2.5 px-3.5 py-2 rounded-lg text-sm leading-snug"
+                  style={{ color: "var(--summary-secondary-text)" }}
+                >
+                  <span className="text-theme-accent mt-0.5 text-xs font-bold leading-none shrink-0">
+                    {i + 1}.
+                  </span>
                   <span>{item}</span>
                 </div>
               ))}
@@ -232,24 +305,35 @@ export default function SummaryCard({
 
         {/* Opposite Case */}
         {result.oppositeCase && (
-          <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl" style={{ border: '1px solid var(--summary-row-border)', background: 'var(--summary-row-bg)' }}>
-            <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: 'var(--summary-muted-text)' }} />
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--summary-muted-text)' }}>
-              <span className="font-semibold">{t.oppositeCase}:</span>{" "}
-              {result.oppositeCase}
+          <div
+            className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl"
+            style={{
+              border: "1px solid var(--summary-row-border)",
+              background: "var(--summary-row-bg)",
+            }}
+          >
+            <Info
+              className="w-3.5 h-3.5 mt-0.5 shrink-0"
+              style={{ color: "var(--summary-muted-text)" }}
+            />
+            <p className="text-xs leading-relaxed" style={{ color: "var(--summary-muted-text)" }}>
+              <span className="font-semibold">{t.oppositeCase}:</span> {result.oppositeCase}
             </p>
           </div>
         )}
 
         {/* Action buttons */}
-        <div className="pt-6 flex justify-center gap-3" style={{ borderTop: '1px solid var(--summary-callout-border)' }}>
+        <div
+          className="pt-6 flex justify-center gap-3"
+          style={{ borderTop: "1px solid var(--summary-callout-border)" }}
+        >
           {onNewDiscussion && (
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
               onClick={onNewDiscussion}
               className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-xl transition-colors shadow-sm"
-              style={{ background: 'var(--user-bubble)', color: 'var(--user-bubble-foreground)' }}
+              style={{ background: "var(--user-bubble)", color: "var(--user-bubble-foreground)" }}
             >
               <RefreshCw className="w-4 h-4" />
               {t.newDiscussion}
@@ -262,7 +346,10 @@ export default function SummaryCard({
             aria-label={copied ? t.copied : t.copy}
             aria-live="polite"
             className="flex items-center gap-2 px-5 py-2.5 bg-transparent text-sm font-medium rounded-xl transition-colors"
-            style={{ border: '1px solid var(--summary-callout-border)', color: 'var(--summary-muted-text)' }}
+            style={{
+              border: "1px solid var(--summary-callout-border)",
+              color: "var(--summary-muted-text)",
+            }}
           >
             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             {copied ? t.copied : t.copy}
