@@ -4,7 +4,9 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  console.warn("[auth] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set - Google OAuth will not work")
+  console.warn(
+    "[auth] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set - Google OAuth will not work"
+  )
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -23,23 +25,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     session({ session, user }) {
       session.user.id = user.id
       return session
-    },
-  },
-  events: {
-    async createUser({ user }) {
-      if (user.id) {
-        const { prisma } = await import("@/lib/prisma")
-        await prisma.userDebateBalance.create({
-          data: {
-            userId: user.id,
-            freeDebatesResetAt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
-          },
-        }).catch((err: unknown) => {
-          if (err instanceof Error && !("code" in err && (err as { code: string }).code === "P2002")) {
-            console.error("[auth] Failed to create debate balance:", err)
-          }
-        })
-      }
     },
   },
 })
