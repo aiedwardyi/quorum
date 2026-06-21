@@ -1,8 +1,9 @@
 import OpenAI from "openai"
 import type { Message } from "@/types"
+import { redactSecrets } from "@/lib/redact-secrets"
 
-function getClient() {
-  const apiKey = process.env.OPENAI_API_KEY
+function getClient(userApiKey?: string) {
+  const apiKey = userApiKey || process.env.OPENAI_API_KEY
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not set in .env")
   }
@@ -10,18 +11,17 @@ function getClient() {
 }
 
 function buildThread(messages: Message[]): string {
-  return messages
-    .map((m) => `[${m.displayName}]: ${m.content}`)
-    .join("\n\n")
+  return messages.map((m) => `[${m.displayName}]: ${m.content}`).join("\n\n")
 }
 
 export async function* streamGPT(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
-  maxTokens = 1024
+  maxTokens = 1024,
+  userApiKey?: string
 ): AsyncGenerator<string> {
-  const client = getClient()
+  const client = getClient(userApiKey)
   const thread = buildThread(messages)
 
   try {
@@ -49,7 +49,6 @@ export async function* streamGPT(
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error"
-    const sanitized = msg.replace(/sk-[a-zA-Z0-9-_]+/g, "sk-***")
-    throw new Error(sanitized)
+    throw new Error(redactSecrets(msg))
   }
 }

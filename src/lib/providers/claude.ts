@@ -1,8 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { Message } from "@/types"
+import { redactSecrets } from "@/lib/redact-secrets"
 
-function getClient() {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+function getClient(userApiKey?: string) {
+  const apiKey = userApiKey || process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY is not set in .env")
   }
@@ -37,9 +38,10 @@ export async function* streamClaude(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
-  maxTokens = 1024
+  maxTokens = 1024,
+  userApiKey?: string
 ): AsyncGenerator<string> {
-  const client = getClient()
+  const client = getClient(userApiKey)
 
   try {
     const stream = await client.messages.create(
@@ -54,26 +56,19 @@ export async function* streamClaude(
     )
 
     for await (const event of stream) {
-      if (
-        process.env.NODE_ENV === "development" &&
-        event.type === "message_start"
-      ) {
+      if (process.env.NODE_ENV === "development" && event.type === "message_start") {
         const u = event.message.usage
         console.log(
           `[claude] cache_read=${u.cache_read_input_tokens ?? 0} ` +
             `cache_write=${u.cache_creation_input_tokens ?? 0} input=${u.input_tokens}`
         )
       }
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
         yield event.delta.text
       }
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error"
-    const sanitized = msg.replace(/sk-[a-zA-Z0-9-_]+/g, "sk-***")
-    throw new Error(sanitized)
+    throw new Error(redactSecrets(msg))
   }
 }

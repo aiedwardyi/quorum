@@ -1,4 +1,5 @@
 import type { Message } from "@/types"
+import { redactSecrets } from "@/lib/redact-secrets"
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions"
 
@@ -6,9 +7,7 @@ function buildMessages(systemPrompt: string, messages: Message[]) {
   // Perplexity requires strictly alternating user/assistant roles.
   // In a group chat we have multiple AI messages back-to-back,
   // so we pack the entire thread into one user message instead.
-  const thread = messages
-    .map((m) => `[${m.displayName}]: ${m.content}`)
-    .join("\n\n")
+  const thread = messages.map((m) => `[${m.displayName}]: ${m.content}`).join("\n\n")
 
   return [
     { role: "system" as const, content: systemPrompt },
@@ -19,8 +18,8 @@ function buildMessages(systemPrompt: string, messages: Message[]) {
   ]
 }
 
-function getHeaders() {
-  const apiKey = process.env.PERPLEXITY_API_KEY
+function getHeaders(userApiKey?: string) {
+  const apiKey = userApiKey || process.env.PERPLEXITY_API_KEY
   if (!apiKey) {
     throw new Error("PERPLEXITY_API_KEY is not set in .env")
   }
@@ -32,11 +31,12 @@ function getHeaders() {
 
 export async function queryPerplexity(
   systemPrompt: string,
-  messages: Message[]
+  messages: Message[],
+  userApiKey?: string
 ): Promise<string> {
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
-    headers: getHeaders(),
+    headers: getHeaders(userApiKey),
     body: JSON.stringify({
       model: "sonar-pro",
       messages: buildMessages(systemPrompt, messages),
@@ -44,7 +44,7 @@ export async function queryPerplexity(
   })
 
   if (!response.ok) {
-    const error = await response.text()
+    const error = redactSecrets(await response.text())
     throw new Error(`Perplexity API error (${response.status}): ${error}`)
   }
 
@@ -62,11 +62,12 @@ export async function* streamPerplexity(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
-  maxTokens = 1024
+  maxTokens = 1024,
+  userApiKey?: string
 ): AsyncGenerator<string> {
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
-    headers: getHeaders(),
+    headers: getHeaders(userApiKey),
     body: JSON.stringify({
       model: "sonar-pro",
       max_tokens: maxTokens,
@@ -77,7 +78,7 @@ export async function* streamPerplexity(
   })
 
   if (!response.ok) {
-    const error = await response.text()
+    const error = redactSecrets(await response.text())
     throw new Error(`Perplexity API error (${response.status}): ${error}`)
   }
 

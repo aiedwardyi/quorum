@@ -11,6 +11,8 @@ import { getVertexConfig } from "@/lib/vertex-config"
 import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt } from "@/lib/verdict-prompt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
+import { generateGeminiVerdictWithApiKey, getConfiguredGeminiApiKey } from "@/lib/providers/gemini"
+import { redactSecrets } from "@/lib/redact-secrets"
 
 /**
  * Vertex AI response schema mirroring validateVerdictResult. Forces the
@@ -40,8 +42,7 @@ const VERDICT_RESPONSE_SCHEMA: ResponseSchema = {
     },
     confidence: {
       type: SchemaType.NUMBER,
-      description:
-        "Confidence in the recommendation as a number between 0 and 100.",
+      description: "Confidence in the recommendation as a number between 0 and 100.",
     },
     reasons: {
       type: SchemaType.ARRAY,
@@ -130,16 +131,20 @@ export async function POST(req: NextRequest) {
     const rawLocale = body.locale
     const locale: Locale = rawLocale === "en" || rawLocale === "ko" ? rawLocale : "en"
     const rawResponseLength = body.responseLength
-    const responseLength: ResponseLength = rawResponseLength === "short" || rawResponseLength === "medium" || rawResponseLength === "long" ? rawResponseLength : "medium"
+    const responseLength: ResponseLength =
+      rawResponseLength === "short" ||
+      rawResponseLength === "medium" ||
+      rawResponseLength === "long"
+        ? rawResponseLength
+        : "medium"
 
     if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: "messages array is required" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "messages array is required" }, { status: 400 })
     }
 
-    const discussionMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
+    const discussionMessages = messages.filter(
+      (m) => m.sender !== "system" && m.sender !== "verdict"
+    )
 
     // Match the chat route's behavior: if the USER'S OWN messages are
     // predominantly Korean, force the verdict prompt into Korean even
@@ -151,9 +156,7 @@ export async function POST(req: NextRequest) {
     const effectiveLocale: Locale = isPredominantlyKorean(userOnlyMessages) ? "ko" : locale
 
     // Extract previous verdict recommendations for context
-    const previousVerdicts = messages
-      .filter((m) => m.sender === "verdict")
-      .map((m) => m.content)
+    const previousVerdicts = messages.filter((m) => m.sender === "verdict").map((m) => m.content)
 
     const aiMessages = discussionMessages.filter((m) => m.sender !== "user")
     if (aiMessages.length < 2) {
@@ -165,14 +168,6 @@ export async function POST(req: NextRequest) {
 
     const thread = formatThread(discussionMessages)
 
-    const { projectId, location } = getVertexConfig()
-    const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-      opts.googleAuthOptions = {
-        credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
-      }
-    }
-    const vertexAI = new VertexAI(opts)
     // Hybrid Flash/Pro verdict routing. The verdict's job is synthesis,
     // not deep reasoning - the 4 panelist AIs already did the heavy
     // thinking, and Flash is more than capable of picking the consensus
@@ -186,22 +181,58 @@ export async function POST(req: NextRequest) {
     const useProModel = previousVerdicts.length > 0
     const verdictModelName = useProModel ? "gemini-2.5-pro" : "gemini-2.5-flash"
     const verdictTier = useProModel ? "pro" : "flash"
-    const model = vertexAI.getGenerativeModel({
-      model: verdictModelName,
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-        },
-      ],
-    })
+    const verdictPrompt = getVerdictPrompt(effectiveLocale, responseLength)
+    const verdictUserPrompt = `Here is the discussion to analyze:\n\n${thread}${
+      previousVerdicts.length > 0
+        ? `\n\nPrevious verdict(s) from earlier rounds of this discussion:\n${previousVerdicts.map((v, i) => `- Round ${i + 1} verdict: ${JSON.stringify(v)}`).join("\n")}\n\nThe user continued the discussion after the above verdict(s). Analyze the NEW discussion carefully. Only change the recommendation if there is strong, specific new evidence. Do NOT flip-flop without justification.`
+        : ""
+    }`
+    const verdictGenerationConfig = {
+      responseMimeType: "application/json",
+      responseSchema: VERDICT_RESPONSE_SCHEMA,
+    }
+
+    const { auth } = await import("@/lib/auth")
+    const session = await auth()
+    let userGeminiApiKey: string | undefined
+    if (session?.user?.id) {
+      try {
+        const { getUserProviderApiKey } = await import("@/lib/user-api-keys")
+        userGeminiApiKey = await getUserProviderApiKey(session.user.id, "gemini")
+      } catch (error) {
+        const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
+        console.error("[verdict] failed to load user Gemini API key:", msg)
+      }
+    }
+
+    const geminiApiKey = userGeminiApiKey || getConfiguredGeminiApiKey()
+    let model: ReturnType<VertexAI["getGenerativeModel"]> | null = null
+    if (!geminiApiKey) {
+      const { projectId, location } = getVertexConfig()
+      const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
+      if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+        opts.googleAuthOptions = {
+          credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+        }
+      }
+      const vertexAI = new VertexAI(opts)
+      model = vertexAI.getGenerativeModel({
+        model: verdictModelName,
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+        ],
+      })
+    }
 
     console.log(
-      `[verdict] Generating verdict tier=${verdictTier} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
+      `[verdict] Generating verdict tier=${verdictTier} source=${userGeminiApiKey ? "user-key" : geminiApiKey ? "gemini-api-key" : "vertex"} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
     )
 
     // Per-tier timeout. Pro verdicts on a 2-round debate with 8 AI
@@ -211,54 +242,81 @@ export async function POST(req: NextRequest) {
     // plenty of margin - anything past that is a real problem we
     // want to surface quickly rather than hide behind a long wait.
     const VERDICT_TIMEOUT_MS = useProModel ? 120_000 : 30_000
-    const result = await Promise.race([
-      model.generateContent({
-        systemInstruction: {
-          role: "system",
-          parts: [{ text: getVerdictPrompt(effectiveLocale, responseLength) }],
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `Here is the discussion to analyze:\n\n${thread}${previousVerdicts.length > 0
-                  ? `\n\nPrevious verdict(s) from earlier rounds of this discussion:\n${previousVerdicts.map((v, i) => `- Round ${i + 1} verdict: ${JSON.stringify(v)}`).join("\n")}\n\nThe user continued the discussion after the above verdict(s). Analyze the NEW discussion carefully. Only change the recommendation if there is strong, specific new evidence. Do NOT flip-flop without justification.`
-                  : ""}`,
-              },
-            ],
+
+    const generateVerdictText = async (
+      userPrompt: string,
+      timeoutMs: number
+    ): Promise<{
+      raw: string
+      finishReason?: string
+      safetyRatings?: unknown
+      promptFeedback?: unknown
+    }> => {
+      if (geminiApiKey) {
+        const raw = await Promise.race([
+          generateGeminiVerdictWithApiKey({
+            apiKey: geminiApiKey,
+            modelName: verdictModelName,
+            systemPrompt: verdictPrompt,
+            userPrompt,
+            generationConfig: verdictGenerationConfig as unknown as Record<string, unknown>,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Verdict generation timed out")), timeoutMs)
+          ),
+        ])
+        return { raw, finishReason: "google-ai-key" }
+      }
+
+      if (!model) throw new Error("Gemini model is not configured")
+      const result = await Promise.race([
+        model.generateContent({
+          systemInstruction: {
+            role: "system",
+            parts: [{ text: verdictPrompt }],
           },
-        ],
-        // Force structurally valid JSON matching VERDICT_RESPONSE_SCHEMA.
-        // Without this, gemini-2.5-flash returns markdown prose or
-        // invents alternate schemas (summary/recommendation instead of
-        // recommendedAnswer). With it, both Flash and Pro emit
-        // schema-conforming JSON the validator can accept directly.
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: VERDICT_RESPONSE_SCHEMA,
-        },
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Verdict generation timed out")), VERDICT_TIMEOUT_MS)
-      ),
-    ])
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userPrompt }],
+            },
+          ],
+          // Force structurally valid JSON matching VERDICT_RESPONSE_SCHEMA.
+          // Without this, gemini-2.5-flash returns markdown prose or
+          // invents alternate schemas (summary/recommendation instead of
+          // recommendedAnswer). With it, both Flash and Pro emit
+          // schema-conforming JSON the validator can accept directly.
+          generationConfig: verdictGenerationConfig,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Verdict generation timed out")), timeoutMs)
+        ),
+      ])
+
+      const candidate = result.response.candidates?.[0]
+      return {
+        raw: candidate?.content?.parts?.[0]?.text ?? "",
+        finishReason: candidate?.finishReason,
+        safetyRatings: candidate?.safetyRatings,
+        promptFeedback: result.response.promptFeedback,
+      }
+    }
+
+    const firstResult = await generateVerdictText(verdictUserPrompt, VERDICT_TIMEOUT_MS)
 
     const generateElapsed = Date.now() - startTime
-    console.log(`[verdict] Vertex responded in ${generateElapsed}ms`)
+    console.log(`[verdict] Gemini responded in ${generateElapsed}ms`)
 
-    const raw =
-      result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    const raw = firstResult.raw
 
     if (!raw) {
       // Empty responses are usually a safety filter trip or a Pro
       // thinking-only response with no output tokens. Log the full
       // candidate shape so we can see finishReason/safetyRatings when
       // this recurs.
-      const candidate = result.response.candidates?.[0]
-      console.error(`[verdict] Empty response. finishReason=${candidate?.finishReason}`, {
-        safetyRatings: candidate?.safetyRatings,
-        promptFeedback: result.response.promptFeedback,
+      console.error(`[verdict] Empty response. finishReason=${firstResult.finishReason}`, {
+        safetyRatings: firstResult.safetyRatings,
+        promptFeedback: firstResult.promptFeedback,
       })
       throw new Error("Gemini returned an empty response")
     }
@@ -268,14 +326,13 @@ export async function POST(req: NextRequest) {
     // content, legal text, or other sensitive inputs. In dev we keep
     // the preview for parse-debugging; in prod only length and the
     // Vertex finishReason ship to CloudWatch / equivalent.
-    const candidate = result.response.candidates?.[0]
     if (process.env.NODE_ENV === "development") {
       console.log(
-        `[verdict] Raw response length=${raw.length}, finishReason=${candidate?.finishReason ?? "unknown"}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`
+        `[verdict] Raw response length=${raw.length}, finishReason=${firstResult.finishReason ?? "unknown"}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`
       )
     } else {
       console.log(
-        `[verdict] Raw response length=${raw.length}, finishReason=${candidate?.finishReason ?? "unknown"}`
+        `[verdict] Raw response length=${raw.length}, finishReason=${firstResult.finishReason ?? "unknown"}`
       )
     }
 
@@ -287,7 +344,10 @@ export async function POST(req: NextRequest) {
     //      like "Here's my analysis:" or a trailing summary comment
     //      without needing a repair round-trip.
     const extractJson = (text: string): string => {
-      const stripped = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+      const stripped = text
+        .replace(/```json\s*/gi, "")
+        .replace(/```\s*/g, "")
+        .trim()
       if (stripped.startsWith("{") && stripped.endsWith("}")) return stripped
       const first = stripped.indexOf("{")
       const last = stripped.lastIndexOf("}")
@@ -301,7 +361,7 @@ export async function POST(req: NextRequest) {
     try {
       parsed = JSON.parse(cleaned)
     } catch (jsonErr) {
-      // First-pass parse failed. Ask Vertex to repair it, then extract
+      // First-pass parse failed. Ask Gemini to repair it, then extract
       // again. The cleaned/retry previews contain model output which
       // can echo user documents and legal text - gate them to dev so
       // they never land in production server logs.
@@ -313,27 +373,14 @@ export async function POST(req: NextRequest) {
       } else {
         console.warn(`[verdict] JSON parse failed: ${parseErrMsg}`)
       }
-      const retryResult = await Promise.race([
-        model.generateContent({
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}` }],
-            },
-          ],
-          // Same schema enforcement on the repair retry. Without it the
-          // retry path was the second observed source of wrong-schema
-          // output (Flash inventing field names like 'summary').
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: VERDICT_RESPONSE_SCHEMA,
-          },
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("JSON retry timed out")), 30_000)
-        ),
-      ])
-      const retryRaw = retryResult.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+      // Same schema enforcement on the repair retry. Without it the
+      // retry path was the second observed source of wrong-schema
+      // output (Flash inventing field names like 'summary').
+      const retryResult = await generateVerdictText(
+        `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}`,
+        30_000
+      )
+      const retryRaw = retryResult.raw
       const retryCleaned = extractJson(retryRaw)
       try {
         parsed = JSON.parse(retryCleaned)
@@ -357,7 +404,9 @@ export async function POST(req: NextRequest) {
       const valMsg = validationErr instanceof Error ? validationErr.message : String(validationErr)
       console.error(
         `[verdict] Validation failed: ${valMsg}. Parsed keys=${
-          parsed && typeof parsed === "object" ? Object.keys(parsed as object).join(",") : typeof parsed
+          parsed && typeof parsed === "object"
+            ? Object.keys(parsed as object).join(",")
+            : typeof parsed
         }`
       )
       throw validationErr
@@ -366,8 +415,12 @@ export async function POST(req: NextRequest) {
     const elapsed = Date.now() - startTime
     console.log(`[verdict] Generated in ${elapsed}ms, confidence=${verdict.confidence}`)
 
-    if (HEDGING_PHRASES.some((phrase) => verdict.recommendedAnswer.toLowerCase().includes(phrase))) {
-      console.warn(`[verdict] Hedging detected in recommendedAnswer: "${verdict.recommendedAnswer}"`)
+    if (
+      HEDGING_PHRASES.some((phrase) => verdict.recommendedAnswer.toLowerCase().includes(phrase))
+    ) {
+      console.warn(
+        `[verdict] Hedging detected in recommendedAnswer: "${verdict.recommendedAnswer}"`
+      )
     }
 
     return NextResponse.json(verdict)

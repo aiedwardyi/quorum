@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { VertexAI } from "@google-cloud/vertexai"
 import { getVertexConfig } from "@/lib/vertex-config"
+import {
+  generateGoogleAiContentWithApiKey,
+  getConfiguredGeminiApiKey,
+} from "@/lib/providers/gemini"
 
 /**
  * Strip LLM OCR repetition loops where the model gets stuck on a token/phrase
@@ -38,33 +42,7 @@ function getModel() {
   return vertexAI.getGenerativeModel({ model: "gemini-2.5-pro" })
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const { images } = (await req.json()) as { images: string[] }
-
-    if (!images?.length) {
-      return NextResponse.json({ error: "No images provided" }, { status: 400 })
-    }
-
-    const model = getModel()
-
-    const parts = images.flatMap((base64, i) => [
-      { text: `--- Page ${i + 1} ---` },
-      {
-        inlineData: {
-          mimeType: "image/png" as const,
-          data: base64,
-        },
-      },
-    ])
-
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `You are an OCR engine. Extract EVERY character of text from these document page images verbatim, including text rendered as part of posters, price tables, schedules, charts, signs, and any other visual elements.
+const OCR_PROMPT = `You are an OCR engine. Extract EVERY character of text from these document page images verbatim, including text rendered as part of posters, price tables, schedules, charts, signs, and any other visual elements.
 
 ABSOLUTE RULES:
 1. Output ONLY the raw text from the document. Nothing else.
@@ -78,22 +56,58 @@ ABSOLUTE RULES:
 9. If a character is unclear, make your best guess based on context - do NOT write "[illegible]" or skip content.
 10. Separate each page's content with a single blank line.
 
-Your output must start with the first character of actual document text, and end with the last character of actual document text. Anything else is a failure.`,
-            },
-            ...parts,
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 8192,
-      },
-    })
+Your output must start with the first character of actual document text, and end with the last character of actual document text. Anything else is a failure.`
 
-    const response = result.response
-    const rawText = (response.candidates?.[0]?.content?.parts ?? [])
-      .map((part) => part.text ?? "")
-      .join("")
+export async function POST(req: NextRequest) {
+  try {
+    const { images } = (await req.json()) as { images: string[] }
+
+    if (!images?.length) {
+      return NextResponse.json({ error: "No images provided" }, { status: 400 })
+    }
+
+    const parts = images.flatMap((base64, i) => [
+      { text: `--- Page ${i + 1} ---` },
+      {
+        inlineData: {
+          mimeType: "image/png" as const,
+          data: base64,
+        },
+      },
+    ])
+
+    const apiKey = getConfiguredGeminiApiKey()
+    const rawText = apiKey
+      ? await generateGoogleAiContentWithApiKey({
+          apiKey,
+          modelName: "gemini-2.5-pro",
+          contents: [{ role: "user", parts: [{ text: OCR_PROMPT }, ...parts] }],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 8192,
+          },
+        })
+      : await (() => {
+          const model = getModel()
+          return model
+            .generateContent({
+              contents: [
+                {
+                  role: "user",
+                  parts: [{ text: OCR_PROMPT }, ...parts],
+                },
+              ],
+              generationConfig: {
+                temperature: 0,
+                maxOutputTokens: 8192,
+              },
+            })
+            .then((result) =>
+              (result.response.candidates?.[0]?.content?.parts ?? [])
+                .map((part) => part.text ?? "")
+                .join("")
+            )
+        })()
     const text = sanitizeOcrText(rawText)
 
     return NextResponse.json({ text })
