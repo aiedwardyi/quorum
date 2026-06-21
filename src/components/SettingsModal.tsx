@@ -391,12 +391,15 @@ export default function SettingsModal({
       },
       {} as Partial<Record<Provider, string>>
     )
+    const keysToClear = ALL_MODELS.filter(
+      (provider) => keyStatus[provider] && !keys[provider].trim()
+    )
 
     try {
       const res = await fetch("/api/user-api-keys", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keys: keysToSave }),
+        body: JSON.stringify({ keys: keysToSave, clear: keysToClear }),
       })
 
       if (!res.ok) {

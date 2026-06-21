@@ -44,6 +44,12 @@ function ChatPageContent() {
     responseLength,
     maxRounds,
   })
+  const handleDirectSend = useCallback(
+    (text: string, target: Provider | "all") => {
+      handleSend(text, target)
+    },
+    [handleSend]
+  )
 
   const persistence = useThreadPersistence()
   const router = useRouter()
@@ -53,7 +59,6 @@ function ChatPageContent() {
 
   const mainRef = useRef<HTMLElement>(null)
   const [showScrollDown, setShowScrollDown] = useState(false)
-  const handleDirectSendRef = useRef<(text: string, target: Provider | "all") => void>(() => {})
   // Bumped on bfcache restore to force framer-motion remount
   const [mountKey, setMountKey] = useState(0)
 
@@ -242,9 +247,9 @@ function ChatPageContent() {
       initialPromptSent.current = true
       const { prompt: p } = pendingPrompt.current
       pendingPrompt.current = null
-      setTimeout(() => handleDirectSendRef.current(p, "all"), 0)
+      setTimeout(() => handleDirectSend(p, "all"), 0)
     }
-  }, [configHydrated])
+  }, [configHydrated, handleDirectSend])
 
   const changeTheme = useCallback((t: Theme) => {
     setTheme(t)
@@ -504,14 +509,6 @@ function ChatPageContent() {
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadParam, persistence.isLoggedIn, handleReset])
-
-  const handleDirectSend = useCallback(
-    (text: string, target: Provider | "all") => {
-      handleSend(text, target)
-    },
-    [handleSend]
-  )
-  handleDirectSendRef.current = handleDirectSend
 
   /* ---- Render ---- */
 

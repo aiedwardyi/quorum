@@ -18,14 +18,22 @@ export function isUserApiKeyProvider(value: unknown): value is Provider {
   return typeof value === "string" && (USER_API_KEY_PROVIDERS as readonly string[]).includes(value)
 }
 
+function isConfiguredSecret(secret: string | undefined): secret is string {
+  return Boolean(secret && !secret.startsWith("generate_with_") && !secret.startsWith("your_"))
+}
+
 function getEncryptionSecret(): string {
-  const secret = process.env.KEY_ENCRYPTION_SECRET || process.env.AUTH_SECRET
-  if (!secret || secret.startsWith("generate_with_") || secret.startsWith("your_")) {
-    throw new Error(
-      "KEY_ENCRYPTION_SECRET or AUTH_SECRET must be configured before storing API keys"
-    )
+  const keyEncryptionSecret = process.env.KEY_ENCRYPTION_SECRET
+  if (isConfiguredSecret(keyEncryptionSecret)) {
+    return keyEncryptionSecret
   }
-  return secret
+
+  const authSecret = process.env.AUTH_SECRET
+  if (isConfiguredSecret(authSecret)) {
+    return authSecret
+  }
+
+  throw new Error("KEY_ENCRYPTION_SECRET or AUTH_SECRET must be configured before storing API keys")
 }
 
 function getEncryptionKey(): Buffer {
