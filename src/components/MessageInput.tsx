@@ -5,6 +5,7 @@ import { Provider, Locale } from "@/types"
 import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
+import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
 
 const translations = {
   en: {
@@ -55,6 +56,7 @@ export default function MessageInput({
   locale,
   initialFileWarning,
   initialText,
+  onApiKeyRequired,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
@@ -62,6 +64,7 @@ export default function MessageInput({
   locale: Locale
   initialFileWarning?: string | null
   initialText?: string | null
+  onApiKeyRequired?: (provider: Provider) => void
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -185,6 +188,10 @@ export default function MessageInput({
               f.id === af.id ? { ...f, parseStatus: status, parseProgress: progress } : f
             )
           )
+        },
+        onApiKeyRequired: (provider) => {
+          setFileError(getMissingApiKeyMessage(provider))
+          onApiKeyRequired?.(provider)
         },
       })
       // Bail if file was removed while parsing

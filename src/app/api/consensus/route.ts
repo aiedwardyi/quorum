@@ -13,6 +13,7 @@ import { getVerdictPrompt } from "@/lib/verdict-prompt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import { generateGeminiVerdictWithApiKey, getConfiguredGeminiApiKey } from "@/lib/providers/gemini"
 import { redactSecrets } from "@/lib/redact-secrets"
+import { requireUserKeys } from "@/lib/deploy-config"
 
 /**
  * Vertex AI response schema mirroring validateVerdictResult. Forces the
@@ -203,6 +204,10 @@ export async function POST(req: NextRequest) {
         const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
         console.error("[verdict] failed to load user Gemini API key:", msg)
       }
+    }
+
+    if (requireUserKeys() && !userGeminiApiKey) {
+      return NextResponse.json({ error: "no_key", provider: "gemini" }, { status: 402 })
     }
 
     const geminiApiKey = userGeminiApiKey || getConfiguredGeminiApiKey()

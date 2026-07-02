@@ -12,8 +12,9 @@ import ChatHeader, { leaveDebateStrings } from "@/components/Header"
 import ConfirmDialog from "@/components/ConfirmDialog"
 import dynamic from "next/dynamic"
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
-import { ChevronDown } from "lucide-react"
+import { ChevronDown, X } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
+import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
 
 // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
 // last historically because Pro's TTFT was slowest; chat now runs on
@@ -38,11 +39,17 @@ function ChatPageContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingThread, setIsLoadingThread] = useState(false)
   const [fileWarning, setFileWarning] = useState<string | null>(null)
+  const [apiKeyToastProvider, setApiKeyToastProvider] = useState<Provider | null>(null)
+
+  const handleApiKeyRequired = useCallback((provider: Provider) => {
+    setApiKeyToastProvider(provider)
+  }, [])
 
   const { state, dispatch, handleSend, handleStop, handleReset } = useDebateEngine({
     locale,
     responseLength,
     maxRounds,
+    onApiKeyRequired: handleApiKeyRequired,
   })
   const handleDirectSend = useCallback(
     (text: string, target: Provider | "all") => {
@@ -61,6 +68,12 @@ function ChatPageContent() {
   const [showScrollDown, setShowScrollDown] = useState(false)
   // Bumped on bfcache restore to force framer-motion remount
   const [mountKey, setMountKey] = useState(0)
+
+  useEffect(() => {
+    if (!apiKeyToastProvider) return
+    const timer = setTimeout(() => setApiKeyToastProvider(null), 8000)
+    return () => clearTimeout(timer)
+  }, [apiKeyToastProvider])
 
   // Warn before browser back/refresh/tab close during active debate
   const [showBackConfirm, setShowBackConfirm] = useState(false)
@@ -618,8 +631,37 @@ function ChatPageContent() {
           disabled={state.isDebating}
           locale={locale}
           initialFileWarning={fileWarning}
+          onApiKeyRequired={handleApiKeyRequired}
         />
       </div>
+
+      {apiKeyToastProvider && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="absolute left-1/2 bottom-28 sm:bottom-32 z-40 flex w-[min(calc(100%-2rem),28rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-800/40 dark:bg-amber-950/90 dark:text-amber-100"
+        >
+          <span className="min-w-0 flex-1">{getMissingApiKeyMessage(apiKeyToastProvider)}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSettingsOpen(true)
+              setApiKeyToastProvider(null)
+            }}
+            className="shrink-0 rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"
+          >
+            Settings
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setApiKeyToastProvider(null)}
+            className="shrink-0 rounded-lg p-1 text-amber-700 transition-colors hover:bg-amber-100 hover:text-amber-900 dark:text-amber-200 dark:hover:bg-amber-900"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         isOpen={showBackConfirm}

@@ -5,6 +5,7 @@ import { streamGPT } from "@/lib/providers/gpt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import { getUrlCapabilityInstruction } from "@/lib/url-access"
 import { redactSecrets } from "@/lib/redact-secrets"
+import { requireUserKeys } from "@/lib/deploy-config"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
 const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
@@ -334,6 +335,12 @@ export async function POST(request: Request) {
         const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
         console.error(`[chat/${provider}] failed to load user API key:`, msg)
       }
+    }
+    if (requireUserKeys() && !userApiKey) {
+      return new Response(JSON.stringify({ error: "no_key", provider }), {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      })
     }
     // Hard word caps per response length. These sit behind the prompt
     // instruction as a belt-and-suspenders guard: when a provider (Gemini

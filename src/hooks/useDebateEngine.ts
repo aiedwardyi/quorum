@@ -5,6 +5,10 @@ import type { Message, Provider, VerdictResult, Locale, ResponseLength } from "@
 import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
 import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
 import { waitForDrain } from "@/lib/drain-registry"
+import {
+  getMissingApiKeyMessage,
+  parseNoKeyProviderFromResponse,
+} from "@/lib/api-key-errors"
 
 /* ---- Constants ---- */
 
@@ -49,6 +53,7 @@ export const SYSTEM_MESSAGES = {
     locale === "ko"
       ? `${DISPLAY_NAMES[provider]} 잠깐 간식 먹으러 갔어요. 곧 돌아올게요.`
       : `${DISPLAY_NAMES[provider]} stepped out for a snack break. Back soon.`,
+  missingApiKey: (_locale: Locale, provider: Provider) => getMissingApiKeyMessage(provider),
 }
 
 /* ---- Client-side verdict validation ---- */
@@ -243,8 +248,9 @@ export function useDebateEngine(config: {
   locale: Locale
   responseLength: ResponseLength
   maxRounds: number
+  onApiKeyRequired?: (provider: Provider) => void
 }) {
-  const { locale, responseLength, maxRounds } = config
+  const { locale, responseLength, maxRounds, onApiKeyRequired } = config
 
   const [state, dispatch] = useReducer(reducer, makeInitialState(DEFAULT_MODELS))
 
@@ -331,6 +337,14 @@ export function useDebateEngine(config: {
           return null
         }
 
+        if (res.status === 402) {
+          const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? provider
+          onApiKeyRequired?.(missingProvider)
+          updatePlaceholder(SYSTEM_MESSAGES.missingApiKey(locale, missingProvider))
+          stopRef.current = true
+          clearTypingIfCurrentSession()
+          return null
+        }
         if (!res.ok) throw new Error(`API error: ${res.status}`)
         const reader = res.body?.getReader()
         if (!reader) throw new Error("No response body")
@@ -433,7 +447,7 @@ export function useDebateEngine(config: {
         clearTimeout(timeoutId)
       }
     },
-    [locale, responseLength]
+    [locale, responseLength, onApiKeyRequired]
   )
 
   /* ---- runRound ---- */
@@ -485,6 +499,11 @@ export function useDebateEngine(config: {
           body: JSON.stringify({ messages: consensusMsgs, locale, responseLength }),
         })
           .then(async (res) => {
+            if (res.status === 402) {
+              const missingProvider = await parseNoKeyProviderFromResponse(res)
+              if (missingProvider) onApiKeyRequired?.(missingProvider)
+              return
+            }
             if (!res.ok) return
             if (sessionIdRef.current !== sessionId) return
             const result = await res.json()
@@ -509,7 +528,7 @@ export function useDebateEngine(config: {
 
       return { msgs, done: false }
     },
-    [callModel, locale, responseLength]
+    [callModel, locale, responseLength, onApiKeyRequired]
   )
 
   /* ---- handleSendWithModels ---- */
@@ -632,6 +651,14 @@ export function useDebateEngine(config: {
                 // Guard: if user stopped during fetch, let handleStop own the verdict
                 if (stopRef.current || stoppingRef.current) {
                   logDebate("verdict:skipped-stopped", {})
+                } else if (res.status === 402) {
+                  const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? "gemini"
+                  onApiKeyRequired?.(missingProvider)
+                  dispatch({
+                    type: "UPDATE_MESSAGE",
+                    id: analyzingMsg.id,
+                    content: SYSTEM_MESSAGES.missingApiKey(locale, missingProvider),
+                  })
                 } else if (!res.ok) {
                   // Surface the server's error detail via logDebate so a
                   // dev running the app can still see *why* the verdict
@@ -717,7 +744,7 @@ export function useDebateEngine(config: {
         dispatch({ type: "SET_TYPING", model: null })
       }
     },
-    [state.showSummary, callModel, runRound, locale, responseLength]
+    [state.showSummary, callModel, runRound, locale, responseLength, onApiKeyRequired]
   )
 
   // Keep ref in sync for auto-send on mount
@@ -773,10 +800,21 @@ export function useDebateEngine(config: {
         }),
       })
         .then(async (res) => {
+          if (res.status === 402) {
+            const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? "gemini"
+            onApiKeyRequired?.(missingProvider)
+            dispatch({
+              type: "UPDATE_MESSAGE",
+              id: analyzingMsg.id,
+              content: SYSTEM_MESSAGES.missingApiKey(locale, missingProvider),
+            })
+            return null
+          }
           if (!res.ok) throw new Error(`API error: ${res.status}`)
           return res.json()
         })
         .then((result: unknown) => {
+          if (result === null) return
           if (sessionIdRef.current !== stoppedSession) return
           if (!isValidVerdict(result)) {
             logDebate("stop-verdict:invalid", {})
@@ -825,7 +863,7 @@ export function useDebateEngine(config: {
           })
         })
     }
-  }, [locale, responseLength])
+  }, [locale, responseLength, onApiKeyRequired])
 
   /* ---- handleReset ---- */
 

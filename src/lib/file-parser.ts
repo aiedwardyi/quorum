@@ -3,6 +3,9 @@
  * Extracts text content that can be included in AI prompts.
  */
 
+import type { Provider } from "@/types"
+import { parseNoKeyProviderFromResponse } from "@/lib/api-key-errors"
+
 const MAX_FILE_CHARS = 50000
 const MAX_PDF_PAGES = 20
 const MAX_FILE_SIZE_MB = 50
@@ -48,6 +51,7 @@ export interface ParseOptions {
   /** @param status - Human-readable status text
    *  @param progress - 0-100 percentage */
   onProgress?: (status: string, progress?: number) => void
+  onApiKeyRequired?: (provider: Provider) => void
 }
 
 function joinPDFPages(pages: Array<string | null | undefined>): string {
@@ -291,6 +295,11 @@ async function parsePDF(
         body: JSON.stringify({ images: [base64] }),
       })
 
+      if (res.status === 402) {
+        const missingProvider = await parseNoKeyProviderFromResponse(res)
+        if (missingProvider) options?.onApiKeyRequired?.(missingProvider)
+        throw new Error("OCR API key required")
+      }
       if (!res.ok) throw new Error(`OCR API error: ${res.status}`)
       const { text: ocrText } = await res.json()
       const trimmed = (ocrText ?? "").trim()
