@@ -32,6 +32,8 @@ import {
   setClientKey,
   clearClientKey,
   shouldUseClientKeys,
+  getAccessCode,
+  setAccessCode,
 } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
 
@@ -305,6 +307,9 @@ const translations = {
     gptKey: "GPT API Key",
     toggle: "Toggle",
     theme: "Theme",
+    accessCode: "Access code",
+    accessCodeDesc:
+      "Have a code from the host? It unlocks this deployment's built-in keys - no API keys needed.",
   },
   ko: {
     settings: "설정",
@@ -329,6 +334,9 @@ const translations = {
     gptKey: "GPT API 키",
     toggle: "전환",
     theme: "테마",
+    accessCode: "액세스 코드",
+    accessCodeDesc:
+      "호스트에게 받은 코드가 있나요? 이 배포에 내장된 키를 사용할 수 있습니다 - API 키가 필요 없습니다.",
   },
 }
 
@@ -370,6 +378,7 @@ export default function SettingsModal({
   const [keySaving, setKeySaving] = useState(false)
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({})
   const [saved, setSaved] = useState(false)
+  const [accessCodeValue, setAccessCodeValue] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
   const t = translations[locale]
 
@@ -383,6 +392,7 @@ export default function SettingsModal({
     if (!isOpen) return
     setKeys(createEmptyKeys())
     setTouchedKeys(createEmptyKeyStatus())
+    setAccessCodeValue(getAccessCode())
   }, [isOpen])
 
   // Load which providers already have a saved key, re-running once auth settles.
@@ -440,6 +450,7 @@ export default function SettingsModal({
       for (const provider of keysToClear) {
         clearClientKey(provider)
       }
+      setAccessCode(accessCodeValue)
       setKeyStatus(getClientKeyStatus())
       setKeys(createEmptyKeys())
       setTouchedKeys(createEmptyKeyStatus())
@@ -466,6 +477,7 @@ export default function SettingsModal({
       for (const provider of ALL_MODELS) {
         next[provider] = data.keys?.[provider]?.configured === true
       }
+      setAccessCode(accessCodeValue)
       setKeyStatus(next)
       setKeys(createEmptyKeys())
       setTouchedKeys(createEmptyKeyStatus())
@@ -631,6 +643,21 @@ export default function SettingsModal({
                       )
                     })}
                   </div>
+                  <div className="flex items-center gap-3 px-3.5 py-2.5 bg-card border border-border rounded-xl focus-within:border-ring transition-colors">
+                    <div className="shrink-0 text-muted-foreground">
+                      <Key className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="text"
+                      value={accessCodeValue}
+                      onChange={(e) => setAccessCodeValue(e.target.value)}
+                      placeholder={t.accessCode}
+                      className="flex-1 bg-transparent border-none p-0 text-[13px] text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 font-medium"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/70 leading-relaxed px-1">
+                    {t.accessCodeDesc}
+                  </p>
                   {keyError && <p className="text-[12px] text-red-400 px-1">{keyError}</p>}
                   <div className="flex items-center justify-end pt-2">
                     <button

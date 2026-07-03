@@ -62,9 +62,10 @@ Your output must start with the first character of actual document text, and end
 
 export async function POST(req: NextRequest) {
   try {
-    const { images, userApiKey } = (await req.json()) as {
+    const { images, userApiKey, accessCode } = (await req.json()) as {
       images: string[]
       userApiKey?: string
+      accessCode?: string
     }
 
     if (!images?.length) {
@@ -74,7 +75,8 @@ export async function POST(req: NextRequest) {
     const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
       "gemini",
       "ocr",
-      typeof userApiKey === "string" ? userApiKey : undefined
+      typeof userApiKey === "string" ? userApiKey : undefined,
+      typeof accessCode === "string" ? accessCode : undefined
     )
     if (blockedResponse) return blockedResponse
 

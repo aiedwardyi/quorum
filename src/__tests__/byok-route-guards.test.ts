@@ -52,6 +52,7 @@ vi.mock("@google-cloud/vertexai", () => ({
 import { POST as chatPOST } from "@/app/api/chat/route"
 import { POST as consensusPOST } from "@/app/api/consensus/route"
 import { POST as ocrPOST } from "@/app/api/ocr/route"
+import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 
 const messages: Message[] = [
   {
@@ -449,5 +450,57 @@ describe("BYOK-required route guards", () => {
     } finally {
       errorSpy.mockRestore()
     }
+  })
+})
+
+describe("access codes", () => {
+  let previousRequireUserApiKeys: string | undefined
+  let previousAccessCodes: string | undefined
+
+  beforeEach(() => {
+    previousRequireUserApiKeys = process.env.REQUIRE_USER_API_KEYS
+    previousAccessCodes = process.env.ACCESS_CODES
+  })
+
+  afterEach(() => {
+    if (previousRequireUserApiKeys === undefined) {
+      delete process.env.REQUIRE_USER_API_KEYS
+    } else {
+      process.env.REQUIRE_USER_API_KEYS = previousRequireUserApiKeys
+    }
+    if (previousAccessCodes === undefined) {
+      delete process.env.ACCESS_CODES
+    } else {
+      process.env.ACCESS_CODES = previousAccessCodes
+    }
+  })
+
+  it("valid access code bypasses the 402 and falls through to server keys", async () => {
+    process.env.REQUIRE_USER_API_KEYS = "true"
+    process.env.ACCESS_CODES = "alpha-1234, beta-5678"
+    const result = await resolveUserProviderApiKey("gemini", "test", undefined, "beta-5678")
+    expect(result.blockedResponse).toBeUndefined()
+    expect(result.userApiKey).toBeUndefined()
+  })
+
+  it("invalid access code still gets the 402", async () => {
+    process.env.REQUIRE_USER_API_KEYS = "true"
+    process.env.ACCESS_CODES = "alpha-1234"
+    const result = await resolveUserProviderApiKey("gemini", "test", undefined, "wrong")
+    expect(result.blockedResponse?.status).toBe(402)
+  })
+
+  it("access code is ignored when a body key is present", async () => {
+    process.env.REQUIRE_USER_API_KEYS = "true"
+    process.env.ACCESS_CODES = "alpha-1234"
+    const result = await resolveUserProviderApiKey("gemini", "test", "user-key", "alpha-1234")
+    expect(result.userApiKey).toBe("user-key")
+  })
+
+  it("empty ACCESS_CODES never matches", async () => {
+    process.env.REQUIRE_USER_API_KEYS = "true"
+    process.env.ACCESS_CODES = ""
+    const result = await resolveUserProviderApiKey("gemini", "test", undefined, "")
+    expect(result.blockedResponse?.status).toBe(402)
   })
 })

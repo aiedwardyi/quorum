@@ -10,6 +10,8 @@ import {
   shouldUseClientKeys,
   isSessionResolving,
   shouldClearClientKeys,
+  getAccessCode,
+  setAccessCode,
 } from "@/lib/client-api-keys"
 
 function stubBrowser() {
@@ -140,5 +142,24 @@ describe("shouldClearClientKeys", () => {
   it("keeps local keys for an anonymous visitor", () => {
     expect(shouldClearClientKeys(true, false)).toBe(false)
     expect(shouldClearClientKeys(false, false)).toBe(false)
+  })
+})
+
+describe("access code storage", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("round-trips through localStorage", () => {
+    stubBrowser()
+    setAccessCode("alpha-1234")
+    expect(getAccessCode()).toBe("alpha-1234")
+  })
+
+  it("empty set clears the stored code", () => {
+    stubBrowser()
+    setAccessCode("alpha-1234")
+    setAccessCode("")
+    expect(getAccessCode()).toBe("")
   })
 })

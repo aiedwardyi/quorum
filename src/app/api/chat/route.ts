@@ -292,10 +292,12 @@ export async function POST(request: Request) {
     )
     const maxTokens = getMaxTokens(validatedResponseLength)
     const requestApiKey = typeof body.userApiKey === "string" ? body.userApiKey : undefined
+    const requestAccessCode = typeof body.accessCode === "string" ? body.accessCode : undefined
     const { userApiKey, blockedResponse } = await resolveUserProviderApiKey(
       provider,
       `chat/${provider}`,
-      requestApiKey
+      requestApiKey,
+      requestAccessCode
     )
     if (blockedResponse) return blockedResponse
     // Hard server-side clamp behind the prompt instruction; Gemini especially overruns.

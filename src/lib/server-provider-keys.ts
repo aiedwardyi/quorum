@@ -4,10 +4,22 @@ import type { Provider } from "@/types"
 import { authEnabled, requireUserKeys } from "@/lib/deploy-config"
 import { redactSecrets } from "@/lib/redact-secrets"
 
+function isValidAccessCode(code: unknown): boolean {
+  if (typeof code !== "string") return false
+  const trimmed = code.trim()
+  if (!trimmed) return false
+  return (process.env.ACCESS_CODES ?? "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .includes(trimmed)
+}
+
 export async function resolveUserProviderApiKey(
   provider: Provider,
   logLabel: string,
-  requestKey?: string
+  requestKey?: string,
+  accessCode?: string
 ): Promise<{ userApiKey?: string; blockedResponse?: NextResponse }> {
   // Anonymous BYOK: a key supplied in the request body short-circuits before any
   // auth import, DB read, or 402. Never logged.
@@ -39,6 +51,8 @@ export async function resolveUserProviderApiKey(
   }
 
   if (requireUserKeys() && !userApiKey) {
+    // Guest pass: a valid access code unlocks this deploy's own env keys.
+    if (isValidAccessCode(accessCode)) return {}
     return {
       blockedResponse: NextResponse.json({ error: "no_key", provider }, { status: 402 }),
     }

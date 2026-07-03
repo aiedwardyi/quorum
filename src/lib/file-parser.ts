@@ -2,7 +2,7 @@
 
 import type { Provider } from "@/types"
 import { parseNoKeyProviderFromResponse } from "@/lib/api-key-errors"
-import { getClientKey } from "@/lib/client-api-keys"
+import { getClientKey, getAccessCode } from "@/lib/client-api-keys"
 
 const MAX_FILE_CHARS = 50000
 const MAX_PDF_PAGES = 20
@@ -232,6 +232,7 @@ async function parsePDF(
   // OCR one page at a time so the recovered text can be placed back into the
   // original document order.
   const userApiKey = options?.isAnonymous ? getClientKey("gemini") : ""
+  const accessCode = getAccessCode()
   try {
     for (let idx = 0; idx < renderedPages.length; idx++) {
       const { pageNumber, base64 } = renderedPages[idx]
@@ -241,7 +242,11 @@ async function parsePDF(
       const res = await fetch("/api/ocr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images: [base64], ...(userApiKey ? { userApiKey } : {}) }),
+        body: JSON.stringify({
+          images: [base64],
+          ...(userApiKey ? { userApiKey } : {}),
+          ...(accessCode ? { accessCode } : {}),
+        }),
       })
 
       if (res.status === 402) {

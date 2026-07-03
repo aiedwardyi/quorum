@@ -10,7 +10,7 @@ import {
   getMissingApiKeyMessage,
   parseNoKeyProviderFromResponse,
 } from "@/lib/api-key-errors"
-import { getClientKey, isFirstRunKeyless } from "@/lib/client-api-keys"
+import { getClientKey, getAccessCode, isFirstRunKeyless } from "@/lib/client-api-keys"
 
 /* ---- Constants ---- */
 
@@ -106,6 +106,7 @@ function fetchConsensus(
   isAnonymous: boolean
 ): Promise<Response> {
   const userApiKey = isAnonymous ? getClientKey("gemini") : ""
+  const accessCode = getAccessCode()
   return fetch("/api/consensus", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -114,6 +115,7 @@ function fetchConsensus(
       locale,
       responseLength,
       ...(userApiKey ? { userApiKey } : {}),
+      ...(accessCode ? { accessCode } : {}),
     }),
   })
 }
@@ -325,6 +327,7 @@ export function useDebateEngine(config: {
 
       try {
         const userApiKey = isAnonymousRef.current ? getClientKey(provider) : ""
+        const accessCode = getAccessCode()
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -334,6 +337,7 @@ export function useDebateEngine(config: {
             locale,
             responseLength,
             ...(userApiKey ? { userApiKey } : {}),
+            ...(accessCode ? { accessCode } : {}),
           }),
           signal: controller.signal,
         })
