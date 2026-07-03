@@ -7,6 +7,7 @@ import {
   clearAllClientKeys,
   getClientKeyStatus,
   shouldUseClientKeys,
+  isSessionResolving,
 } from "@/lib/client-api-keys"
 
 function stubBrowser() {
@@ -81,5 +82,22 @@ describe("shouldUseClientKeys", () => {
 
   it("withholds client keys for a signed-in session", () => {
     expect(shouldUseClientKeys(true, "authenticated")).toBe(false)
+  })
+})
+
+describe("isSessionResolving", () => {
+  it("is never resolving when auth is disabled", () => {
+    expect(isSessionResolving(false, "loading")).toBe(false)
+    expect(isSessionResolving(false, "unauthenticated")).toBe(false)
+    expect(isSessionResolving(false, "authenticated")).toBe(false)
+  })
+
+  it("is resolving only while an auth-enabled session is still loading", () => {
+    expect(isSessionResolving(true, "loading")).toBe(true)
+  })
+
+  it("is settled once an auth-enabled session resolves either way", () => {
+    expect(isSessionResolving(true, "unauthenticated")).toBe(false)
+    expect(isSessionResolving(true, "authenticated")).toBe(false)
   })
 })

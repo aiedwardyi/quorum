@@ -44,3 +44,9 @@ type SessionStatus = "authenticated" | "unauthenticated" | "loading"
 export function shouldUseClientKeys(authEnabled: boolean, status: SessionStatus): boolean {
   return !authEnabled || status === "unauthenticated"
 }
+
+// True while an auth-enabled session is still resolving, so key-dependent actions
+// (send, OCR) wait it out instead of firing with the wrong anonymous snapshot.
+export function isSessionResolving(authEnabled: boolean, status: SessionStatus): boolean {
+  return authEnabled && status === "loading"
+}

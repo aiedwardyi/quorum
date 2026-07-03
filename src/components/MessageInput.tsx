@@ -58,6 +58,7 @@ export default function MessageInput({
   initialText,
   onApiKeyRequired,
   isAnonymous,
+  sessionLoading,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
@@ -67,6 +68,7 @@ export default function MessageInput({
   initialText?: string | null
   onApiKeyRequired?: (provider: Provider) => void
   isAnonymous: boolean
+  sessionLoading: boolean
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -158,6 +160,9 @@ export default function MessageInput({
   }, [fileError])
 
   const addFiles = (incoming: File[]) => {
+    // Auth still resolving: block attach so OCR isn't started with the wrong
+    // anonymous snapshot (parseFile would call /api/ocr without the browser key).
+    if (sessionLoading) return
     const supported: File[] = []
     let hasUnsupported = false
     for (const file of incoming) {
@@ -384,7 +389,7 @@ export default function MessageInput({
                   e.stopPropagation()
                   fileInputRef.current?.click()
                 }}
-                disabled={anyParsing}
+                disabled={anyParsing || sessionLoading}
                 title={t.attach}
                 aria-label={t.attach}
                 className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"

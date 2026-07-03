@@ -365,8 +365,7 @@ export default function SettingsModal({
   onChangeTheme?: (theme: Theme) => void
 }) {
   const showPrefs = showPreferences !== false
-  const { data: session, status } = useSession()
-  const isLoggedIn = !!session?.user
+  const { status } = useSession()
   // Only take the localStorage path once the session is definitively signed-out
   // (or auth is off), so a still-loading session never clobbers the account's keys.
   const anonymous = shouldUseClientKeys(authEnabled(), status)
@@ -611,7 +610,7 @@ export default function SettingsModal({
                       </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      {isLoggedIn ? t.keysDesc : t.keysDescAnon}
+                      {anonymous ? t.keysDescAnon : t.keysDesc}
                     </p>
                     <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
                       {t.keysGeminiNote}

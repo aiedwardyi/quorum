@@ -96,7 +96,7 @@ Open [localhost:3000](http://localhost:3000), open **Settings**, and paste an AP
 
 > The consensus verdict and document OCR always run on **Gemini**, so add a Gemini key even if your panel is Claude/GPT/Perplexity only.
 
-To require a key before any request runs (recommended for a public deploy), set `REQUIRE_USER_API_KEYS=true`. Anonymous BYOK gives you an in-session thread; sign in (below) to save history across visits.
+Set `REQUIRE_USER_API_KEYS=true` (recommended for any BYOK or public deploy) so a keyless request returns a clear "add your key" prompt instead of a generic provider error. Anonymous BYOK gives you an in-session thread; sign in (below) to save history across visits.
 
 ---
 

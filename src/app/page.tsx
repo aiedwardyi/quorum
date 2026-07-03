@@ -16,7 +16,7 @@ const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr:
 import { ChevronDown, X } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
 import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
-import { shouldUseClientKeys } from "@/lib/client-api-keys"
+import { shouldUseClientKeys, isSessionResolving } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
 
 // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
@@ -51,6 +51,7 @@ function ChatPageContent() {
   // BYOK: attach the browser key only when definitively signed-out (or auth off).
   const { status } = useSession()
   const isAnonymous = shouldUseClientKeys(authEnabled(), status)
+  const sessionLoading = isSessionResolving(authEnabled(), status)
 
   const { state, dispatch, handleSend, handleStop, handleReset } = useDebateEngine({
     locale,
@@ -59,12 +60,29 @@ function ChatPageContent() {
     isAnonymous,
     onApiKeyRequired: handleApiKeyRequired,
   })
+  const pendingSendRef = useRef<{ text: string; target: Provider | "all" } | null>(null)
   const handleDirectSend = useCallback(
     (text: string, target: Provider | "all") => {
+      // Auth still resolving: hold the send until the session settles, so an
+      // anonymous BYOK send isn't fired without its browser key (mirrors auto-send).
+      if (isSessionResolving(authEnabled(), status)) {
+        pendingSendRef.current = { text, target }
+        return
+      }
       handleSend(text, target)
     },
-    [handleSend]
+    [handleSend, status]
   )
+
+  // Flush a send that arrived during the auth-loading window once it resolves.
+  useEffect(() => {
+    if (isSessionResolving(authEnabled(), status)) return
+    const pending = pendingSendRef.current
+    if (pending) {
+      pendingSendRef.current = null
+      setTimeout(() => handleSend(pending.text, pending.target), 0)
+    }
+  }, [status, handleSend])
 
   const persistence = useThreadPersistence()
   const router = useRouter()
@@ -267,7 +285,7 @@ function ChatPageContent() {
     // Wait for the auth session to resolve before auto-sending, so an anonymous
     // visitor's BYOK key is attached (an auth-enabled deploy reports "loading"
     // on first mount and the send would otherwise race past it with no key).
-    if (authEnabled() && status === "loading") return
+    if (isSessionResolving(authEnabled(), status)) return
     if (pendingPrompt.current && !initialPromptSent.current) {
       initialPromptSent.current = true
       const { prompt: p } = pendingPrompt.current
@@ -645,6 +663,7 @@ function ChatPageContent() {
           initialFileWarning={fileWarning}
           onApiKeyRequired={handleApiKeyRequired}
           isAnonymous={isAnonymous}
+          sessionLoading={sessionLoading}
         />
       </div>
 
