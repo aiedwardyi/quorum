@@ -1,5 +1,15 @@
 export type Provider = "gemini" | "perplexity" | "claude" | "gpt"
 
+// Providers a user can supply their own API key for. Lives here (dependency-free)
+// so both server (user-api-keys) and client (client-api-keys) can share it without
+// the client bundle pulling in crypto/prisma.
+export const USER_API_KEY_PROVIDERS = [
+  "gemini",
+  "perplexity",
+  "claude",
+  "gpt",
+] as const satisfies readonly Provider[]
+
 export type Locale = "en" | "ko"
 
 export type ResponseLength = "short" | "medium" | "long"

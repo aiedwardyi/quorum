@@ -23,4 +23,25 @@ describe("write-env", () => {
       rmSync(tempDir, { recursive: true, force: true })
     }
   })
+
+  it("writes NEXT_PUBLIC_AUTH_ENABLED when present in the build environment", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "quorum-write-env-"))
+    const scriptPath = join(process.cwd(), "scripts", "write-env.js")
+
+    try {
+      execFileSync(process.execPath, [scriptPath], {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          NEXT_PUBLIC_AUTH_ENABLED: "true",
+        },
+      })
+
+      expect(readFileSync(join(tempDir, ".env"), "utf8")).toContain(
+        "NEXT_PUBLIC_AUTH_ENABLED='true'"
+      )
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
 })

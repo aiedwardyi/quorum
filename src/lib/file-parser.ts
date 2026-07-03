@@ -5,6 +5,7 @@
 
 import type { Provider } from "@/types"
 import { parseNoKeyProviderFromResponse } from "@/lib/api-key-errors"
+import { getClientKey } from "@/lib/client-api-keys"
 
 const MAX_FILE_CHARS = 50000
 const MAX_PDF_PAGES = 20
@@ -52,6 +53,8 @@ export interface ParseOptions {
    *  @param progress - 0-100 percentage */
   onProgress?: (status: string, progress?: number) => void
   onApiKeyRequired?: (provider: Provider) => void
+  /** Attach the browser gemini key to OCR only when signed-out (or auth off). */
+  isAnonymous?: boolean
 }
 
 function joinPDFPages(pages: Array<string | null | undefined>): string {
@@ -283,6 +286,7 @@ async function parsePDF(
 
   // OCR one page at a time so the recovered text can be placed back into the
   // original document order.
+  const userApiKey = options?.isAnonymous ? getClientKey("gemini") : ""
   try {
     for (let idx = 0; idx < renderedPages.length; idx++) {
       const { pageNumber, base64 } = renderedPages[idx]
@@ -292,7 +296,7 @@ async function parsePDF(
       const res = await fetch("/api/ocr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ images: [base64] }),
+        body: JSON.stringify({ images: [base64], ...(userApiKey ? { userApiKey } : {}) }),
       })
 
       if (res.status === 402) {

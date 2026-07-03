@@ -13,6 +13,7 @@ import { getVerdictPrompt } from "@/lib/verdict-prompt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import { generateGeminiVerdictWithApiKey, getConfiguredGeminiApiKey } from "@/lib/providers/gemini"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
+import { redactSecrets } from "@/lib/redact-secrets"
 
 /**
  * Vertex AI response schema mirroring validateVerdictResult. Forces the
@@ -192,9 +193,11 @@ export async function POST(req: NextRequest) {
       responseSchema: VERDICT_RESPONSE_SCHEMA,
     }
 
+    const requestApiKey = typeof body.userApiKey === "string" ? body.userApiKey : undefined
     const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
       "gemini",
-      "verdict"
+      "verdict",
+      requestApiKey
     )
     if (blockedResponse) return blockedResponse
 
@@ -419,7 +422,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(verdict)
   } catch (error) {
     const elapsed = Date.now() - startTime
-    const message = error instanceof Error ? error.message : "Unknown error"
+    const message = redactSecrets(error instanceof Error ? error.message : "Unknown error")
     console.error(`[verdict] Failed after ${elapsed}ms:`, message)
     return NextResponse.json(
       {

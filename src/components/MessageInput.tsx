@@ -57,6 +57,8 @@ export default function MessageInput({
   initialFileWarning,
   initialText,
   onApiKeyRequired,
+  isAnonymous,
+  sessionLoading,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
@@ -65,6 +67,8 @@ export default function MessageInput({
   initialFileWarning?: string | null
   initialText?: string | null
   onApiKeyRequired?: (provider: Provider) => void
+  isAnonymous: boolean
+  sessionLoading: boolean
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -99,7 +103,8 @@ export default function MessageInput({
 
   const handleSend = () => {
     const anyParsing = attachedFiles.some((f) => f.parsing)
-    if (anyParsing || (!text.trim() && attachedFiles.length === 0) || disabled) return
+    if (anyParsing || (!text.trim() && attachedFiles.length === 0) || disabled || sessionLoading)
+      return
 
     let messageText = text.trim()
 
@@ -156,6 +161,9 @@ export default function MessageInput({
   }, [fileError])
 
   const addFiles = (incoming: File[]) => {
+    // Auth still resolving: block attach so OCR isn't started with the wrong
+    // anonymous snapshot (parseFile would call /api/ocr without the browser key).
+    if (sessionLoading) return
     const supported: File[] = []
     let hasUnsupported = false
     for (const file of incoming) {
@@ -182,6 +190,7 @@ export default function MessageInput({
     // Parse each file immediately and show warnings at attach time
     newFiles.forEach(async (af) => {
       const parsed = await parseFile(af.file, {
+        isAnonymous,
         onProgress: (status, progress) => {
           setAttachedFiles((prev) =>
             prev.map((f) =>
@@ -225,7 +234,7 @@ export default function MessageInput({
   }
 
   const anyParsing = attachedFiles.some((f) => f.parsing)
-  const sendDisabled = anyParsing || (!text.trim() && attachedFiles.length === 0)
+  const sendDisabled = anyParsing || (!text.trim() && attachedFiles.length === 0) || sessionLoading
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 pt-1 pb-3">
@@ -381,7 +390,7 @@ export default function MessageInput({
                   e.stopPropagation()
                   fileInputRef.current?.click()
                 }}
-                disabled={anyParsing}
+                disabled={anyParsing || sessionLoading}
                 title={t.attach}
                 aria-label={t.attach}
                 className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"

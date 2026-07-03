@@ -9,6 +9,7 @@ import {
   getMissingApiKeyMessage,
   parseNoKeyProviderFromResponse,
 } from "@/lib/api-key-errors"
+import { getClientKey } from "@/lib/client-api-keys"
 
 /* ---- Constants ---- */
 
@@ -99,6 +100,26 @@ export function getApiMessages(messages: Message[]): Message[] {
 /** Like getApiMessages but keeps verdict messages for consensus context */
 export function getConsensusMessages(messages: Message[]): Message[] {
   return messages.filter((m) => m.sender !== "system")
+}
+
+/** Shared consensus request. Only anonymous users attach the browser gemini key. */
+function fetchConsensus(
+  messages: Message[],
+  locale: Locale,
+  responseLength: ResponseLength,
+  isAnonymous: boolean
+): Promise<Response> {
+  const userApiKey = isAnonymous ? getClientKey("gemini") : ""
+  return fetch("/api/consensus", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages,
+      locale,
+      responseLength,
+      ...(userApiKey ? { userApiKey } : {}),
+    }),
+  })
 }
 
 export function getAIMessageCount(messages: Message[]): number {
@@ -248,9 +269,10 @@ export function useDebateEngine(config: {
   locale: Locale
   responseLength: ResponseLength
   maxRounds: number
+  isAnonymous: boolean
   onApiKeyRequired?: (provider: Provider) => void
 }) {
-  const { locale, responseLength, maxRounds, onApiKeyRequired } = config
+  const { locale, responseLength, maxRounds, isAnonymous, onApiKeyRequired } = config
 
   const [state, dispatch] = useReducer(reducer, makeInitialState(DEFAULT_MODELS))
 
@@ -266,6 +288,8 @@ export function useDebateEngine(config: {
   const finalVerdictLandedRef = useRef(false)
   const messagesRef = useRef<Message[]>([])
   const maxRoundsRef = useRef(maxRounds)
+  // Read the freshest anonymous state inside async fetch closures.
+  const isAnonymousRef = useRef(isAnonymous)
   const handleSendRef = useRef<
     (text: string, target: Provider | "all", models: Provider[]) => void
   >(() => {})
@@ -278,6 +302,10 @@ export function useDebateEngine(config: {
   useEffect(() => {
     maxRoundsRef.current = maxRounds
   }, [maxRounds])
+
+  useEffect(() => {
+    isAnonymousRef.current = isAnonymous
+  }, [isAnonymous])
 
   /* ---- callModel ---- */
 
@@ -316,6 +344,7 @@ export function useDebateEngine(config: {
       }, MODEL_TIMEOUT_MS)
 
       try {
+        const userApiKey = isAnonymousRef.current ? getClientKey(provider) : ""
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -324,6 +353,7 @@ export function useDebateEngine(config: {
             provider,
             locale,
             responseLength,
+            ...(userApiKey ? { userApiKey } : {}),
           }),
           signal: controller.signal,
         })
@@ -493,11 +523,7 @@ export function useDebateEngine(config: {
       // stale results from cancelled/superseded debates.
       if (getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
         const consensusMsgs = getConsensusMessages(msgs)
-        fetch("/api/consensus", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: consensusMsgs, locale, responseLength }),
-        })
+        fetchConsensus(consensusMsgs, locale, responseLength, isAnonymousRef.current)
           .then(async (res) => {
             if (sessionIdRef.current !== sessionId || stopRef.current) return
             if (res.status === 402) {
@@ -639,15 +665,12 @@ export function useDebateEngine(config: {
               msgs = [...msgs, analyzingMsg]
 
               try {
-                const res = await fetch("/api/consensus", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    messages: getConsensusMessages(msgs),
-                    locale,
-                    responseLength,
-                  }),
-                })
+                const res = await fetchConsensus(
+                  getConsensusMessages(msgs),
+                  locale,
+                  responseLength,
+                  isAnonymousRef.current
+                )
 
                 // Guard: if user stopped during fetch, let handleStop own the verdict
                 if (stopRef.current || stoppingRef.current) {
@@ -792,15 +815,12 @@ export function useDebateEngine(config: {
         dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
       }
 
-      fetch("/api/consensus", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: getConsensusMessages(currentMessages),
-          locale,
-          responseLength,
-        }),
-      })
+      fetchConsensus(
+        getConsensusMessages(currentMessages),
+        locale,
+        responseLength,
+        isAnonymousRef.current
+      )
         .then(async (res) => {
           if (res.status === 402) {
             if (sessionIdRef.current !== stoppedSession) return null

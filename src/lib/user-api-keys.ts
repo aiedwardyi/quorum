@@ -1,13 +1,8 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto"
 import { prisma } from "@/lib/prisma"
-import type { Provider } from "@/types"
+import { type Provider, USER_API_KEY_PROVIDERS } from "@/types"
 
-export const USER_API_KEY_PROVIDERS = [
-  "gemini",
-  "perplexity",
-  "claude",
-  "gpt",
-] as const satisfies readonly Provider[]
+export { USER_API_KEY_PROVIDERS }
 
 type KeyStatus = Record<Provider, { configured: boolean; updatedAt: string | null }>
 

@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useRef, useEffect, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { THEMES } from "@/types"
 import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
 import { useDebateEngine, SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
@@ -15,6 +16,8 @@ const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr:
 import { ChevronDown, X } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
 import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
+import { shouldUseClientKeys, isSessionResolving } from "@/lib/client-api-keys"
+import { authEnabled } from "@/lib/deploy-config"
 
 // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
 // last historically because Pro's TTFT was slowest; chat now runs on
@@ -45,17 +48,26 @@ function ChatPageContent() {
     setApiKeyToastProvider(provider)
   }, [])
 
+  // BYOK: attach the browser key only when definitively signed-out (or auth off).
+  const { status } = useSession()
+  const isAnonymous = shouldUseClientKeys(authEnabled(), status)
+  const sessionLoading = isSessionResolving(authEnabled(), status)
+
   const { state, dispatch, handleSend, handleStop, handleReset } = useDebateEngine({
     locale,
     responseLength,
     maxRounds,
+    isAnonymous,
     onApiKeyRequired: handleApiKeyRequired,
   })
   const handleDirectSend = useCallback(
     (text: string, target: Provider | "all") => {
+      // Auth still resolving: don't send yet. MessageInput keeps the typed text and
+      // the empty-state prompt stays clickable, so nothing fires without its key.
+      if (isSessionResolving(authEnabled(), status)) return
       handleSend(text, target)
     },
-    [handleSend]
+    [handleSend, status]
   )
 
   const persistence = useThreadPersistence()
@@ -256,13 +268,17 @@ function ChatPageContent() {
   // Fire pending prompt after state has settled.
   useEffect(() => {
     if (!configHydrated) return
+    // Wait for the auth session to resolve before auto-sending, so an anonymous
+    // visitor's BYOK key is attached (an auth-enabled deploy reports "loading"
+    // on first mount and the send would otherwise race past it with no key).
+    if (isSessionResolving(authEnabled(), status)) return
     if (pendingPrompt.current && !initialPromptSent.current) {
       initialPromptSent.current = true
       const { prompt: p } = pendingPrompt.current
       pendingPrompt.current = null
       setTimeout(() => handleDirectSend(p, "all"), 0)
     }
-  }, [configHydrated, handleDirectSend])
+  }, [configHydrated, handleDirectSend, status])
 
   const changeTheme = useCallback((t: Theme) => {
     setTheme(t)
@@ -632,6 +648,8 @@ function ChatPageContent() {
           locale={locale}
           initialFileWarning={fileWarning}
           onApiKeyRequired={handleApiKeyRequired}
+          isAnonymous={isAnonymous}
+          sessionLoading={sessionLoading}
         />
       </div>
 
