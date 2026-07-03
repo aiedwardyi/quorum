@@ -4,6 +4,8 @@
 
 Replaces the manual workflow of copy-pasting between AI tabs. Instead of switching between Gemini, Perplexity, ChatGPT, and Claude to get multiple perspectives - just ask once and let them talk it out.
 
+**[Try it live](https://main.d30ss3zib1fsu2.amplifyapp.com/)** - bring your own key, no sign-in.
+
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
@@ -40,15 +42,14 @@ Each model sees what the others said, debates across rounds, and then Quorum ret
 
 ## Product Direction
 
-Quorum started as a multi-AI group chat for consensus. The next product direction is narrower and more useful:
+Quorum started as a multi-AI group chat for consensus. It is now a decision tool:
 
-- Debate stays in the background.
-- The final card should give a recommended answer first.
-- The user should see vote split, key reasons, and the strongest minority objection.
-- Users should be able to continue the same thread after the verdict instead of resetting.
-- Logged-in users should have saved threads and history, similar to ChatGPT or Claude.
+- The verdict card leads with a recommended answer, not a neutral recap.
+- It shows the vote split, key reasons, the strongest minority objection, and when the opposite case is worth taking.
+- Continue the same thread after the verdict instead of resetting.
+- Signed-in users get saved threads and history, similar to ChatGPT or Claude.
 
-The goal is to feel less like "here's what everyone said" and more like "here's what you should do, and why."
+It feels less like "here's what everyone said" and more like "here's what you should do, and why."
 
 ---
 
@@ -84,6 +85,8 @@ Switch instantly from the header or settings.
 ## Quick Start
 
 Quorum is **BYOK-first (bring your own key)**: paste your own provider API keys and go. No account, no database, no sign-in. Keys are stored only in your browser.
+
+Prefer not to install? **[Try the hosted demo](https://main.d30ss3zib1fsu2.amplifyapp.com/)** and paste your keys there. To run it locally:
 
 ```bash
 git clone https://github.com/aiedwardyi/quorum.git
