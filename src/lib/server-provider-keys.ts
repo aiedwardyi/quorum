@@ -18,6 +18,12 @@ export async function resolveUserProviderApiKey(
     } catch (error) {
       const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
       console.error(`[${logLabel}] failed to load user ${provider} API key:`, msg)
+
+      if (requireUserKeys()) {
+        return {
+          blockedResponse: NextResponse.json({ error: "key_lookup_failed" }, { status: 500 }),
+        }
+      }
     }
   }
 

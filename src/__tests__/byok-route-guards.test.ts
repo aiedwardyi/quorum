@@ -124,6 +124,29 @@ describe("BYOK-required route guards", () => {
     expect(streamGPTMock).not.toHaveBeenCalled()
   })
 
+  it("chat returns key_lookup_failed when the saved key lookup fails", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockRejectedValueOnce(new Error("database unavailable"))
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+    try {
+      const response = await chatPOST(
+        jsonRequest("/api/chat", {
+          messages,
+          provider: "gpt",
+          locale: "en",
+          responseLength: "medium",
+        })
+      )
+
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toEqual({ error: "key_lookup_failed" })
+      expect(streamGPTMock).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
   it("consensus returns no_key before using Gemini server credentials", async () => {
     const response = await consensusPOST(
       jsonRequest("/api/consensus", {
