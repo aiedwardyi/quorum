@@ -8,6 +8,7 @@ import {
   getClientKeyStatus,
   shouldUseClientKeys,
   isSessionResolving,
+  shouldClearClientKeys,
 } from "@/lib/client-api-keys"
 
 function stubBrowser() {
@@ -99,5 +100,20 @@ describe("isSessionResolving", () => {
   it("is settled once an auth-enabled session resolves either way", () => {
     expect(isSessionResolving(true, "unauthenticated")).toBe(false)
     expect(isSessionResolving(true, "authenticated")).toBe(false)
+  })
+})
+
+describe("shouldClearClientKeys", () => {
+  it("clears local keys on login only when account auth is enabled", () => {
+    expect(shouldClearClientKeys(true, true)).toBe(true)
+  })
+
+  it("keeps local keys when auth is disabled even if a stale session reads as logged-in", () => {
+    expect(shouldClearClientKeys(false, true)).toBe(false)
+  })
+
+  it("keeps local keys for an anonymous visitor", () => {
+    expect(shouldClearClientKeys(true, false)).toBe(false)
+    expect(shouldClearClientKeys(false, false)).toBe(false)
   })
 })

@@ -50,3 +50,9 @@ export function shouldUseClientKeys(authEnabled: boolean, status: SessionStatus)
 export function isSessionResolving(authEnabled: boolean, status: SessionStatus): boolean {
   return authEnabled && status === "loading"
 }
+
+// True only when accounts are enabled and the user is signed in, so a BYOK deploy
+// (auth off) never drops the local keys even if a stale session reads as logged-in.
+export function shouldClearClientKeys(authEnabled: boolean, isLoggedIn: boolean): boolean {
+  return authEnabled && isLoggedIn
+}

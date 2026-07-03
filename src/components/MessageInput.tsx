@@ -103,7 +103,8 @@ export default function MessageInput({
 
   const handleSend = () => {
     const anyParsing = attachedFiles.some((f) => f.parsing)
-    if (anyParsing || (!text.trim() && attachedFiles.length === 0) || disabled) return
+    if (anyParsing || (!text.trim() && attachedFiles.length === 0) || disabled || sessionLoading)
+      return
 
     let messageText = text.trim()
 
@@ -233,7 +234,7 @@ export default function MessageInput({
   }
 
   const anyParsing = attachedFiles.some((f) => f.parsing)
-  const sendDisabled = anyParsing || (!text.trim() && attachedFiles.length === 0)
+  const sendDisabled = anyParsing || (!text.trim() && attachedFiles.length === 0) || sessionLoading
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 pt-1 pb-3">

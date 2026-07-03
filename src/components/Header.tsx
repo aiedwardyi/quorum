@@ -26,7 +26,7 @@ import {
   RotateCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { clearAllClientKeys } from "@/lib/client-api-keys"
+import { clearAllClientKeys, shouldClearClientKeys } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -122,10 +122,11 @@ export default function ChatHeader({
   // On login, drop any anonymous localStorage keys so the account's saved keys
   // are the single source of truth. Idempotent - clears whenever logged in, not
   // only on the false->true edge, so an auto-send-on-mount debate can't race a
-  // transition-only effect and leak a stale anonymous key.
+  // transition-only effect and leak a stale anonymous key. Gated on auth being
+  // enabled so a BYOK deploy with a stale session cookie keeps its local keys.
   useEffect(() => {
-    if (isLoggedIn) clearAllClientKeys()
-  }, [isLoggedIn])
+    if (shouldClearClientKeys(authUiEnabled, isLoggedIn)) clearAllClientKeys()
+  }, [isLoggedIn, authUiEnabled])
 
   const t = translations[locale]
   const [showLengthDropdown, setShowLengthDropdown] = useState(false)

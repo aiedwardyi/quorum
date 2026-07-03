@@ -384,10 +384,17 @@ export default function SettingsModal({
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [activeTab])
 
+  // Reset the form fields when the modal opens - not when auth later resolves, so
+  // a key typed during the loading window isn't cleared out from under the user.
   useEffect(() => {
     if (!isOpen) return
     setKeys(createEmptyKeys())
     setTouchedKeys(createEmptyKeyStatus())
+  }, [isOpen])
+
+  // Load which providers already have a saved key, re-running once auth settles.
+  useEffect(() => {
+    if (!isOpen) return
 
     // Signed-out: keys live in localStorage; skip the server round-trip (no 401).
     if (anonymous) {

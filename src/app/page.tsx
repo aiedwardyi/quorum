@@ -60,29 +60,15 @@ function ChatPageContent() {
     isAnonymous,
     onApiKeyRequired: handleApiKeyRequired,
   })
-  const pendingSendRef = useRef<{ text: string; target: Provider | "all" } | null>(null)
   const handleDirectSend = useCallback(
     (text: string, target: Provider | "all") => {
-      // Auth still resolving: hold the send until the session settles, so an
-      // anonymous BYOK send isn't fired without its browser key (mirrors auto-send).
-      if (isSessionResolving(authEnabled(), status)) {
-        pendingSendRef.current = { text, target }
-        return
-      }
+      // Auth still resolving: don't send yet. MessageInput keeps the typed text and
+      // the empty-state prompt stays clickable, so nothing fires without its key.
+      if (isSessionResolving(authEnabled(), status)) return
       handleSend(text, target)
     },
     [handleSend, status]
   )
-
-  // Flush a send that arrived during the auth-loading window once it resolves.
-  useEffect(() => {
-    if (isSessionResolving(authEnabled(), status)) return
-    const pending = pendingSendRef.current
-    if (pending) {
-      pendingSendRef.current = null
-      setTimeout(() => handleSend(pending.text, pending.target), 0)
-    }
-  }, [status, handleSend])
 
   const persistence = useThreadPersistence()
   const router = useRouter()
