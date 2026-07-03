@@ -15,19 +15,10 @@ import { generateGeminiVerdictWithApiKey, getConfiguredGeminiApiKey } from "@/li
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 import { redactSecrets } from "@/lib/redact-secrets"
 
-/**
- * Vertex AI response schema mirroring validateVerdictResult. Forces the
- * model to emit a structurally valid JSON object with our exact field
- * names, instead of "helpful" prose or invented schemas (gemini-2.5-flash
- * was observed returning markdown bullet lists and renaming
- * recommendedAnswer to summary/recommendation when given only natural-
- * language instructions).
- *
- * Vertex's Schema subset doesn't support min/max constraints on numbers,
- * so the runtime range check on `confidence` stays in
- * validateVerdictResult as defense in depth. Optional fields are listed
- * in `properties` but omitted from `required` so the model can skip them.
- */
+/** Forces structurally valid JSON with our exact field names - flash was seen
+ *  emitting markdown lists and renaming fields under prose instructions alone.
+ *  Vertex's Schema subset lacks numeric min/max, so the confidence range check
+ *  stays in validateVerdictResult. */
 const VERDICT_RESPONSE_SCHEMA: ResponseSchema = {
   type: SchemaType.OBJECT,
   properties: {
@@ -147,12 +138,7 @@ export async function POST(req: NextRequest) {
       (m) => m.sender !== "system" && m.sender !== "verdict"
     )
 
-    // Match the chat route's behavior: if the USER'S OWN messages are
-    // predominantly Korean, force the verdict prompt into Korean even
-    // when the UI locale is English. We intentionally ignore AI responses
-    // here so a single hallucinated Korean span in one AI's reply can't
-    // cascade the whole verdict into Korean - same class of bug that
-    // hit the chat route on 2026-04-11.
+    // User messages only - AI hallucinating Korean must not cascade the whole verdict into Korean.
     const userOnlyMessages = discussionMessages.filter((m) => m.sender === "user")
     const effectiveLocale: Locale = isPredominantlyKorean(userOnlyMessages) ? "ko" : locale
 
@@ -169,16 +155,7 @@ export async function POST(req: NextRequest) {
 
     const thread = formatThread(discussionMessages)
 
-    // Hybrid Flash/Pro verdict routing. The verdict's job is synthesis,
-    // not deep reasoning - the 4 panelist AIs already did the heavy
-    // thinking, and Flash is more than capable of picking the consensus
-    // and formatting it. The one case where Pro is meaningfully better
-    // is continuations: when there's already a prior verdict in the
-    // thread, the new verdict must reconcile against it without flip-
-    // flopping, and Pro is noticeably steadier at that. Everything else
-    // - any length, any round count, any model count - uses Flash, which
-    // cuts verdict wall time from ~15s to ~5s and now produces
-    // schema-conforming JSON thanks to responseSchema enforcement.
+    // Flash for first verdicts (~5s); Pro for continuations where it must reconcile without flip-flopping.
     const useProModel = previousVerdicts.length > 0
     const verdictModelName = useProModel ? "gemini-2.5-pro" : "gemini-2.5-flash"
     const verdictTier = useProModel ? "pro" : "flash"
@@ -231,12 +208,7 @@ export async function POST(req: NextRequest) {
       `[verdict] Generating verdict tier=${verdictTier} source=${userGeminiApiKey ? "user-key" : geminiApiKey ? "gemini-api-key" : "vertex"} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
     )
 
-    // Per-tier timeout. Pro verdicts on a 2-round debate with 8 AI
-    // messages legitimately run over a minute; give Pro a full 2
-    // minutes of headroom so it never aborts mid-synthesis. Flash
-    // verdicts finish well under 10s in local testing, so 30s is
-    // plenty of margin - anything past that is a real problem we
-    // want to surface quickly rather than hide behind a long wait.
+    // Pro can legitimately take 2+ minutes on long debates; Flash is well under 10s so 30s surfaces real problems fast.
     const VERDICT_TIMEOUT_MS = useProModel ? 120_000 : 30_000
 
     const generateVerdictText = async (
@@ -277,11 +249,6 @@ export async function POST(req: NextRequest) {
               parts: [{ text: userPrompt }],
             },
           ],
-          // Force structurally valid JSON matching VERDICT_RESPONSE_SCHEMA.
-          // Without this, gemini-2.5-flash returns markdown prose or
-          // invents alternate schemas (summary/recommendation instead of
-          // recommendedAnswer). With it, both Flash and Pro emit
-          // schema-conforming JSON the validator can accept directly.
           generationConfig: verdictGenerationConfig,
         }),
         new Promise<never>((_, reject) =>
@@ -306,10 +273,7 @@ export async function POST(req: NextRequest) {
     const raw = firstResult.raw
 
     if (!raw) {
-      // Empty responses are usually a safety filter trip or a Pro
-      // thinking-only response with no output tokens. Log the full
-      // candidate shape so we can see finishReason/safetyRatings when
-      // this recurs.
+      // Safety filter or Pro thinking-only; log shape for debugging.
       console.error(`[verdict] Empty response. finishReason=${firstResult.finishReason}`, {
         safetyRatings: firstResult.safetyRatings,
         promptFeedback: firstResult.promptFeedback,
@@ -317,11 +281,7 @@ export async function POST(req: NextRequest) {
       throw new Error("Gemini returned an empty response")
     }
 
-    // Log ONLY metadata in production - the raw-response preview
-    // echoes model output which frequently contains user document
-    // content, legal text, or other sensitive inputs. In dev we keep
-    // the preview for parse-debugging; in prod only length and the
-    // Vertex finishReason ship to CloudWatch / equivalent.
+    // Raw preview only in dev - it echoes user document content which must not land in prod logs.
     if (process.env.NODE_ENV === "development") {
       console.log(
         `[verdict] Raw response length=${raw.length}, finishReason=${firstResult.finishReason ?? "unknown"}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`
@@ -332,13 +292,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Try to extract a JSON object from the response, even if Pro
-    // wrapped it in thinking text or markdown prose. Strategy:
-    //   1. Strip markdown code fences (```json ... ``` wrappers).
-    //   2. If the result isn't pure JSON, find the first `{` and the
-    //      last `}` and slice between them - this tolerates a preamble
-    //      like "Here's my analysis:" or a trailing summary comment
-    //      without needing a repair round-trip.
+    // Strip fences, then slice first-{ to last-} to tolerate Pro preamble/trailing text.
     const extractJson = (text: string): string => {
       const stripped = text
         .replace(/```json\s*/gi, "")
@@ -357,10 +311,7 @@ export async function POST(req: NextRequest) {
     try {
       parsed = JSON.parse(cleaned)
     } catch (jsonErr) {
-      // First-pass parse failed. Ask Gemini to repair it, then extract
-      // again. The cleaned/retry previews contain model output which
-      // can echo user documents and legal text - gate them to dev so
-      // they never land in production server logs.
+      // Repair retry; previews gated to dev (echo user content).
       const parseErrMsg = jsonErr instanceof Error ? jsonErr.message : String(jsonErr)
       if (process.env.NODE_ENV === "development") {
         console.warn(
@@ -369,9 +320,6 @@ export async function POST(req: NextRequest) {
       } else {
         console.warn(`[verdict] JSON parse failed: ${parseErrMsg}`)
       }
-      // Same schema enforcement on the repair retry. Without it the
-      // retry path was the second observed source of wrong-schema
-      // output (Flash inventing field names like 'summary').
       const retryResult = await generateVerdictText(
         `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}`,
         30_000

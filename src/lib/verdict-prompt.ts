@@ -1,3 +1,4 @@
+/** System prompt for verdict/consensus generation, localized and length-tuned. */
 import type { Locale, ResponseLength } from "@/types"
 
 export function getVerdictPrompt(

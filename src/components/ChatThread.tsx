@@ -44,54 +44,15 @@ export default function ChatThread({
   )
   const prevUserMessageCountRef = useRef(userMessageCount)
 
-  // Follow-scroll during content growth. The previous implementation
-  // piggybacked on the chunk-rate `messages` effect below, calling
-  // scrollIntoView on every new chunk. That worked when chunks arrived
-  // faster than the smooth-stream could drain them, but the moment the
-  // smooth-stream buffer filled up (turbo drain, late-in-response, GPT
-  // bursts) the hook started advancing many chars per frame BETWEEN
-  // chunks, and those frames never triggered a React re-render on
-  // ChatThread - only ChatBubble re-rendered from its internal
-  // useSmoothStream state. Result: the bubble visibly grew past the
-  // viewport bottom with no scroll follow, then snapped back to the
-  // bottom at the next chunk or when the response settled. Users saw
-  // "scroll follows for the first half, then loses track, then jumps
-  // to the bottom at the end".
-  //
-  // ResizeObserver sidesteps that by firing on every layout change of
-  // the content container - including the line-wraps produced by the
-  // smooth-stream drain between chunks. It self-gates on distance
-  // from the bottom BEFORE the growth: if the user was already near
-  // the bottom we follow; if they scrolled up to re-read something,
-  // the distance exceeds the 150px threshold and we leave them alone.
-  //
-  // Scroll implementation: we set `main.style.scrollBehavior = "auto"`
-  // once at observer install and then use plain `main.scrollTop =
-  // main.scrollHeight` on every fire. Two reasons we avoid
-  // `scrollTo({ behavior: "instant" })`:
-  //  1) `"instant"` is non-standard in older WebIDL enum enforcement -
-  //     some runtimes throw TypeError on invalid ScrollBehavior values.
-  //  2) Plain `scrollTop` writes respect the element's scroll-behavior
-  //     CSS, which is inherited as `smooth` from somewhere in the
-  //     Tailwind / browser defaults stack. Without an override every
-  //     scrollTop assignment would kick off a ~300ms smooth animation
-  //     with a stale target, the bubble would grow more while it was
-  //     chasing, and the viewport would compound the lag on every
-  //     fire (the exact regression the earlier fix round had to hunt
-  //     down).
-  // Inline-styling main's scroll-behavior to "auto" overrides the
-  // inherited CSS without touching any other element. The user-send
-  // smooth scroll and verdict-card smooth scroll both call
-  // scrollIntoView with an explicit `behavior: "smooth"` option, and
-  // per CSSOM spec an explicit behavior overrides the element's
-  // scroll-behavior - so those paths stay smooth even though the
-  // container is now in auto mode.
-  //
-  // Tracking `content.offsetHeight` (rather than main.scrollHeight)
-  // isolates the signal to the chat content - main.scrollHeight can
-  // briefly shrink when the streaming plain-text bubble flips to its
-  // ReactMarkdown render (paragraph margins collapse whitespace), and
-  // we do not want those shrinks to reset the growth baseline.
+  // Follow-scroll via ResizeObserver rather than chunk arrival: the smooth-stream
+  // drain grows the bubble between chunks with no ChatThread re-render, which is
+  // when chunk-driven scrolling lost the bottom. Gates on pre-growth distance
+  // (>150px = user scrolled up; leave them alone).
+  // scrollTop writes run with scroll-behavior forced to "auto" - inherited smooth
+  // behavior turns each write into a ~300ms animation chasing a stale target.
+  // Explicit scrollIntoView({behavior:"smooth"}) callers still animate (CSSOM).
+  // Observes content.offsetHeight, not main.scrollHeight: the markdown flip
+  // briefly shrinks scrollHeight and would reset the growth baseline.
   useEffect(() => {
     if (!hasMessages) return
     const main = bottomRef.current?.closest("main")

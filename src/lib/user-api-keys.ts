@@ -1,3 +1,4 @@
+/** Encrypted server-side storage and retrieval of per-user provider API keys. */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto"
 import { prisma } from "@/lib/prisma"
 import { type Provider, USER_API_KEY_PROVIDERS } from "@/types"

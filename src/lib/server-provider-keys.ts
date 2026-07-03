@@ -1,3 +1,4 @@
+/** Server-side API key resolution: user-supplied key, env fallback, or 402 block. */
 import { NextResponse } from "next/server"
 import type { Provider } from "@/types"
 import { authEnabled, requireUserKeys } from "@/lib/deploy-config"

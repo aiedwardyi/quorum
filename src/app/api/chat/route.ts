@@ -31,9 +31,7 @@ function getResponseLengthInstruction(length: ResponseLength): string {
 function getMaxTokens(length: ResponseLength): number {
   switch (length) {
     case "short":
-      // Korean uses 2-3x more tokens than English in Gemini's tokenizer.
-      // Bumped from 350 to 800 so short responses don't get cut mid-sentence
-      // in Korean. Output is still clamped by clampToWordLimit downstream.
+      // Korean tokenizes 2-3x heavier; 800 keeps short mode from cutting mid-sentence.
       return 800
     case "long":
       return 4096
@@ -72,16 +70,8 @@ function stripUnmatchedPair(text: string, token: string): string {
   return `${text.slice(0, lastIndex)}${text.slice(lastIndex + token.length)}`
 }
 
-/**
- * Walks from the end of a truncated response and drops lines that are
- * dangling markdown structure with no body: a heading that has no content
- * below it, a lone bullet or numbered marker, or a table row that was cut
- * mid-write (starts with `|` but doesn't close with `|`). Only used on
- * responses that the stream clamper actually truncated, so normal answers
- * are never touched.
- *
- * Exported for unit testing.
- */
+/** Drops dangling markdown at a truncation point: a heading with no body, a
+ *  lone list marker, a half-written table row. Only runs on clamped text. */
 export function stripDanglingStructure(text: string): string {
   const lines = text.split("\n")
   while (lines.length > 0) {
@@ -90,24 +80,17 @@ export function stripDanglingStructure(text: string): string {
       lines.pop()
       continue
     }
-    // Any heading at the absolute end of the response is dangling by
-    // definition - a properly-followed heading would not be the last
-    // non-blank line. Applies to both `### Title` (heading cut before
-    // its body) and `### ` (marker alone).
+    // A heading as the last non-blank line is dangling by definition.
     if (/^#{1,6}(?:\s.*)?$/.test(last)) {
       lines.pop()
       continue
     }
-    // Lone list marker with nothing after it: `-`, `* `, `1.`, `2. `, etc.
+    // Lone list marker.
     if (/^(?:[-*]|\d+\.)\s*$/.test(last)) {
       lines.pop()
       continue
     }
-    // Truncated table row: line starts with `|` and EITHER does not close
-    // with `|` (mid-cell cut) OR has fewer pipes than the pipe-line above
-    // it (cut between cells, still has a trailing `|` but not enough
-    // columns). Complete rows that match the column count of the row
-    // above are left alone.
+    // Table row cut mid-cell (no closing pipe) or short of the row above's columns.
     if (/^\s*\|/.test(last)) {
       const endsWithPipe = /\|\s*$/.test(last)
       if (!endsWithPipe) {
@@ -131,15 +114,8 @@ export function stripDanglingStructure(text: string): string {
   return lines.join("\n").trimEnd()
 }
 
-/**
- * Polishes a response that the word-limit clamper had to truncate mid-write.
- * Tries to end at the last complete sentence, strips dangling markdown
- * structure (headings/bullets/table rows with no body), removes unmatched
- * bold/italic/code markers, and appends an ellipsis if the result still
- * doesn't end cleanly. Only called when `wasTruncated` is true.
- *
- * Exported for unit testing.
- */
+/** Ends clamped text cleanly: last full sentence, unmatched-marker strip,
+ *  dangling-structure drop, ellipsis fallback. Truncated responses only. */
 export function polishTruncatedResponse(text: string, wordLimit: number): string {
   let result = text.trimEnd()
 
@@ -188,12 +164,7 @@ export function polishTruncatedResponse(text: string, wordLimit: number): string
   return clampToWordLimit(result, wordLimit).text
 }
 
-// Formatting guidance varies by length. Short stays plain prose so tight
-// answers don't get cluttered with structure. Medium unlocks bullets and
-// numbered lists when the content is naturally a list. Long unlocks ###
-// and #### subheadings, GFM tables, and fenced code, but NOT # or ##
-// (those would compete with the app's own UI headers). The guiding line
-// in every tier: "structure is a tool, not decoration."
+// Formatting ladder: short = prose only, medium = lists, long = ###/tables/code. # and ## stay forbidden - they compete with the app's own UI headers.
 export function getFormattingInstruction(length: ResponseLength, isKorean: boolean): string {
   if (isKorean) {
     switch (length) {
@@ -309,11 +280,7 @@ export async function POST(request: Request) {
     }
 
     const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
-    // CRITICAL: only consider the USER's own messages when detecting the
-    // conversation language. Otherwise one AI that hallucinates a Korean
-    // summary mid-response tips the ratio and forces every subsequent
-    // provider in the debate to respond entirely in Korean - the
-    // cascading Korean drift bug observed on 2026-04-11.
+    // Detect language from USER messages only - one model hallucinating Korean would otherwise cascade the whole debate into Korean.
     const userOnlyMessages = inputMessages.filter((m) => m.sender === "user")
     const forceKorean = validatedLocale !== "ko" && isPredominantlyKorean(userOnlyMessages)
     const streamFn = getStreamFn(provider)
@@ -331,20 +298,12 @@ export async function POST(request: Request) {
       requestApiKey
     )
     if (blockedResponse) return blockedResponse
-    // Hard word caps per response length. These sit behind the prompt
-    // instruction as a belt-and-suspenders guard: when a provider (Gemini
-    // especially) decides to run 2x longer than requested, the server
-    // clamps the stream mid-flight instead of letting the oversized
-    // bubble dominate the debate feed.
+    // Hard server-side clamp behind the prompt instruction; Gemini especially overruns.
     const wordLimit =
       validatedResponseLength === "short" ? 75 : validatedResponseLength === "medium" ? 170 : 500
     const encoder = new TextEncoder()
     let fullContent = ""
-    // Whether any clampToWordLimit pass actually truncated the stream.
-    // We only call polishTruncatedResponse when this is true, because
-    // polishing can strip unmatched markdown pairs and trailing
-    // connector words, which would unintentionally mutate normal
-    // (non-truncated) responses in medium/long mode.
+    // Polishing mutates text (marker strip, connector trim) - only run it on actually-truncated responses.
     let wasTruncated = false
 
     const stream = new ReadableStream({
@@ -417,11 +376,7 @@ export async function POST(request: Request) {
               fullContent = polishTruncatedResponse(fullContent, wordLimit)
             }
 
-            // Empty-stream guard: providers occasionally close the stream
-            // without yielding any text (safety filter, transient model glitch).
-            // streamGemini already retries once internally. Surface it as an
-            // explicit empty flag so the client can show a clear fallback
-            // instead of a placeholder stuck in "thinking..." forever.
+            // Providers occasionally close without yielding (safety filter, glitch); flag it so the client shows a fallback instead of eternal "thinking...".
             const isEmpty = !fullContent.trim()
 
             enqueueEvent({
@@ -438,16 +393,7 @@ export async function POST(request: Request) {
             closeController()
             return
           }
-          // Route provider failures through the `error` channel rather
-          // than streaming them as bubble content. The old path wrote
-          // `${DISPLAY_NAMES[provider]} encountered an error: ${raw}`
-          // into a chat chunk, so upstream garbage like
-          // "[VertexAI.ClientError]: got status: 499 Client Closed
-          // Request. {"error":{"code":499,..}}" leaked verbatim into
-          // the user-visible bubble. On the client side, data.error
-          // throws into callModel's catch, which now substitutes the
-          // friendly "stepped out for a snack break" system message.
-          // The raw detail still lands in the server log for debugging.
+          // Provider failures go through the error channel, never bubble content - raw upstream errors used to leak verbatim into the chat. Client shows the friendly fallback; detail stays in the server log.
           const msg = error instanceof Error ? error.message : "Unknown error"
           const sanitized = redactSecrets(msg)
           console.error(`[chat/${provider}] stream failed:`, sanitized)

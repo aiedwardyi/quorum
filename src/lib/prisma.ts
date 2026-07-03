@@ -1,3 +1,4 @@
+/** Prisma client singleton; reuses the global instance in development to avoid connection pool exhaustion. */
 import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 

@@ -1,3 +1,4 @@
+/** Static display metadata for each AI provider - names and description strings. */
 import type { Provider, Locale } from "@/types"
 
 // Single source of truth for model display names and tooltip

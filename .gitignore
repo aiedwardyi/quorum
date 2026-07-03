@@ -46,7 +46,7 @@ service-account*.json
 # Superpowers brainstorm sessions
 .superpowers/
 
-# Playwright MCP (Claude Code)
+# Playwright artifacts
 .playwright-mcp/
 
 # Test screenshots

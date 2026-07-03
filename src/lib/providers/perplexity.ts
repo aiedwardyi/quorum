@@ -1,3 +1,4 @@
+/** Perplexity streaming provider. */
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
 
@@ -27,35 +28,6 @@ function getHeaders(userApiKey?: string) {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
   }
-}
-
-export async function queryPerplexity(
-  systemPrompt: string,
-  messages: Message[],
-  userApiKey?: string
-): Promise<string> {
-  const response = await fetch(PERPLEXITY_URL, {
-    method: "POST",
-    headers: getHeaders(userApiKey),
-    body: JSON.stringify({
-      model: "sonar-pro",
-      messages: buildMessages(systemPrompt, messages),
-    }),
-  })
-
-  if (!response.ok) {
-    const error = redactSecrets(await response.text())
-    throw new Error(`Perplexity API error (${response.status}): ${error}`)
-  }
-
-  const data = await response.json()
-  const text = data.choices?.[0]?.message?.content ?? ""
-
-  if (!text) {
-    throw new Error("Perplexity returned an empty response")
-  }
-
-  return text
 }
 
 export async function* streamPerplexity(

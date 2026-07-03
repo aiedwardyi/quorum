@@ -1,29 +1,17 @@
-/**
- * Pure pacing math for the smoothed chat streaming UI.
- *
- * The chat engine accumulates raw provider chunks into "target" text.
- * This function computes how many characters of the target should be
- * visible after one render tick, using a buffer-aware adaptive rate.
- *
- * No DOM, no React, no timing source - fully deterministic so it can
- * be unit-tested with vitest.
- */
+/** Pure pacing math for smoothed chat streaming - deterministic, no DOM or
+ *  timing source, so it unit-tests cleanly. */
 
 // Default pacing. These are the legacy single-pace constants, kept exported
 // for backwards compatibility with existing call sites and tests.
 export const BASE_CPS = 55
 export const MAX_CPS = 180
 export const RAMP_THRESHOLD = 150
-// Turbo rate applied once the network stream has ended and any remaining
-// buffer just needs to drain before the next model takes over. Visibly
-// typing rather than a hard snap that looks like dumping a paragraph.
+// Post-stream drain rate: visibly typing instead of dumping the buffer.
 export const TURBO_CPS = 450
 const MAX_DT_MS = 100
 
-/** Per-provider pacing config. MAX caps the steady-state typing rate during
- *  the live stream (a provider whose network stream exceeds this builds a
- *  buffer that drains at TURBO once the stream ends). TURBO governs the
- *  post-stream drain rate. */
+/** Per-provider pacing config. MAX caps steady-state rate during live stream;
+ *  buffer drains at TURBO post-stream. */
 export interface PacingConfig {
   baseCps: number
   maxCps: number
@@ -39,35 +27,12 @@ export const DEFAULT_PACING: PacingConfig = {
 }
 
 /**
- * Per-provider pacing. Three distinct configs tuned to each backend's
- * streaming shape so a round-robin debate reads with one consistent
- * on-screen cadence even though the providers deliver tokens very
- * differently at the network layer.
- *
- * Claude streams smoothly and steadily at a relatively low effective
- * rate - pending rarely grows past a handful of characters so the
- * ramp (which kicks in above `rampThreshold` pending) almost never
- * triggers. With a shared config Claude ends up reading noticeably
- * slower than the others; we lift its baseCps and drop its
- * rampThreshold so even small bursts lift the on-screen rate toward
- * the shared max, and the steady stream never feels chuggy.
- *
- * Gemini and Perplexity send larger bursts at the network layer and
- * fill the smooth-stream buffer quickly, then close the stream while
- * the buffer is still draining. The tail drain at turbo is the "fast
- * near the end" window users notice; lowering turboCps slows that
- * window down without affecting the main stream.
- *
- * GPT emits tokens in even larger bursts than Gemini/Perplexity, so
- * its ramp ratio pegs at 1.0 almost continuously. It needs the
- * lowest max cap of the four to keep from running visibly faster
- * than everyone else during the main stream, plus a higher ramp
- * threshold so small early-stream bursts don't prematurely slam the
- * rate up.
- *
- * Keep this docblock free of exact cps numbers - the numeric values
- * below have shifted several times and inline numbers in the prose
- * drift out of sync. Read the configs directly for current values.
+ * Per-provider pacing tuned to each backend's burst shape so the debate reads
+ * at one cadence. Claude streams steady and slow: higher base + lower ramp
+ * threshold keep it from feeling chuggy. Gemini/Perplexity burst then drain
+ * after close: lower turbo tames the fast tail. GPT bursts hardest: lowest
+ * max cap + higher ramp threshold. No cps numbers in prose - they drift;
+ * read the configs.
  */
 const CLAUDE_PACING: PacingConfig = {
   baseCps: 145,

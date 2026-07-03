@@ -19,10 +19,7 @@ import { getApiKeyPromptMessage } from "@/lib/api-key-errors"
 import { shouldUseClientKeys, isSessionResolving, isFirstRunKeyless } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
 
-// Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
-// last historically because Pro's TTFT was slowest; chat now runs on
-// 2.5 Flash which is much faster, but we keep the order for now until
-// we re-validate rotation timing end-to-end.
+// Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini last is a legacy TTFT ordering kept until rotation timing is re-validated.
 const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
 
 export default function ChatPage() {
@@ -92,9 +89,7 @@ function ChatPageContent() {
   const isDebatingRef = useRef(state.isDebating)
   const allowBackRef = useRef(false)
   const guardPushedRef = useRef(false)
-  // When true, popstate handlers skip everything so a confirmed leave
-  // flow can navigate (router.replace) without re-triggering the
-  // back-confirmation dialog.
+  // When true, popstate handlers skip so a confirmed leave can navigate without re-triggering the dialog.
   const leavingRef = useRef(false)
   isDebatingRef.current = state.isDebating
 
@@ -152,8 +147,7 @@ function ChatPageContent() {
     }
   }, [theme])
 
-  // BUG-015: Re-apply theme when page becomes visible again
-  // (handles bfcache restore, Next.js client-side back/forward, and tab switching)
+  // Re-apply theme when the page becomes visible again (bfcache restore, client back/forward, tab switch).
   useEffect(() => {
     const reapplyTheme = () => {
       let saved = localStorage.getItem("quorum_theme") as string | null
@@ -268,9 +262,7 @@ function ChatPageContent() {
   // Fire pending prompt after state has settled.
   useEffect(() => {
     if (!configHydrated) return
-    // Wait for the auth session to resolve before auto-sending, so an anonymous
-    // visitor's BYOK key is attached (an auth-enabled deploy reports "loading"
-    // on first mount and the send would otherwise race past it with no key).
+    // Wait for auth to resolve before auto-sending - avoids racing past a still-loading session with no key.
     if (isSessionResolving(authEnabled(), status)) return
     if (pendingPrompt.current && !initialPromptSent.current) {
       initialPromptSent.current = true
@@ -450,11 +442,7 @@ function ChatPageContent() {
           })
         )
 
-        // Inject verdict data into verdict messages using the original
-        // indices from the DB record. Verdict.afterMessageIndex was
-        // captured against the full message list (including the
-        // analyzing divider that we are about to strip below), so the
-        // lookup must run on rawMessages, not on the filtered list.
+        // afterMessageIndex was captured before the analyzing-divider strip below; look up on rawMessages.
         for (const verdict of thread.verdicts) {
           const verdictMsg = rawMessages.find(
             (m, i) => m.sender === "verdict" && i >= verdict.afterMessageIndex
@@ -474,15 +462,7 @@ function ChatPageContent() {
           }
         }
 
-        // Strip stale "Analyzing discussion..." system dividers. These
-        // were persisted during the live debate (saveMessages is
-        // append-only and the post-verdict UPDATE_MESSAGE that clears
-        // them to empty content never gets written back to the DB). On
-        // a completed thread the analyzing phase is over, so rendering
-        // the divider plus its VerdictSkeleton above the real verdict
-        // card is a stale-state artifact. For in-progress threads, the
-        // engine cannot resume the pending consensus request anyway, so
-        // the divider is also stale there.
+        // Strip stale analyzing dividers - they persist in DB but are always stale on a loaded thread.
         const messages: Message[] = rawMessages.filter(
           (m) =>
             !(

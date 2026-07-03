@@ -1,3 +1,4 @@
+/** Deploy-time feature flags read from environment variables. */
 export function requireUserKeys(): boolean {
   return process.env.REQUIRE_USER_API_KEYS === "true"
 }

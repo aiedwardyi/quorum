@@ -1,3 +1,4 @@
+/** Localized relative-time formatting ("2 hours ago", "2시간 전"). */
 import type { Locale } from "@/types"
 
 export function timeAgo(date: string, locale: Locale): string {
