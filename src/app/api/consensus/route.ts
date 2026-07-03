@@ -171,10 +171,12 @@ export async function POST(req: NextRequest) {
     }
 
     const requestApiKey = typeof body.userApiKey === "string" ? body.userApiKey : undefined
+    const requestAccessCode = typeof body.accessCode === "string" ? body.accessCode : undefined
     const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
       "gemini",
       "verdict",
-      requestApiKey
+      requestApiKey,
+      requestAccessCode
     )
     if (blockedResponse) return blockedResponse
 

@@ -44,4 +44,25 @@ describe("write-env", () => {
       rmSync(tempDir, { recursive: true, force: true })
     }
   })
+
+  it("writes ACCESS_CODES when present in the build environment", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "quorum-write-env-"))
+    const scriptPath = join(process.cwd(), "scripts", "write-env.js")
+
+    try {
+      execFileSync(process.execPath, [scriptPath], {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          ACCESS_CODES: "code-one,code-two",
+        },
+      })
+
+      expect(readFileSync(join(tempDir, ".env"), "utf8")).toContain(
+        "ACCESS_CODES='code-one,code-two'"
+      )
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
 })

@@ -62,3 +62,16 @@ export function isSessionResolving(authEnabled: boolean, status: SessionStatus):
 export function shouldClearClientKeys(authEnabled: boolean, isLoggedIn: boolean): boolean {
   return authEnabled && isLoggedIn
 }
+
+const ACCESS_CODE_KEY = "quorum_access_code"
+
+export function getAccessCode(): string {
+  if (typeof window === "undefined") return ""
+  return localStorage.getItem(ACCESS_CODE_KEY) ?? ""
+}
+
+export function setAccessCode(code: string): void {
+  if (typeof window === "undefined") return
+  if (code.trim()) localStorage.setItem(ACCESS_CODE_KEY, code.trim())
+  else localStorage.removeItem(ACCESS_CODE_KEY)
+}
