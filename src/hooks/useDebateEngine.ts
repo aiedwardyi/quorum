@@ -53,7 +53,7 @@ export const SYSTEM_MESSAGES = {
     locale === "ko"
       ? `${DISPLAY_NAMES[provider]} 잠깐 간식 먹으러 갔어요. 곧 돌아올게요.`
       : `${DISPLAY_NAMES[provider]} stepped out for a snack break. Back soon.`,
-  missingApiKey: (_locale: Locale, provider: Provider) => getMissingApiKeyMessage(provider),
+  missingApiKey: (locale: Locale, provider: Provider) => getMissingApiKeyMessage(provider, locale),
 }
 
 /* ---- Client-side verdict validation ---- */
@@ -499,6 +499,7 @@ export function useDebateEngine(config: {
           body: JSON.stringify({ messages: consensusMsgs, locale, responseLength }),
         })
           .then(async (res) => {
+            if (sessionIdRef.current !== sessionId || stopRef.current) return
             if (res.status === 402) {
               const missingProvider = await parseNoKeyProviderFromResponse(res)
               if (missingProvider) onApiKeyRequired?.(missingProvider)
@@ -652,6 +653,7 @@ export function useDebateEngine(config: {
                 if (stopRef.current || stoppingRef.current) {
                   logDebate("verdict:skipped-stopped", {})
                 } else if (res.status === 402) {
+                  if (sessionIdRef.current !== thisSession) return
                   const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? "gemini"
                   onApiKeyRequired?.(missingProvider)
                   dispatch({
@@ -801,6 +803,7 @@ export function useDebateEngine(config: {
       })
         .then(async (res) => {
           if (res.status === 402) {
+            if (sessionIdRef.current !== stoppedSession) return null
             const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? "gemini"
             onApiKeyRequired?.(missingProvider)
             dispatch({

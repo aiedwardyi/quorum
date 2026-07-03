@@ -12,8 +12,7 @@ import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt } from "@/lib/verdict-prompt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import { generateGeminiVerdictWithApiKey, getConfiguredGeminiApiKey } from "@/lib/providers/gemini"
-import { redactSecrets } from "@/lib/redact-secrets"
-import { requireUserKeys } from "@/lib/deploy-config"
+import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 
 /**
  * Vertex AI response schema mirroring validateVerdictResult. Forces the
@@ -193,22 +192,11 @@ export async function POST(req: NextRequest) {
       responseSchema: VERDICT_RESPONSE_SCHEMA,
     }
 
-    const { auth } = await import("@/lib/auth")
-    const session = await auth()
-    let userGeminiApiKey: string | undefined
-    if (session?.user?.id) {
-      try {
-        const { getUserProviderApiKey } = await import("@/lib/user-api-keys")
-        userGeminiApiKey = await getUserProviderApiKey(session.user.id, "gemini")
-      } catch (error) {
-        const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
-        console.error("[verdict] failed to load user Gemini API key:", msg)
-      }
-    }
-
-    if (requireUserKeys() && !userGeminiApiKey) {
-      return NextResponse.json({ error: "no_key", provider: "gemini" }, { status: 402 })
-    }
+    const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
+      "gemini",
+      "verdict"
+    )
+    if (blockedResponse) return blockedResponse
 
     const geminiApiKey = userGeminiApiKey || getConfiguredGeminiApiKey()
     let model: ReturnType<VertexAI["getGenerativeModel"]> | null = null

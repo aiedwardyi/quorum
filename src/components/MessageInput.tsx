@@ -190,7 +190,7 @@ export default function MessageInput({
           )
         },
         onApiKeyRequired: (provider) => {
-          setFileError(getMissingApiKeyMessage(provider))
+          setFileError(getMissingApiKeyMessage(provider, locale))
           onApiKeyRequired?.(provider)
         },
       })

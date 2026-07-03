@@ -5,8 +5,7 @@ import {
   generateGoogleAiContentWithApiKey,
   getConfiguredGeminiApiKey,
 } from "@/lib/providers/gemini"
-import { redactSecrets } from "@/lib/redact-secrets"
-import { requireUserKeys } from "@/lib/deploy-config"
+import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 
 /**
  * Strip LLM OCR repetition loops where the model gets stuck on a token/phrase
@@ -68,22 +67,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No images provided" }, { status: 400 })
     }
 
-    const { auth } = await import("@/lib/auth")
-    const session = await auth()
-    let userGeminiApiKey: string | undefined
-    if (session?.user?.id) {
-      try {
-        const { getUserProviderApiKey } = await import("@/lib/user-api-keys")
-        userGeminiApiKey = await getUserProviderApiKey(session.user.id, "gemini")
-      } catch (error) {
-        const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
-        console.error("[ocr] failed to load user Gemini API key:", msg)
-      }
-    }
-
-    if (requireUserKeys() && !userGeminiApiKey) {
-      return NextResponse.json({ error: "no_key", provider: "gemini" }, { status: 402 })
-    }
+    const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
+      "gemini",
+      "ocr"
+    )
+    if (blockedResponse) return blockedResponse
 
     const parts = images.flatMap((base64, i) => [
       { text: `--- Page ${i + 1} ---` },

@@ -1,4 +1,5 @@
 import type { Provider } from "@/types"
+import type { Locale } from "@/types"
 
 const PROVIDER_NAMES: Record<Provider, string> = {
   gemini: "Gemini",
@@ -7,7 +8,7 @@ const PROVIDER_NAMES: Record<Provider, string> = {
   gpt: "GPT",
 }
 
-const PROVIDERS = new Set<Provider>(["gemini", "perplexity", "claude", "gpt"])
+const PROVIDERS = new Set<Provider>(Object.keys(PROVIDER_NAMES) as Provider[])
 
 export function parseNoKeyProvider(payload: unknown): Provider | null {
   if (!payload || typeof payload !== "object") return null
@@ -25,6 +26,9 @@ export async function parseNoKeyProviderFromResponse(response: Response): Promis
   }
 }
 
-export function getMissingApiKeyMessage(provider: Provider): string {
+export function getMissingApiKeyMessage(provider: Provider, locale: Locale = "en"): string {
+  if (locale === "ko") {
+    return `Settings에서 ${PROVIDER_NAMES[provider]} API 키를 추가해 토론을 시작하세요.`
+  }
   return `Add your ${PROVIDER_NAMES[provider]} API key in Settings to start debating.`
 }

@@ -5,7 +5,7 @@ import { streamGPT } from "@/lib/providers/gpt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import { getUrlCapabilityInstruction } from "@/lib/url-access"
 import { redactSecrets } from "@/lib/redact-secrets"
-import { requireUserKeys } from "@/lib/deploy-config"
+import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
 const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
@@ -324,24 +324,11 @@ export async function POST(request: Request) {
       forceKorean
     )
     const maxTokens = getMaxTokens(validatedResponseLength)
-    let userApiKey: string | undefined
-    const { auth } = await import("@/lib/auth")
-    const session = await auth()
-    if (session?.user?.id) {
-      try {
-        const { getUserProviderApiKey } = await import("@/lib/user-api-keys")
-        userApiKey = await getUserProviderApiKey(session.user.id, provider)
-      } catch (error) {
-        const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
-        console.error(`[chat/${provider}] failed to load user API key:`, msg)
-      }
-    }
-    if (requireUserKeys() && !userApiKey) {
-      return new Response(JSON.stringify({ error: "no_key", provider }), {
-        status: 402,
-        headers: { "Content-Type": "application/json" },
-      })
-    }
+    const { userApiKey, blockedResponse } = await resolveUserProviderApiKey(
+      provider,
+      `chat/${provider}`
+    )
+    if (blockedResponse) return blockedResponse
     // Hard word caps per response length. These sit behind the prompt
     // instruction as a belt-and-suspenders guard: when a provider (Gemini
     // especially) decides to run 2x longer than requested, the server

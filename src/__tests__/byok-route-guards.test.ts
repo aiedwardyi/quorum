@@ -7,6 +7,15 @@ const streamGPTMock = vi.hoisted(() => vi.fn())
 const generateGeminiVerdictWithApiKeyMock = vi.hoisted(() => vi.fn())
 const generateGoogleAiContentWithApiKeyMock = vi.hoisted(() => vi.fn())
 
+const validVerdict = {
+  recommendedAnswer: "Choose Option A.",
+  voteSplit: "2/2 unanimous",
+  confidence: 88,
+  reasons: ["Reason one", "Reason two"],
+  minorityView: "Option B could work with different constraints.",
+  oppositeCase: "Choose B if latency matters most.",
+}
+
 vi.mock("@/lib/auth", () => ({ auth: authMock }))
 vi.mock("@/lib/user-api-keys", () => ({ getUserProviderApiKey: getUserProviderApiKeyMock }))
 vi.mock("@/lib/providers/gpt", () => ({ streamGPT: streamGPTMock }))
@@ -87,7 +96,7 @@ describe("BYOK-required route guards", () => {
     streamGPTMock.mockImplementation(async function* () {
       yield "server response"
     })
-    generateGeminiVerdictWithApiKeyMock.mockResolvedValue("{}")
+    generateGeminiVerdictWithApiKeyMock.mockResolvedValue(JSON.stringify(validVerdict))
     generateGoogleAiContentWithApiKeyMock.mockResolvedValue("ocr text")
   })
 
@@ -135,5 +144,104 @@ describe("BYOK-required route guards", () => {
     expect(response.status).toBe(402)
     await expect(response.json()).resolves.toEqual({ error: "no_key", provider: "gemini" })
     expect(generateGoogleAiContentWithApiKeyMock).not.toHaveBeenCalled()
+  })
+
+  it("chat proceeds with the saved user key when BYOK is required", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockResolvedValue("user-gpt-key")
+
+    const response = await chatPOST(
+      jsonRequest("/api/chat", {
+        messages,
+        provider: "gpt",
+        locale: "en",
+        responseLength: "medium",
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await response.text()
+    expect(streamGPTMock).toHaveBeenCalled()
+    expect(streamGPTMock.mock.calls[0]?.[4]).toBe("user-gpt-key")
+  })
+
+  it("chat proceeds without a user key when BYOK is disabled", async () => {
+    process.env.REQUIRE_USER_API_KEYS = "false"
+
+    const response = await chatPOST(
+      jsonRequest("/api/chat", {
+        messages,
+        provider: "gpt",
+        locale: "en",
+        responseLength: "medium",
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await response.text()
+    expect(streamGPTMock).toHaveBeenCalled()
+    expect(streamGPTMock.mock.calls[0]?.[4]).toBeUndefined()
+  })
+
+  it("consensus proceeds with the saved Gemini key when BYOK is required", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockResolvedValue("user-gemini-key")
+
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages,
+        locale: "en",
+        responseLength: "medium",
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject(validVerdict)
+    expect(generateGeminiVerdictWithApiKeyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "user-gemini-key" })
+    )
+  })
+
+  it("consensus falls back to the configured Gemini key when BYOK is unset", async () => {
+    delete process.env.REQUIRE_USER_API_KEYS
+
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages,
+        locale: "en",
+        responseLength: "medium",
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject(validVerdict)
+    expect(generateGeminiVerdictWithApiKeyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "server-gemini-key" })
+    )
+  })
+
+  it("ocr proceeds with the saved Gemini key when BYOK is required", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockResolvedValue("user-gemini-key")
+
+    const response = await ocrPOST(jsonRequest("/api/ocr", { images: ["abc"] }) as never)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ text: "ocr text" })
+    expect(generateGoogleAiContentWithApiKeyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "user-gemini-key" })
+    )
+  })
+
+  it("ocr falls back to the configured Gemini key when BYOK is disabled", async () => {
+    process.env.REQUIRE_USER_API_KEYS = "false"
+
+    const response = await ocrPOST(jsonRequest("/api/ocr", { images: ["abc"] }) as never)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ text: "ocr text" })
+    expect(generateGoogleAiContentWithApiKeyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "server-gemini-key" })
+    )
   })
 })
