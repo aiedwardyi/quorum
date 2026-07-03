@@ -170,7 +170,7 @@ npm run dev
 
 ## Sharing Your Deployment
 
-Set `ACCESS_CODES=code-one,code-two` (plus your server-side provider keys) and hand a code to a friend. They enter it once in **Settings > Access code** and debate on your deployment's keys - no API keys, no account. Rotate or revoke by editing the env var and redeploying; set spend limits on your provider dashboards.
+Set `REQUIRE_USER_API_KEYS=true`, `ACCESS_CODES=code-one,code-two`, and your server-side provider keys, then hand a code to a friend. They enter it once in **Settings > Access code** and debate on your deployment's keys - no API keys, no account. Codes only gate enforced deployments: without `REQUIRE_USER_API_KEYS=true`, your server keys serve every visitor. Rotate or revoke by editing the env var and redeploying; set spend limits on your provider dashboards.
 
 ---
 

@@ -379,6 +379,7 @@ export default function SettingsModal({
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({})
   const [saved, setSaved] = useState(false)
   const [accessCodeValue, setAccessCodeValue] = useState("")
+  const [accessCodeVisible, setAccessCodeVisible] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const t = translations[locale]
 
@@ -648,12 +649,23 @@ export default function SettingsModal({
                       <Key className="w-4 h-4" />
                     </div>
                     <input
-                      type="text"
+                      type={accessCodeVisible ? "text" : "password"}
                       value={accessCodeValue}
                       onChange={(e) => setAccessCodeValue(e.target.value)}
                       placeholder={t.accessCode}
+                      aria-label={t.accessCode}
                       className="flex-1 bg-transparent border-none p-0 text-[13px] text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 font-medium"
                     />
+                    <button
+                      onClick={() => setAccessCodeVisible((prev) => !prev)}
+                      className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                    >
+                      {accessCodeVisible ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
                   <p className="text-[10px] text-muted-foreground/70 leading-relaxed px-1">
                     {t.accessCodeDesc}
