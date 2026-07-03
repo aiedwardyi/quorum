@@ -32,3 +32,18 @@ export function getMissingApiKeyMessage(provider: Provider, locale: Locale = "en
   }
   return `Add your ${PROVIDER_NAMES[provider]} API key in Settings to start debating.`
 }
+
+// Generic first-run welcome for a keyless visitor; names the specific provider
+// once they have a key, so a mid-debate miss still points at the exact gap.
+export function getApiKeyPromptMessage(
+  provider: Provider,
+  keyless: boolean,
+  locale: Locale = "en"
+): string {
+  if (keyless) {
+    return locale === "ko"
+      ? "Settings에서 첫 API 키를 추가해 토론을 시작하세요."
+      : "Add your first API key in Settings to start debating."
+  }
+  return getMissingApiKeyMessage(provider, locale)
+}

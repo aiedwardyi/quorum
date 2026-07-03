@@ -6,6 +6,7 @@ import {
   clearClientKey,
   clearAllClientKeys,
   getClientKeyStatus,
+  isFirstRunKeyless,
   shouldUseClientKeys,
   isSessionResolving,
   shouldClearClientKeys,
@@ -100,6 +101,30 @@ describe("isSessionResolving", () => {
   it("is settled once an auth-enabled session resolves either way", () => {
     expect(isSessionResolving(true, "unauthenticated")).toBe(false)
     expect(isSessionResolving(true, "authenticated")).toBe(false)
+  })
+})
+
+describe("isFirstRunKeyless", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("is true only for an anonymous visitor with no keys yet", () => {
+    stubBrowser()
+    expect(isFirstRunKeyless(true)).toBe(true)
+  })
+
+  it("is false once the anonymous visitor has pasted any key", () => {
+    stubBrowser()
+    setClientKey("claude", "c")
+    expect(isFirstRunKeyless(true)).toBe(false)
+  })
+
+  it("is false for a signed-in visitor regardless of localStorage", () => {
+    stubBrowser()
+    expect(isFirstRunKeyless(false)).toBe(false)
+    setClientKey("gemini", "g")
+    expect(isFirstRunKeyless(false)).toBe(false)
   })
 })
 

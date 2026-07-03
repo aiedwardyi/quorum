@@ -6,10 +6,11 @@ import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
 import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
 import { waitForDrain } from "@/lib/drain-registry"
 import {
+  getApiKeyPromptMessage,
   getMissingApiKeyMessage,
   parseNoKeyProviderFromResponse,
 } from "@/lib/api-key-errors"
-import { getClientKey } from "@/lib/client-api-keys"
+import { getClientKey, isFirstRunKeyless } from "@/lib/client-api-keys"
 
 /* ---- Constants ---- */
 
@@ -370,7 +371,11 @@ export function useDebateEngine(config: {
         if (res.status === 402) {
           const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? provider
           onApiKeyRequired?.(missingProvider)
-          updatePlaceholder(SYSTEM_MESSAGES.missingApiKey(locale, missingProvider))
+          // A keyless first-run visitor gets a generic welcome; the panel's
+          // lead provider (perplexity) is arbitrary, so don't single it out.
+          updatePlaceholder(
+            getApiKeyPromptMessage(missingProvider, isFirstRunKeyless(isAnonymousRef.current), locale)
+          )
           stopRef.current = true
           clearTypingIfCurrentSession()
           return null
