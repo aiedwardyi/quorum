@@ -36,6 +36,15 @@ export function getClientKeyStatus(): Record<Provider, boolean> {
   )
 }
 
+// True when an anonymous visitor has pasted no keys at all, so a missing-key
+// prompt should welcome them generically instead of naming whichever provider
+// led the panel rotation. Signed-in visitors hold keys server-side, so their
+// empty localStorage must not trigger the generic copy.
+export function isFirstRunKeyless(isAnonymous: boolean): boolean {
+  if (!isAnonymous) return false
+  return USER_API_KEY_PROVIDERS.every((provider) => !getClientKey(provider))
+}
+
 type SessionStatus = "authenticated" | "unauthenticated" | "loading"
 
 // True when the browser's localStorage keys should be sent. Auth-enabled deploys

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  getApiKeyPromptMessage,
   getMissingApiKeyMessage,
   parseNoKeyProvider,
   parseNoKeyProviderFromResponse,
@@ -43,6 +44,33 @@ describe("api key error helpers", () => {
 
   it("formats the Settings message in Korean", () => {
     expect(getMissingApiKeyMessage("gemini", "ko")).toBe(
+      "Settings에서 Gemini API 키를 추가해 토론을 시작하세요."
+    )
+  })
+})
+
+describe("getApiKeyPromptMessage", () => {
+  it("shows a generic first-run welcome when the visitor is keyless", () => {
+    expect(getApiKeyPromptMessage("perplexity", true)).toBe(
+      "Add your first API key in Settings to start debating."
+    )
+  })
+
+  it("ignores the provider when keyless (rotation order should not leak)", () => {
+    expect(getApiKeyPromptMessage("perplexity", true)).toBe(getApiKeyPromptMessage("gpt", true))
+  })
+
+  it("names the specific provider when the visitor already has a key", () => {
+    expect(getApiKeyPromptMessage("gemini", false)).toBe(
+      "Add your Gemini API key in Settings to start debating."
+    )
+  })
+
+  it("localizes both branches to Korean", () => {
+    expect(getApiKeyPromptMessage("perplexity", true, "ko")).toBe(
+      "Settings에서 첫 API 키를 추가해 토론을 시작하세요."
+    )
+    expect(getApiKeyPromptMessage("gemini", false, "ko")).toBe(
       "Settings에서 Gemini API 키를 추가해 토론을 시작하세요."
     )
   })

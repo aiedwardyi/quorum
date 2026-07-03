@@ -15,8 +15,8 @@ import dynamic from "next/dynamic"
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
 import { ChevronDown, X } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
-import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
-import { shouldUseClientKeys, isSessionResolving } from "@/lib/client-api-keys"
+import { getApiKeyPromptMessage } from "@/lib/api-key-errors"
+import { shouldUseClientKeys, isSessionResolving, isFirstRunKeyless } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
 
 // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini sits
@@ -660,7 +660,7 @@ function ChatPageContent() {
           className="absolute left-1/2 bottom-28 sm:bottom-32 z-40 flex w-[min(calc(100%-2rem),28rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-800/40 dark:bg-amber-950/90 dark:text-amber-100"
         >
           <span className="min-w-0 flex-1">
-            {getMissingApiKeyMessage(apiKeyToastProvider, locale)}
+            {getApiKeyPromptMessage(apiKeyToastProvider, isFirstRunKeyless(isAnonymous), locale)}
           </span>
           <button
             type="button"
