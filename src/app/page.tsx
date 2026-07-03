@@ -13,7 +13,7 @@ import ChatHeader, { leaveDebateStrings } from "@/components/Header"
 import ConfirmDialog from "@/components/ConfirmDialog"
 import dynamic from "next/dynamic"
 const SettingsModal = dynamic(() => import("@/components/SettingsModal"), { ssr: false })
-import { ChevronDown, X } from "lucide-react"
+import { ChevronDown, KeyRound, X } from "lucide-react"
 import { useThreadPersistence } from "@/hooks/useThreadPersistence"
 import { getApiKeyPromptMessage } from "@/lib/api-key-errors"
 import { shouldUseClientKeys, isSessionResolving, isFirstRunKeyless } from "@/lib/client-api-keys"
@@ -657,8 +657,9 @@ function ChatPageContent() {
         <div
           role="status"
           aria-live="polite"
-          className="absolute left-1/2 bottom-28 sm:bottom-32 z-40 flex w-[min(calc(100%-2rem),28rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-lg dark:border-amber-800/40 dark:bg-amber-950/90 dark:text-amber-100"
+          className="absolute left-1/2 bottom-28 sm:bottom-32 z-40 flex w-[min(calc(100%-2rem),28rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-warning-border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-lg"
         >
+          <KeyRound className="h-4 w-4 shrink-0 text-warning" />
           <span className="min-w-0 flex-1">
             {getApiKeyPromptMessage(apiKeyToastProvider, isFirstRunKeyless(isAnonymous), locale)}
           </span>
@@ -668,7 +669,7 @@ function ChatPageContent() {
               setIsSettingsOpen(true)
               setApiKeyToastProvider(null)
             }}
-            className="shrink-0 rounded-lg bg-amber-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"
+            className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
           >
             {locale === "ko" ? "설정" : "Settings"}
           </button>
@@ -676,7 +677,7 @@ function ChatPageContent() {
             type="button"
             aria-label={locale === "ko" ? "닫기" : "Dismiss"}
             onClick={() => setApiKeyToastProvider(null)}
-            className="shrink-0 rounded-lg p-1 text-amber-700 transition-colors hover:bg-amber-100 hover:text-amber-900 dark:text-amber-200 dark:hover:bg-amber-900"
+            className="shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
