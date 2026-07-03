@@ -5,6 +5,7 @@ import {
   generateGoogleAiContentWithApiKey,
   getConfiguredGeminiApiKey,
 } from "@/lib/providers/gemini"
+import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 
 /**
  * Strip LLM OCR repetition loops where the model gets stuck on a token/phrase
@@ -66,6 +67,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No images provided" }, { status: 400 })
     }
 
+    const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
+      "gemini",
+      "ocr"
+    )
+    if (blockedResponse) return blockedResponse
+
     const parts = images.flatMap((base64, i) => [
       { text: `--- Page ${i + 1} ---` },
       {
@@ -76,7 +83,7 @@ export async function POST(req: NextRequest) {
       },
     ])
 
-    const apiKey = getConfiguredGeminiApiKey()
+    const apiKey = userGeminiApiKey || getConfiguredGeminiApiKey()
     const rawText = apiKey
       ? await generateGoogleAiContentWithApiKey({
           apiKey,
