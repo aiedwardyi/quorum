@@ -87,10 +87,13 @@ function jsonRequest(path: string, body: unknown): Request {
 
 describe("BYOK-required route guards", () => {
   let previousRequireUserApiKeys: string | undefined
+  let previousAuthEnabled: string | undefined
 
   beforeEach(() => {
     previousRequireUserApiKeys = process.env.REQUIRE_USER_API_KEYS
     process.env.REQUIRE_USER_API_KEYS = "true"
+    previousAuthEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED
+    process.env.NEXT_PUBLIC_AUTH_ENABLED = "true"
     authMock.mockResolvedValue(null)
     getUserProviderApiKeyMock.mockResolvedValue(undefined)
     streamGPTMock.mockImplementation(async function* () {
@@ -105,6 +108,11 @@ describe("BYOK-required route guards", () => {
       delete process.env.REQUIRE_USER_API_KEYS
     } else {
       process.env.REQUIRE_USER_API_KEYS = previousRequireUserApiKeys
+    }
+    if (previousAuthEnabled === undefined) {
+      delete process.env.NEXT_PUBLIC_AUTH_ENABLED
+    } else {
+      process.env.NEXT_PUBLIC_AUTH_ENABLED = previousAuthEnabled
     }
     vi.clearAllMocks()
   })
@@ -338,6 +346,28 @@ describe("BYOK-required route guards", () => {
     expect(streamGPTMock.mock.calls[0]?.[4]).toBe("body-gpt-key")
     expect(authMock).not.toHaveBeenCalled()
     expect(getUserProviderApiKeyMock).not.toHaveBeenCalled()
+  })
+
+  // ---- Auth gate (Phase 2): flag off never touches the session ----
+
+  it("skips the session lookup entirely when auth is disabled, still 402 without a key", async () => {
+    process.env.NEXT_PUBLIC_AUTH_ENABLED = "false"
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockResolvedValue("session-gpt-key")
+
+    const response = await chatPOST(
+      jsonRequest("/api/chat", {
+        messages,
+        provider: "gpt",
+        locale: "en",
+        responseLength: "medium",
+      })
+    )
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({ error: "no_key", provider: "gpt" })
+    expect(authMock).not.toHaveBeenCalled()
+    expect(streamGPTMock).not.toHaveBeenCalled()
   })
 
   it("does not log the request-body key when the provider errors", async () => {

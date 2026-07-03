@@ -115,6 +115,8 @@ export default function ChatHeader({
   const { data: session } = useSession()
   const router = useRouter()
   const isLoggedIn = !!session?.user
+  // Sign-in UI is dormant unless the deploy configures auth (build-time inlined).
+  const authUiEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true"
 
   // On login, drop any anonymous localStorage keys so the account's saved keys
   // are the single source of truth. Idempotent - clears whenever logged in, not
@@ -533,67 +535,69 @@ export default function ChatHeader({
             <Settings2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
           </motion.button>
 
-          <div className="relative" data-header-dropdown>
-            {isLoggedIn ? (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                whileHover={{ scale: 1.05 }}
-                onClick={() => {
-                  setShowUserMenu(!showUserMenu)
-                  setShowRoundsDropdown(false)
-                  setShowLengthDropdown(false)
-                }}
-                aria-label="User menu"
-                aria-haspopup="menu"
-                aria-expanded={showUserMenu}
-                className={cn(
-                  "w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm",
-                  theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60",
-                  theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40",
-                  theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50",
-                  theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50",
-                  theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50",
-                  theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50"
-                )}
-              >
-                <User className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-              </motion.button>
-            ) : (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => signIn("google")}
-                className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline text-xs font-bold">{t.login}</span>
-              </motion.button>
-            )}
-
-            <AnimatePresence>
-              {showUserMenu && isLoggedIn && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6, scale: 0.92 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 24 }}
-                  className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
+          {authUiEnabled && (
+            <div className="relative" data-header-dropdown>
+              {isLoggedIn ? (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => {
+                    setShowUserMenu(!showUserMenu)
+                    setShowRoundsDropdown(false)
+                    setShowLengthDropdown(false)
+                  }}
+                  aria-label="User menu"
+                  aria-haspopup="menu"
+                  aria-expanded={showUserMenu}
+                  className={cn(
+                    "w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm",
+                    theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60",
+                    theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40",
+                    theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50",
+                    theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50",
+                    theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50",
+                    theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50"
+                  )}
                 >
-                  <div className="p-1">
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false)
-                        signOut()
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      {t.logout}
-                    </button>
-                  </div>
-                </motion.div>
+                  <User className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+                </motion.button>
+              ) : (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => signIn("google")}
+                  className="flex items-center justify-center gap-2 h-7 w-7 sm:h-8 sm:w-auto sm:px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shadow-sm"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline text-xs font-bold">{t.login}</span>
+                </motion.button>
               )}
-            </AnimatePresence>
-          </div>
+
+              <AnimatePresence>
+                {showUserMenu && isLoggedIn && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.92 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 24 }}
+                    className="absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-[60]"
+                  >
+                    <div className="p-1">
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false)
+                          signOut()
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        {t.logout}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </header>
 
