@@ -53,6 +53,8 @@ export interface ParseOptions {
    *  @param progress - 0-100 percentage */
   onProgress?: (status: string, progress?: number) => void
   onApiKeyRequired?: (provider: Provider) => void
+  /** Attach the browser gemini key to OCR only when signed-out (or auth off). */
+  isAnonymous?: boolean
 }
 
 function joinPDFPages(pages: Array<string | null | undefined>): string {
@@ -284,7 +286,7 @@ async function parsePDF(
 
   // OCR one page at a time so the recovered text can be placed back into the
   // original document order.
-  const userApiKey = getClientKey("gemini")
+  const userApiKey = options?.isAnonymous ? getClientKey("gemini") : ""
   try {
     for (let idx = 0; idx < renderedPages.length; idx++) {
       const { pageNumber, base64 } = renderedPages[idx]

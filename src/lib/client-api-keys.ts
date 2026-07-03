@@ -35,3 +35,12 @@ export function getClientKeyStatus(): Record<Provider, boolean> {
     {} as Record<Provider, boolean>
   )
 }
+
+type SessionStatus = "authenticated" | "unauthenticated" | "loading"
+
+// True when the browser's localStorage keys should be sent. Auth-enabled deploys
+// wait for a definitive "unauthenticated" so a still-loading or signed-in session
+// never sends a stale anonymous key over the account's saved key.
+export function shouldUseClientKeys(authEnabled: boolean, status: SessionStatus): boolean {
+  return !authEnabled || status === "unauthenticated"
+}

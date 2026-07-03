@@ -399,4 +399,55 @@ describe("BYOK-required route guards", () => {
       errorSpy.mockRestore()
     }
   })
+
+  it("consensus does not log the request-body key when the provider errors", async () => {
+    const leakyKey = "AIzaBodyLeakConsensus1234567890abcd"
+    generateGeminiVerdictWithApiKeyMock.mockRejectedValue(
+      new Error(`Vertex auth failed for key ${leakyKey}`)
+    )
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+    try {
+      const response = await consensusPOST(
+        jsonRequest("/api/consensus", {
+          messages,
+          locale: "en",
+          responseLength: "medium",
+          userApiKey: leakyKey,
+        }) as never
+      )
+      const bodyText = await response.text()
+
+      expect(errorSpy).toHaveBeenCalled()
+      for (const call of errorSpy.mock.calls) {
+        expect(call.map(String).join(" ")).not.toContain(leakyKey)
+      }
+      expect(bodyText).not.toContain(leakyKey)
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it("ocr does not log the request-body key when the provider errors", async () => {
+    const leakyKey = "AIzaBodyLeakOcr1234567890abcdefghij"
+    generateGoogleAiContentWithApiKeyMock.mockRejectedValue(
+      new Error(`Vertex auth failed for key ${leakyKey}`)
+    )
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+    try {
+      const response = await ocrPOST(
+        jsonRequest("/api/ocr", { images: ["abc"], userApiKey: leakyKey }) as never
+      )
+      const bodyText = await response.text()
+
+      expect(errorSpy).toHaveBeenCalled()
+      for (const call of errorSpy.mock.calls) {
+        expect(call.map(String).join(" ")).not.toContain(leakyKey)
+      }
+      expect(bodyText).not.toContain(leakyKey)
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
 })

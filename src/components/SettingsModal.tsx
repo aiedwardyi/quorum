@@ -28,7 +28,13 @@ import {
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 import { MODEL_INFO } from "@/lib/model-info"
-import { getClientKeyStatus, setClientKey, clearClientKey } from "@/lib/client-api-keys"
+import {
+  getClientKeyStatus,
+  setClientKey,
+  clearClientKey,
+  shouldUseClientKeys,
+} from "@/lib/client-api-keys"
+import { authEnabled } from "@/lib/deploy-config"
 
 const ALL_MODELS: Provider[] = ["gemini", "claude", "gpt", "perplexity"]
 
@@ -359,8 +365,11 @@ export default function SettingsModal({
   onChangeTheme?: (theme: Theme) => void
 }) {
   const showPrefs = showPreferences !== false
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const isLoggedIn = !!session?.user
+  // Only take the localStorage path once the session is definitively signed-out
+  // (or auth is off), so a still-loading session never clobbers the account's keys.
+  const anonymous = shouldUseClientKeys(authEnabled(), status)
   const [activeTab, setActiveTab] = useState<Tab>("account")
   const [keys, setKeys] = useState<Record<Provider, string>>(createEmptyKeys)
   const [touchedKeys, setTouchedKeys] = useState<Record<Provider, boolean>>(createEmptyKeyStatus)
@@ -381,8 +390,8 @@ export default function SettingsModal({
     setKeys(createEmptyKeys())
     setTouchedKeys(createEmptyKeyStatus())
 
-    // Logged out: keys live in localStorage; skip the server round-trip (no 401).
-    if (!isLoggedIn) {
+    // Signed-out: keys live in localStorage; skip the server round-trip (no 401).
+    if (anonymous) {
       setKeyStatus(getClientKeyStatus())
       return
     }
@@ -403,7 +412,7 @@ export default function SettingsModal({
     return () => {
       cancelled = true
     }
-  }, [isOpen, isLoggedIn])
+  }, [isOpen, anonymous])
 
   if (!isOpen) return null
 
@@ -424,8 +433,8 @@ export default function SettingsModal({
       (provider) => touchedKeys[provider] && keyStatus[provider] && !keys[provider].trim()
     )
 
-    // Logged out: persist to localStorage only. No API call -> no 401.
-    if (!isLoggedIn) {
+    // Signed-out: persist to localStorage only. No API call -> no 401.
+    if (anonymous) {
       for (const [provider, value] of Object.entries(keysToSave)) {
         setClientKey(provider as Provider, value)
       }

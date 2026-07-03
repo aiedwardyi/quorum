@@ -6,6 +6,7 @@ import {
   clearClientKey,
   clearAllClientKeys,
   getClientKeyStatus,
+  shouldUseClientKeys,
 } from "@/lib/client-api-keys"
 
 function stubBrowser() {
@@ -60,5 +61,25 @@ describe("client-api-keys", () => {
     vi.stubGlobal("window", undefined)
     expect(getClientKey("gemini")).toBe("")
     expect(getClientKeyStatus().gemini).toBe(false)
+  })
+})
+
+describe("shouldUseClientKeys", () => {
+  it("always uses client keys when auth is disabled", () => {
+    expect(shouldUseClientKeys(false, "loading")).toBe(true)
+    expect(shouldUseClientKeys(false, "unauthenticated")).toBe(true)
+    expect(shouldUseClientKeys(false, "authenticated")).toBe(true)
+  })
+
+  it("uses client keys only when definitively unauthenticated with auth enabled", () => {
+    expect(shouldUseClientKeys(true, "unauthenticated")).toBe(true)
+  })
+
+  it("withholds client keys while the session is still loading", () => {
+    expect(shouldUseClientKeys(true, "loading")).toBe(false)
+  })
+
+  it("withholds client keys for a signed-in session", () => {
+    expect(shouldUseClientKeys(true, "authenticated")).toBe(false)
   })
 })

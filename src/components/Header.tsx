@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { clearAllClientKeys } from "@/lib/client-api-keys"
+import { authEnabled } from "@/lib/deploy-config"
 import { motion, AnimatePresence } from "framer-motion"
 
 export const leaveDebateStrings = {
@@ -116,7 +117,7 @@ export default function ChatHeader({
   const router = useRouter()
   const isLoggedIn = !!session?.user
   // Sign-in UI is dormant unless the deploy configures auth (build-time inlined).
-  const authUiEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true"
+  const authUiEnabled = authEnabled()
 
   // On login, drop any anonymous localStorage keys so the account's saved keys
   // are the single source of truth. Idempotent - clears whenever logged in, not

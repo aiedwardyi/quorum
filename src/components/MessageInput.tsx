@@ -57,6 +57,7 @@ export default function MessageInput({
   initialFileWarning,
   initialText,
   onApiKeyRequired,
+  isAnonymous,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
@@ -65,6 +66,7 @@ export default function MessageInput({
   initialFileWarning?: string | null
   initialText?: string | null
   onApiKeyRequired?: (provider: Provider) => void
+  isAnonymous: boolean
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -182,6 +184,7 @@ export default function MessageInput({
     // Parse each file immediately and show warnings at attach time
     newFiles.forEach(async (af) => {
       const parsed = await parseFile(af.file, {
+        isAnonymous,
         onProgress: (status, progress) => {
           setAttachedFiles((prev) =>
             prev.map((f) =>

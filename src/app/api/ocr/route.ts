@@ -124,11 +124,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ text })
   } catch (err) {
-    console.error("[ocr] Failed:", err)
+    const message = redactSecrets(err instanceof Error ? err.message : "Unknown error")
+    console.error("[ocr] Failed:", message)
     return NextResponse.json(
       {
         error: "OCR failed",
-        details: redactSecrets(err instanceof Error ? err.message : "Unknown error"),
+        details: message,
       },
       { status: 500 }
     )
