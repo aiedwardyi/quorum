@@ -324,9 +324,11 @@ export async function POST(request: Request) {
       forceKorean
     )
     const maxTokens = getMaxTokens(validatedResponseLength)
+    const requestApiKey = typeof body.userApiKey === "string" ? body.userApiKey : undefined
     const { userApiKey, blockedResponse } = await resolveUserProviderApiKey(
       provider,
-      `chat/${provider}`
+      `chat/${provider}`,
+      requestApiKey
     )
     if (blockedResponse) return blockedResponse
     // Hard word caps per response length. These sit behind the prompt

@@ -9,6 +9,7 @@ import {
   getMissingApiKeyMessage,
   parseNoKeyProviderFromResponse,
 } from "@/lib/api-key-errors"
+import { getClientKey } from "@/lib/client-api-keys"
 
 /* ---- Constants ---- */
 
@@ -316,6 +317,7 @@ export function useDebateEngine(config: {
       }, MODEL_TIMEOUT_MS)
 
       try {
+        const userApiKey = getClientKey(provider)
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -324,6 +326,7 @@ export function useDebateEngine(config: {
             provider,
             locale,
             responseLength,
+            ...(userApiKey ? { userApiKey } : {}),
           }),
           signal: controller.signal,
         })
@@ -493,10 +496,16 @@ export function useDebateEngine(config: {
       // stale results from cancelled/superseded debates.
       if (getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
         const consensusMsgs = getConsensusMessages(msgs)
+        const userApiKey = getClientKey("gemini")
         fetch("/api/consensus", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: consensusMsgs, locale, responseLength }),
+          body: JSON.stringify({
+            messages: consensusMsgs,
+            locale,
+            responseLength,
+            ...(userApiKey ? { userApiKey } : {}),
+          }),
         })
           .then(async (res) => {
             if (sessionIdRef.current !== sessionId || stopRef.current) return
@@ -639,6 +648,7 @@ export function useDebateEngine(config: {
               msgs = [...msgs, analyzingMsg]
 
               try {
+                const userApiKey = getClientKey("gemini")
                 const res = await fetch("/api/consensus", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -646,6 +656,7 @@ export function useDebateEngine(config: {
                     messages: getConsensusMessages(msgs),
                     locale,
                     responseLength,
+                    ...(userApiKey ? { userApiKey } : {}),
                   }),
                 })
 
@@ -792,6 +803,7 @@ export function useDebateEngine(config: {
         dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
       }
 
+      const userApiKey = getClientKey("gemini")
       fetch("/api/consensus", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -799,6 +811,7 @@ export function useDebateEngine(config: {
           messages: getConsensusMessages(currentMessages),
           locale,
           responseLength,
+          ...(userApiKey ? { userApiKey } : {}),
         }),
       })
         .then(async (res) => {

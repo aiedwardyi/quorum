@@ -192,9 +192,11 @@ export async function POST(req: NextRequest) {
       responseSchema: VERDICT_RESPONSE_SCHEMA,
     }
 
+    const requestApiKey = typeof body.userApiKey === "string" ? body.userApiKey : undefined
     const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
       "gemini",
-      "verdict"
+      "verdict",
+      requestApiKey
     )
     if (blockedResponse) return blockedResponse
 

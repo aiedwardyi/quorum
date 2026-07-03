@@ -6,6 +6,7 @@ import {
   getConfiguredGeminiApiKey,
 } from "@/lib/providers/gemini"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
+import { redactSecrets } from "@/lib/redact-secrets"
 
 /**
  * Strip LLM OCR repetition loops where the model gets stuck on a token/phrase
@@ -61,7 +62,10 @@ Your output must start with the first character of actual document text, and end
 
 export async function POST(req: NextRequest) {
   try {
-    const { images } = (await req.json()) as { images: string[] }
+    const { images, userApiKey } = (await req.json()) as {
+      images: string[]
+      userApiKey?: string
+    }
 
     if (!images?.length) {
       return NextResponse.json({ error: "No images provided" }, { status: 400 })
@@ -69,7 +73,8 @@ export async function POST(req: NextRequest) {
 
     const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
       "gemini",
-      "ocr"
+      "ocr",
+      typeof userApiKey === "string" ? userApiKey : undefined
     )
     if (blockedResponse) return blockedResponse
 
@@ -121,7 +126,10 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[ocr] Failed:", err)
     return NextResponse.json(
-      { error: "OCR failed", details: err instanceof Error ? err.message : "Unknown error" },
+      {
+        error: "OCR failed",
+        details: redactSecrets(err instanceof Error ? err.message : "Unknown error"),
+      },
       { status: 500 }
     )
   }

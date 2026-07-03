@@ -5,8 +5,14 @@ import { redactSecrets } from "@/lib/redact-secrets"
 
 export async function resolveUserProviderApiKey(
   provider: Provider,
-  logLabel: string
+  logLabel: string,
+  requestKey?: string
 ): Promise<{ userApiKey?: string; blockedResponse?: NextResponse }> {
+  // Anonymous BYOK: a key supplied in the request body short-circuits before any
+  // auth import, DB read, or 402. Never logged.
+  const bodyKey = typeof requestKey === "string" ? requestKey.trim() : undefined
+  if (bodyKey) return { userApiKey: bodyKey }
+
   const { auth } = await import("@/lib/auth")
   const session = await auth()
   let userApiKey: string | undefined

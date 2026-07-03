@@ -267,4 +267,106 @@ describe("BYOK-required route guards", () => {
       expect.objectContaining({ apiKey: "server-gemini-key" })
     )
   })
+
+  // ---- Anonymous body-key BYOK (Phase 1) ----
+
+  it("chat uses a request-body key without touching auth or the DB", async () => {
+    const response = await chatPOST(
+      jsonRequest("/api/chat", {
+        messages,
+        provider: "gpt",
+        locale: "en",
+        responseLength: "medium",
+        userApiKey: "body-gpt-key",
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await response.text()
+    expect(streamGPTMock.mock.calls[0]?.[4]).toBe("body-gpt-key")
+    expect(authMock).not.toHaveBeenCalled()
+    expect(getUserProviderApiKeyMock).not.toHaveBeenCalled()
+  })
+
+  it("consensus uses a request-body gemini key without touching auth", async () => {
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages,
+        locale: "en",
+        responseLength: "medium",
+        userApiKey: "body-gemini-key",
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject(validVerdict)
+    expect(generateGeminiVerdictWithApiKeyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "body-gemini-key" })
+    )
+    expect(authMock).not.toHaveBeenCalled()
+  })
+
+  it("ocr uses a request-body gemini key without touching auth", async () => {
+    const response = await ocrPOST(
+      jsonRequest("/api/ocr", { images: ["abc"], userApiKey: "body-gemini-key" }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ text: "ocr text" })
+    expect(generateGoogleAiContentWithApiKeyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "body-gemini-key" })
+    )
+    expect(authMock).not.toHaveBeenCalled()
+  })
+
+  it("chat body key takes precedence over a saved session key", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockResolvedValue("session-gpt-key")
+
+    const response = await chatPOST(
+      jsonRequest("/api/chat", {
+        messages,
+        provider: "gpt",
+        locale: "en",
+        responseLength: "medium",
+        userApiKey: "body-gpt-key",
+      })
+    )
+
+    expect(response.status).toBe(200)
+    await response.text()
+    expect(streamGPTMock.mock.calls[0]?.[4]).toBe("body-gpt-key")
+    expect(authMock).not.toHaveBeenCalled()
+    expect(getUserProviderApiKeyMock).not.toHaveBeenCalled()
+  })
+
+  it("does not log the request-body key when the provider errors", async () => {
+    const leakyKey = "sk-body-leak-1234567890abcdefghij"
+    streamGPTMock.mockImplementation(async function* () {
+      yield "partial"
+      throw new Error(`Provider auth failed for key ${leakyKey}`)
+    })
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
+
+    try {
+      const response = await chatPOST(
+        jsonRequest("/api/chat", {
+          messages,
+          provider: "gpt",
+          locale: "en",
+          responseLength: "medium",
+          userApiKey: leakyKey,
+        })
+      )
+      const streamed = await response.text()
+
+      expect(errorSpy).toHaveBeenCalled()
+      for (const call of errorSpy.mock.calls) {
+        expect(call.map(String).join(" ")).not.toContain(leakyKey)
+      }
+      expect(streamed).not.toContain(leakyKey)
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
 })

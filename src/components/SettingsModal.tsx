@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, type ComponentType } from "react"
+import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   X,
@@ -27,6 +28,7 @@ import {
 import { Locale, Provider, Theme } from "@/types"
 import { cn } from "@/lib/utils"
 import { MODEL_INFO } from "@/lib/model-info"
+import { getClientKeyStatus, setClientKey, clearClientKey } from "@/lib/client-api-keys"
 
 const ALL_MODELS: Provider[] = ["gemini", "claude", "gpt", "perplexity"]
 
@@ -283,6 +285,9 @@ const translations = {
     credits: "Debates",
     availableBalance: "Available Balance",
     keysDesc: "Use your own API keys. They are encrypted and stored for your signed-in account.",
+    keysDescAnon:
+      "Use your own API keys. They stay in this browser and are sent only to the model you pick - never saved on our servers.",
+    keysGeminiNote: "The consensus verdict and document OCR always use your Gemini key.",
     save: "Save Changes",
     saved: "Saved!",
     keyConfigured: "saved",
@@ -307,6 +312,9 @@ const translations = {
     credits: "토론",
     availableBalance: "사용 가능 잔액",
     keysDesc: "자신의 API 키를 사용할 수 있습니다. 키는 암호화되어 로그인한 계정에 저장됩니다.",
+    keysDescAnon:
+      "자신의 API 키를 사용하세요. 키는 이 브라우저에만 저장되며 선택한 모델을 호출할 때만 전송됩니다. 서버에는 저장되지 않습니다.",
+    keysGeminiNote: "합의 판정과 문서 OCR은 항상 Gemini 키를 사용합니다.",
     save: "변경사항 저장",
     saved: "저장됨!",
     keyConfigured: "저장됨",
@@ -351,6 +359,8 @@ export default function SettingsModal({
   onChangeTheme?: (theme: Theme) => void
 }) {
   const showPrefs = showPreferences !== false
+  const { data: session } = useSession()
+  const isLoggedIn = !!session?.user
   const [activeTab, setActiveTab] = useState<Tab>("account")
   const [keys, setKeys] = useState<Record<Provider, string>>(createEmptyKeys)
   const [touchedKeys, setTouchedKeys] = useState<Record<Provider, boolean>>(createEmptyKeyStatus)
@@ -368,10 +378,16 @@ export default function SettingsModal({
 
   useEffect(() => {
     if (!isOpen) return
-    let cancelled = false
     setKeys(createEmptyKeys())
     setTouchedKeys(createEmptyKeyStatus())
 
+    // Logged out: keys live in localStorage; skip the server round-trip (no 401).
+    if (!isLoggedIn) {
+      setKeyStatus(getClientKeyStatus())
+      return
+    }
+
+    let cancelled = false
     fetch("/api/user-api-keys")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -387,7 +403,7 @@ export default function SettingsModal({
     return () => {
       cancelled = true
     }
-  }, [isOpen])
+  }, [isOpen, isLoggedIn])
 
   if (!isOpen) return null
 
@@ -407,6 +423,23 @@ export default function SettingsModal({
     const keysToClear = ALL_MODELS.filter(
       (provider) => touchedKeys[provider] && keyStatus[provider] && !keys[provider].trim()
     )
+
+    // Logged out: persist to localStorage only. No API call -> no 401.
+    if (!isLoggedIn) {
+      for (const [provider, value] of Object.entries(keysToSave)) {
+        setClientKey(provider as Provider, value)
+      }
+      for (const provider of keysToClear) {
+        clearClientKey(provider)
+      }
+      setKeyStatus(getClientKeyStatus())
+      setKeys(createEmptyKeys())
+      setTouchedKeys(createEmptyKeyStatus())
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      setKeySaving(false)
+      return
+    }
 
     try {
       const res = await fetch("/api/user-api-keys", {
@@ -569,7 +602,10 @@ export default function SettingsModal({
                       </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      {t.keysDesc}
+                      {isLoggedIn ? t.keysDesc : t.keysDescAnon}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+                      {t.keysGeminiNote}
                     </p>
                   </div>
                   <div className="space-y-2">
