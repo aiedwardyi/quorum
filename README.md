@@ -179,18 +179,18 @@ npm run dev
 | Auth      | NextAuth v5 + Google OAuth                                                                                      |
 | Streaming | Server-Sent Events (SSE)                                                                                        |
 | i18n      | English / Korean                                                                                                |
-| Themes    | Light, Solar, Dark, Tokyo, Rosé, Gruvbox, Mocha, Nord                                                          |
+| Themes    | Light, Solar, Dark, Tokyo, Rosé, Gruvbox, Mocha, Nord                                                           |
 
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) for details.
 
-| Phase   | Focus                                                     | Status      |
-| ------- | --------------------------------------------------------- | ----------- |
-| **Phase 1** | Core group chat - Gemini + Perplexity                 | Done        |
-| **Phase 2** | Claude + GPT, decisive verdict, continue-thread, 8 themes | Done    |
-| **Phase 3** | Persistence, OAuth, thread history, BYOK backend      | Done        |
-| **Phase 4** | Share verdicts, decision workflows, custom models     | Future      |
+| Phase       | Focus                                                     | Status |
+| ----------- | --------------------------------------------------------- | ------ |
+| **Phase 1** | Core group chat - Gemini + Perplexity                     | Done   |
+| **Phase 2** | Claude + GPT, decisive verdict, continue-thread, 8 themes | Done   |
+| **Phase 3** | Persistence, OAuth, thread history, BYOK backend          | Done   |
+| **Phase 4** | Share verdicts, decision workflows, custom models         | Future |
 
 ## License
 

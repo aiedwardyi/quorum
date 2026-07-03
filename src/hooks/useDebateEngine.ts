@@ -353,7 +353,11 @@ export function useDebateEngine(config: {
           // A keyless first-run visitor gets a generic welcome; the panel's
           // lead provider (perplexity) is arbitrary, so don't single it out.
           updatePlaceholder(
-            getApiKeyPromptMessage(missingProvider, isFirstRunKeyless(isAnonymousRef.current), locale)
+            getApiKeyPromptMessage(
+              missingProvider,
+              isFirstRunKeyless(isAnonymousRef.current),
+              locale
+            )
           )
           stopRef.current = true
           clearTypingIfCurrentSession()
