@@ -8,7 +8,6 @@ import {
   User,
   Key,
   Settings,
-  Wallet,
   Globe,
   CheckCircle2,
   Star,
@@ -288,8 +287,6 @@ const translations = {
     account: "Account",
     preferences: "Preferences",
     apiKeys: "API Keys",
-    credits: "Debates",
-    availableBalance: "Available Balance",
     keysDesc: "Use your own API keys. They are encrypted and stored for your signed-in account.",
     keysDescAnon:
       "Use your own API keys. They stay in this browser and are sent only to the model you pick - never saved on our servers.",
@@ -308,15 +305,12 @@ const translations = {
     gptKey: "GPT API Key",
     toggle: "Toggle",
     theme: "Theme",
-    unlimited: "Unlimited",
   },
   ko: {
     settings: "설정",
     account: "계정",
     preferences: "환경설정",
     apiKeys: "API 키",
-    credits: "토론",
-    availableBalance: "사용 가능 잔액",
     keysDesc: "자신의 API 키를 사용할 수 있습니다. 키는 암호화되어 로그인한 계정에 저장됩니다.",
     keysDescAnon:
       "자신의 API 키를 사용하세요. 키는 이 브라우저에만 저장되며 선택한 모델을 호출할 때만 전송됩니다. 서버에는 저장되지 않습니다.",
@@ -335,7 +329,6 @@ const translations = {
     gptKey: "GPT API 키",
     toggle: "전환",
     theme: "테마",
-    unlimited: "무제한",
   },
 }
 
@@ -584,30 +577,6 @@ export default function SettingsModal({
                     {t.account}
                   </h3>
                 </div>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 px-1">
-                    <Wallet className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
-                      {t.credits}
-                    </span>
-                  </div>
-                  <div className="p-5 rounded-xl bg-secondary/30 border border-border/60">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
-                          {t.availableBalance}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl font-semibold tracking-tight text-foreground">
-                            {t.unlimited}
-                          </span>
-                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="space-y-4">
                   <div className="space-y-1 px-1">
                     <div className="flex items-center gap-2">

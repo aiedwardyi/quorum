@@ -14,7 +14,7 @@ Quorum is moving away from a neutral "consensus recap" and toward a decision-ori
 - users can continue the same thread after verdict
 - logged-in users can reopen saved threads later
 
-## ✅ v1: Working Group Chat _(Complete)_
+## ✅ Phase 1: Working Group Chat _(Complete)_
 
 The core experience — a group chat where you + Gemini + Perplexity discuss a topic together.
 
@@ -31,7 +31,7 @@ The core experience — a group chat where you + Gemini + Perplexity discuss a t
 
 ---
 
-## 📋 v2: Decisive Verdict + Continue Thread + Persistence Foundation
+## 📋 Phase 2: Decisive Verdict + Continue Thread + Persistence Foundation
 
 Make the ending state decisive and make debates reusable.
 
@@ -49,8 +49,8 @@ Make the ending state decisive and make debates reusable.
 - [x] Configurable round count (1 / 2 / 3 / 5) — wired end-to-end, homepage -> settings -> debate loop
 - [x] Deduplicate consensus display — ONE location, not sidebar + summary card
 - [x] Fix Gemini third-person / name-prefix bug (BUG-009 — buildContents formatting)
-- [x] Home page redesign — v2 with model selector, dark mode, i18n, rainbow border
-- [x] Chat page UI refresh — v2 components ported, wired to v1 streaming logic
+- [x] Home page redesign — Phase 2 with model selector, dark mode, i18n, rainbow border
+- [x] Chat page UI refresh — Phase 2 components ported, wired to Phase 1 streaming logic
 - [x] Premium summary/final verdict polish — higher-contrast summary card, final verdict eyebrow, stronger dark-mode presentation
 - [x] Homepage -> chat page config passthrough (sessionStorage, all settings carry over)
 - [x] Consensus bar real-time updates (fills after each round)
@@ -73,7 +73,7 @@ Make the ending state decisive and make debates reusable.
 
 ---
 
-## 🎨 v3: Accounts + Saved Work + BYOK
+## 🎨 Phase 3: Accounts + Saved Work + BYOK _(Complete)_
 
 Make saved work, identity, user-owned model access, and recommendation UX feel complete.
 
@@ -107,7 +107,7 @@ Make saved work, identity, user-owned model access, and recommendation UX feel c
 
 ---
 
-## ⚡ v4: Differentiation + Sharing
+## ⚡ Phase 4: Differentiation + Sharing
 
 Differentiate beyond generic multi-model chat.
 
