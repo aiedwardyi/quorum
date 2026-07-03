@@ -1,6 +1,6 @@
 /** Sanitizes model output for chat rendering: citations, headings, truncation junk. */
 
-// Fence boundary per CommonMark: up to 3 leading spaces before the backticks.
+// Fence boundary per CommonMark: up to 3 leading spaces before the backticks; tabs tolerated leniently.
 const FENCE_LINE = /^[ \t]{0,3}```/
 
 /** Applies transform to every line outside ```-fenced blocks; fence interiors
