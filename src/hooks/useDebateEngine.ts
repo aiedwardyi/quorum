@@ -14,10 +14,7 @@ import { getClientKey, isFirstRunKeyless } from "@/lib/client-api-keys"
 
 /* ---- Constants ---- */
 
-// 60s per model - keeps comfortable headroom even for medium/long
-// responses. Chat Gemini now runs on 2.5 Flash (TTFT dropped back
-// into Claude/GPT territory), so this cap has plenty of margin; the
-// generous ceiling stays as defense-in-depth for cold-call spikes.
+// 60s covers long-mode responses; Flash cut TTFT but the headroom stays as a cold-call guard.
 const MODEL_TIMEOUT_MS = 60_000
 
 /* ---- Logging ---- */
@@ -40,9 +37,7 @@ const SYSTEM_DISPLAY_NAMES: Record<Locale, string> = {
   ko: "시스템",
 }
 
-// Exported so ChatThread can detect the analyzing divider by content
-// without hardcoding the literal strings (which silently breaks the
-// moment the copy changes here).
+// Exported so ChatThread can detect the analyzing divider without hardcoding copy.
 export const SYSTEM_MESSAGES = {
   round: (locale: Locale, round: number) =>
     locale === "ko" ? `라운드 ${round}` : `Round ${round}`,
@@ -129,14 +124,8 @@ export function getAIMessageCount(messages: Message[]): number {
   ).length
 }
 
-/**
- * Resolves the final placeholder content from a streamed provider response.
- * If the provider returned no usable text - either the server flagged the
- * stream as empty, or cleanResponse left us with nothing - substitute a
- * localized fallback so the bubble doesn't get stuck in "thinking..." state.
- * cleanResponse already trims, so an empty result here means there was
- * nothing meaningful to show.
- */
+/** Replaces an empty stream result with a localized fallback.
+ *  cleanResponse already trims, so empty here means nothing meaningful to show. */
 export function resolveProviderContent(
   rawContent: string,
   providerEmpty: boolean,
@@ -152,14 +141,7 @@ export function resolveProviderContent(
 
 /* ---- State ---- */
 
-// Gemini sits last in the default rotation. Historically this hid Pro's
-// slower TTFT behind the three faster providers; chat now runs on 2.5
-// Flash so that specific latency argument is weaker, but we keep the
-// order because it still pays off: Gemini sees all three other models'
-// opinions before forming its own, which actually improves its
-// reasoning quality on consensus-style
-// prompts. Users who customize the participant order override this
-// default; we only rearrange the initial zero-config case.
+// Gemini last: sees all three other models first, which helps it reason on consensus prompts.
 const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
 
 export type State = {
@@ -282,10 +264,7 @@ export function useDebateEngine(config: {
   const stoppingRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
   const sessionIdRef = useRef(0)
-  // Flipped synchronously right before the final/stop SET_VERDICT dispatch.
-  // The mid-debate fire-and-forget consensus call checks this before
-  // dispatching its own SET_VERDICT, so a slow mid-debate response cannot
-  // overwrite the final verdict with an intermediate confidence value.
+  // Guards against a slow mid-debate confidence update clobbering the final verdict.
   const finalVerdictLandedRef = useRef(false)
   const messagesRef = useRef<Message[]>([])
   const maxRoundsRef = useRef(maxRounds)
@@ -459,20 +438,7 @@ export function useDebateEngine(config: {
           updatePlaceholder(msg)
           return null
         }
-        // Thrown errors here cover two main cases:
-        //  1. Transport errors from fetch (network dropped, CORS, etc.)
-        //  2. `data.error` payloads from the chat route's error channel
-        //     (upstream VertexAI / Anthropic / OpenAI failures that the
-        //     server caught and forwarded with `{error}`)
-        // Previously we dumped the raw error text into the bubble
-        // ("Gemini encountered an error: [VertexAI.ClientError]: got
-        // status: 499 Client Closed Request. {..}"), which is scary and
-        // unactionable for end users. Swap in the friendly snack-break
-        // fallback (the same message shown when a provider stream is
-        // empty) and keep the detailed error in logDebate for debugging.
-        //
-        // logDebate instead of console.error so Next.js's red-box dev
-        // overlay does not pop on an already-handled rejection.
+        // Covers transport errors and the route's {error} channel. Raw upstream errors are unactionable in a bubble - show the snack-break fallback and keep detail in logDebate (console.error would pop the dev overlay on a handled rejection).
         const errorMsg = err instanceof Error ? err.message : "Unknown error"
         logDebate("callModel:error", { provider, error: errorMsg })
         clearTypingIfCurrentSession()
@@ -500,16 +466,7 @@ export function useDebateEngine(config: {
         const result = await callModel(model, msgs, sessionId)
         if (result) {
           msgs = [...msgs, result]
-          // Wait for the smoothed display to finish drawing this bubble
-          // before we fetch the next model. callModel resolves when the
-          // network stream closes, which is typically several seconds
-          // before the smoothing hook has caught up. Without this wait,
-          // the next bubble would start streaming and ChatThread used to
-          // force-complete the previous one, dumping 70-90% of its
-          // content in a single frame. Now the next bubble waits until
-          // the previous one has visibly typed through. The registry's
-          // internal 8s safety timeout keeps a stuck bubble (cancelled
-          // request, unmounted component) from blocking the whole debate.
+          // Stream closes before smooth display catches up; wait so the next bubble doesn't snap the previous one.
           if (!stopRef.current && sessionIdRef.current === sessionId) {
             await waitForDrain(result.id)
           }
@@ -520,12 +477,7 @@ export function useDebateEngine(config: {
         return { msgs, done: true }
       }
 
-      // Mid-debate confidence check (not the final verdict). Fire and
-      // forget - the result only updates the ConsensusMeter's confidence
-      // badge which can arrive whenever. Awaiting this blocked the start
-      // of the next round for ~1-2 seconds per round, which felt like
-      // dead time to users. The session guard inside the .then() discards
-      // stale results from cancelled/superseded debates.
+      // Mid-debate confidence update: fire-and-forget so the badge can arrive without blocking the next round.
       if (getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
         const consensusMsgs = getConsensusMessages(msgs)
         fetchConsensus(consensusMsgs, locale, responseLength, isAnonymousRef.current)
@@ -540,18 +492,12 @@ export function useDebateEngine(config: {
             if (sessionIdRef.current !== sessionId) return
             const result = await res.json()
             if (sessionIdRef.current !== sessionId) return
-            // Drop if the final (or stop) verdict has already landed -
-            // otherwise a slow mid-debate response would clobber the
-            // real result with an intermediate confidence value.
             if (finalVerdictLandedRef.current) return
             if (isValidVerdict(result)) {
               dispatch({ type: "SET_VERDICT", result })
             }
           })
           .catch((err) => {
-            // Fire-and-forget - the mid-debate confidence update is a
-            // best-effort badge, not a must-land dispatch. logDebate so
-            // Next.js's dev overlay does not pop for transient failures.
             logDebate("mid-verdict:failed", {
               error: err instanceof Error ? err.message : String(err),
             })
@@ -630,10 +576,7 @@ export function useDebateEngine(config: {
             if (stopRef.current || sessionIdRef.current !== thisSession) break
             dispatch({ type: "SET_ROUND", round: r + 1 })
             const result = await runRound(msgs, orderedModels, thisSession)
-            // Post-await guards: a newer debate may have started or the user
-            // may have clicked stop while runRound was in-flight. Bail before
-            // pushing the next round divider or starting another iteration
-            // for a round that will not actually run.
+            // Post-await guard: bail before pushing a divider for a round that won't run.
             if (sessionIdRef.current !== thisSession) break
             if (stopRef.current || stoppingRef.current) {
               stoppedEarly = true
@@ -690,12 +633,7 @@ export function useDebateEngine(config: {
                     content: SYSTEM_MESSAGES.missingApiKey(locale, missingProvider),
                   })
                 } else if (!res.ok) {
-                  // Surface the server's error detail via logDebate so a
-                  // dev running the app can still see *why* the verdict
-                  // failed ("Verdict response is not an object", confidence
-                  // out of range, timeout, etc.) but we no longer trigger
-                  // Next.js's red-box dev overlay for what is already a
-                  // handled rejection with a visible UI fallback.
+                  // logDebate keeps detail visible in dev without triggering the red-box overlay.
                   try {
                     const errBody = await res.json()
                     logDebate("verdict:failed", {
@@ -722,15 +660,11 @@ export function useDebateEngine(config: {
                       content: SYSTEM_MESSAGES.analysisFailed(locale),
                     })
                   } else {
-                    // Clear the "Analyzing discussion..." divider (and its
-                    // skeleton card) now that the real verdict is ready.
-                    // ChatBubble renders empty-content system messages as null.
                     dispatch({
                       type: "UPDATE_MESSAGE",
                       id: analyzingMsg.id,
                       content: "",
                     })
-                    // Add verdict as inline message
                     const verdictMsg: Message = {
                       id: createMessageId("verdict"),
                       sender: "verdict",
@@ -739,8 +673,6 @@ export function useDebateEngine(config: {
                       timestamp: new Date(),
                       verdictData: result,
                     }
-                    // Block any late-resolving mid-debate consensus
-                    // dispatch from clobbering the final result.
                     finalVerdictLandedRef.current = true
                     dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
                     dispatch({ type: "SET_VERDICT", result })
@@ -848,8 +780,6 @@ export function useDebateEngine(config: {
             logDebate("stop-verdict:invalid", {})
             throw new Error("Invalid verdict data")
           }
-          // Clear the analyzing divider + skeleton now that the real
-          // verdict (from the Stop flow) is ready.
           dispatch({
             type: "UPDATE_MESSAGE",
             id: analyzingMsg.id,
@@ -863,24 +793,12 @@ export function useDebateEngine(config: {
             timestamp: new Date(),
             verdictData: result,
           }
-          // Same guard as the normal final-verdict path: prevents any
-          // late mid-debate consensus response from clobbering the stop
-          // verdict with an intermediate confidence.
           finalVerdictLandedRef.current = true
           dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
           dispatch({ type: "SET_VERDICT", result })
           dispatch({ type: "SHOW_SUMMARY" })
         })
         .catch((err) => {
-          // logDebate (dev-only console.log) instead of console.error so
-          // Next.js's red-box dev overlay does NOT trigger. This path is
-          // an expected failure mode when the user hits Stop right as
-          // the debate is finishing: handleStop fires its own consensus
-          // fetch, and if the backend races with the in-flight fetch from
-          // the normal flow (or just 500s under load), we gracefully fall
-          // back to the analysisFailed divider. The UI fallback is
-          // already shown below - no need to scare the user in dev mode
-          // with a full-screen error overlay for a handled rejection.
           logDebate("stop-verdict:failed", {
             error: err instanceof Error ? err.message : String(err),
           })

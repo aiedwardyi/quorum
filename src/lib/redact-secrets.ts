@@ -1,3 +1,4 @@
+/** Scrubs API keys and secrets from strings before they reach logs or the client. */
 const SECRET_PATTERNS: Array<[RegExp, string]> = [
   [/sk-proj-[A-Za-z0-9_-]+/g, "sk-proj-***"],
   [/sk-[A-Za-z0-9_-]{20,}/g, "sk-***"],

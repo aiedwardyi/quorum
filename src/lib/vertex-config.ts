@@ -1,3 +1,4 @@
+/** Reads Vertex AI project and location from env, with open-source placeholder fallback. */
 const PLACEHOLDER_PROJECT_ID = "your_google_cloud_project_id"
 const PLACEHOLDER_LOCATION = "your_vertex_location"
 

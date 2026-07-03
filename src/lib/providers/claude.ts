@@ -1,3 +1,4 @@
+/** Anthropic Claude streaming provider. */
 import Anthropic from "@anthropic-ai/sdk"
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"

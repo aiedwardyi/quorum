@@ -36,10 +36,7 @@ export function getClientKeyStatus(): Record<Provider, boolean> {
   )
 }
 
-// True when an anonymous visitor has pasted no keys at all, so a missing-key
-// prompt should welcome them generically instead of naming whichever provider
-// led the panel rotation. Signed-in visitors hold keys server-side, so their
-// empty localStorage must not trigger the generic copy.
+// Anonymous with zero saved keys = first run, so the missing-key prompt stays generic. Signed-in users hold keys server-side - their empty localStorage must not trigger it.
 export function isFirstRunKeyless(isAnonymous: boolean): boolean {
   if (!isAnonymous) return false
   return USER_API_KEY_PROVIDERS.every((provider) => !getClientKey(provider))

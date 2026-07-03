@@ -1,3 +1,4 @@
+/** User-facing error messages and response parsing for missing API keys. */
 import type { Provider } from "@/types"
 import type { Locale } from "@/types"
 

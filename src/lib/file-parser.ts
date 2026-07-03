@@ -1,7 +1,4 @@
-/**
- * Client-side file parsing for PDF, DOCX, and Excel files.
- * Extracts text content that can be included in AI prompts.
- */
+/** Client-side PDF/DOCX/Excel/text extraction for AI prompts. */
 
 import type { Provider } from "@/types"
 import { parseNoKeyProviderFromResponse } from "@/lib/api-key-errors"
@@ -12,31 +9,13 @@ const MAX_PDF_PAGES = 20
 const MAX_FILE_SIZE_MB = 50
 const MAX_OCR_PAGES = 10
 const OCR_RENDER_SCALE = 2
-// Pages with fewer than this many characters are treated as scanned/watermark-only.
-// Kept low (30) so that legitimate text PDFs with sparse cover/divider pages are not
-// incorrectly queued for OCR. The page-1 watermark fix still works as long as the
-// watermark text is short, which is the common case.
+// Below this a page reads as scanned/watermark-only; low enough to spare sparse-but-legit cover pages.
 const WATERMARK_CHAR_THRESHOLD = 30
-// Pages with at least this many image paint operators (XObject draws, inline
-// images, image masks, and repeated XObject draws all count) are treated as
-// graphical/poster layouts whose content of interest (prices, schedules,
-// charts) is rendered as image text that pdf.js cannot read. They get OCR'd
-// even when pdf.js extracted substantial text. Threshold is intentionally
-// above the typical text-PDF case of one or two header/footer logos so normal
-// documents are not re-OCR'd.
+// This many image-paint ops = poster-style layout worth OCR even with extracted text; above the 1-2 logo baseline of normal docs.
 const IMAGE_HEAVY_OPS_THRESHOLD = 4
-// Sparse-text pages with at least one image are treated as image-driven (single
-// big poster + caption layouts, or scanned pages where pdf.js only recovers a
-// watermark/header overlay). Was 100, bumped to 300 so Korean court watermark
-// headers (which typically run ~140-200 chars: court name + case number +
-// submission date + personal-info warning + submitter + timestamps) also get
-// queued for OCR. Regular text-PDF pages have thousands of characters of body
-// text, so 300 still gives plenty of headroom for legit short-content pages
-// like a divider or a blank chapter opener.
+// Sparse text + any image = image-driven page; 300 (was 100) covers Korean court watermark headers (~140-200 chars).
 const SPARSE_TEXT_WITH_IMAGE_THRESHOLD = 300
-// Above this character count a page is considered text-dense and we skip the
-// image detection pass entirely. Avoids paying for getOperatorList on long
-// text-only pages where the outcome cannot flip.
+// Text-dense pages skip image detection entirely - getOperatorList cannot flip the outcome.
 const DENSE_TEXT_THRESHOLD = 2000
 export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
 
@@ -124,43 +103,19 @@ async function parsePDF(
 
   const pageLimit = Math.min(pdf.numPages, MAX_PDF_PAGES)
   const pages: Array<string | null> = Array(pageLimit).fill(null)
-  // Use a Set instead of an array so the dedup-to-OCR branch can push the
-  // retroactively-discovered first-page-number without worrying about
-  // duplicates, and so the final MAX_OCR_PAGES slice is deterministic
-  // regardless of insertion order. Converted to a sorted array below so
-  // the earliest pages are always processed first and never clipped by
-  // the slice cap even if they were added late.
+  // Set so the dedup branch can add first-occurrence page numbers without duplicates; sorted to array below.
   const ocrPageSet = new Set<number>()
   const seen = new Set<string>()
-  // Track the first page a given text was seen on so we can retroactively
-  // queue the first occurrence for OCR when a later page repeats the same
-  // text. Without this, a scanned Korean legal PDF where every page only
-  // exposes the court's download-stamp header to pdf.js would add page 1
-  // to `pages`, then silently drop pages 2..N via the `seen` dedup and
-  // never OCR anything - leaving the user with nothing but the header.
+  // Needed so repeated-text detection can retroactively queue the first occurrence; without it scanned docs only OCR page 1.
   const textFirstPage = new Map<string, number>()
   let totalLength = 0
 
   options?.onProgress?.("Reading PDF...", 2)
 
-  // First pass: extract text from all pages and decide which need OCR.
-  // A page is queued for OCR if any of the following hold:
-  //   1. The extracted text is empty or watermark-short (existing scanned-page rule).
-  //   2. The page has many image operators - a graphical/poster layout where the
-  //      content of interest (prices, schedules, charts) is rendered as image text
-  //      that pdf.js cannot read.
-  //   3. The page has at least one image AND the extracted text is sparse
-  //      (< SPARSE_TEXT_WITH_IMAGE_THRESHOLD), which catches cover pages,
-  //      schedule pages, and scanned pages where only a watermark/header
-  //      overlay made it through pdf.js's text extraction.
-  //   4. The page's extracted text is identical to text we already saw on an
-  //      earlier page. Identical full-page text across multiple pages is
-  //      almost always a watermark / download stamp on a scanned document;
-  //      the body content is a bitmap that pdf.js missed, and the earlier
-  //      occurrence is almost certainly the same kind of scanned page. Both
-  //      the current page AND its first sighting get queued.
-  // Text-dense pages skip the image detection pass entirely, so the cost of
-  // getOperatorList is only paid on pages where it can actually change the result.
+  // OCR a page when: text is empty/watermark-short; image ops mark it poster-
+  // style; sparse text plus an image (covers, watermark-only extraction); or
+  // its text duplicates an earlier page (repeated full-page text = download
+  // stamp on a scan - queue both occurrences).
   for (let i = 1; i <= pageLimit; i++) {
     options?.onProgress?.(`Reading page ${i}/${pageLimit}`, Math.round(2 + (i / pageLimit) * 3))
     const page = await pdf.getPage(i)
@@ -215,12 +170,7 @@ async function parsePDF(
       continue
     }
 
-    // Repeated full-page text = watermark/header stamp on a scanned doc.
-    // Queue BOTH this page and the first occurrence for OCR, and keep the
-    // watermark as a fallback on both in case OCR fails. Previously we
-    // returned early via `continue` here, which silently dropped the
-    // repeated page AND missed the fact that the first occurrence was
-    // also a scanned page under the same watermark.
+    // Repeated full-page text = watermark on a scan; queue both occurrences (early `continue` used to drop the first).
     if (seen.has(trimmed)) {
       const firstPageNumber = textFirstPage.get(trimmed)
       if (firstPageNumber !== undefined) {
@@ -248,12 +198,7 @@ async function parsePDF(
     return { text: joinPDFPages(pages), usedOCR: false }
   }
 
-  // Sort ascending so the earliest pages always win the MAX_OCR_PAGES
-  // slice. If we pushed in insertion order instead, a retroactively-
-  // added first-occurrence page number could sit at the tail of a full
-  // queue and get clipped off, defeating the dedup-to-OCR repair.
-  // Sorting guarantees "earliest 10 pages in the document" regardless
-  // of which branch added them when.
+  // Sort so the slice cap always picks the earliest pages, not insertion order.
   const ocrPageIndices = [...ocrPageSet].sort((a, b) => a - b)
 
   // OCR short/empty pages via the server-side OCR endpoint.

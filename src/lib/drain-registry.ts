@@ -1,22 +1,9 @@
 /**
- * Drain registry - small pub/sub shim between the smoothed streaming UI
- * hook (producer) and the debate engine (consumer).
- *
- * Why this exists: the engine used to start the next AI as soon as the
- * previous AI's network stream ended, but smoothed display at ~220 cps
- * needed extra time to finish rendering what had been buffered. That
- * forced ChatThread to snap the previous bubble to its full content
- * when the next bubble took over, dumping 70-90% of non-Claude content
- * in one frame.
- *
- * The engine now awaits waitForDrain(messageId) after each callModel.
- * useSmoothStream calls reportDrained(messageId) once displayed catches
- * up to target and the network stream is closed, which resolves the
- * waiter and lets the engine start the next model.
- *
- * The waiter always resolves, even if the reporter never fires, thanks
- * to a per-call timeout. That keeps a stuck bubble (cancelled request,
- * unmount, etc.) from hanging the entire debate.
+ * Pub/sub shim between useSmoothStream (producer) and the debate engine:
+ * the engine awaits waitForDrain(id) so the next model doesn't start while
+ * the previous bubble is still draining (which used to snap 70-90% of a
+ * response in one frame). reportDrained resolves the waiter; a per-call
+ * timeout guarantees resolution if the reporter never fires.
  */
 
 interface PendingEntry {
@@ -24,10 +11,7 @@ interface PendingEntry {
   resolve: () => void
 }
 const pending = new Map<string, PendingEntry>()
-// Track ids that have reported drained before anyone was waiting. When
-// waitForDrain is called later for one of these, it resolves instantly
-// instead of sitting through the timeout. Bounded at 64 entries so a
-// long conversation never leaks memory.
+// Ids that drained before anyone waited resolve instantly instead of timing out. Bounded at 64 entries.
 const preDrained = new Set<string>()
 const PRE_DRAINED_CAP = 64
 
@@ -49,12 +33,7 @@ export function waitForDrain(
     preDrained.delete(messageId)
     return Promise.resolve()
   }
-  // If a waiter already exists for this id, return the same promise
-  // instead of overwriting the map entry. The previous implementation
-  // would replace the first resolver, leaving the original promise
-  // hanging until its setTimeout fired. In practice this only happens
-  // on hot-reload or double-call edge cases, but either way a single
-  // report should resolve every outstanding waiter.
+  // Return the existing promise: overwriting the entry would leave the first caller hung until its timeout.
   const existing = pending.get(messageId)
   if (existing) return existing.promise
 

@@ -1,3 +1,4 @@
+/** Validates and coerces raw verdict JSON from the model into a typed VerdictResult. */
 import type { VerdictResult } from "@/types"
 
 /**

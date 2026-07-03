@@ -1,3 +1,4 @@
+/** Google Gemini streaming provider via Vertex AI and Google AI key fallback. */
 import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertexai"
 import type { Message } from "@/types"
 import { getVertexConfig } from "@/lib/vertex-config"
@@ -202,43 +203,6 @@ export async function generateGeminiVerdictWithApiKey(args: {
   signal?: AbortSignal
 }): Promise<string> {
   return generateWithGoogleAiKey(args)
-}
-
-// Non-streaming (used by consensus check later)
-export async function queryGemini(
-  systemPrompt: string,
-  messages: Message[],
-  userApiKey?: string
-): Promise<string> {
-  const apiKey = userApiKey || getConfiguredGeminiApiKey()
-  if (apiKey) {
-    const text = await generateWithGoogleAiKey({
-      apiKey,
-      modelName: "gemini-2.5-flash",
-      systemPrompt,
-      userPrompt: buildUserPrompt(messages),
-    })
-    if (!text) {
-      throw new Error("Gemini returned an empty response")
-    }
-    return text
-  }
-
-  const model = getModel()
-  const contents = buildContents(messages)
-
-  const result = await model.generateContent({
-    systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
-    contents,
-  })
-
-  const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
-
-  if (!text) {
-    throw new Error("Gemini returned an empty response")
-  }
-
-  return text
 }
 
 const STREAM_CHUNK_TIMEOUT_MS = 45_000

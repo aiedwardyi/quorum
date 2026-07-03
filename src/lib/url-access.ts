@@ -1,3 +1,4 @@
+/** URL detection in messages and per-provider URL capability instructions. */
 import type { Message, Provider } from "@/types"
 
 const URL_REGEX = /\b(?:https?:\/\/|www\.)[^\s<>"'`]+/iu

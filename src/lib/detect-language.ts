@@ -1,3 +1,4 @@
+/** Detects whether a message set is predominantly Korean for locale-forcing. */
 import type { Message } from "@/types"
 
 /**

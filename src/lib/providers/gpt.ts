@@ -1,3 +1,4 @@
+/** OpenAI GPT streaming provider. */
 import OpenAI from "openai"
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
