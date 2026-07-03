@@ -28,6 +28,9 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Format check
+        run: npx prettier --check .
+
       - name: Lint
         run: npx eslint .
 
