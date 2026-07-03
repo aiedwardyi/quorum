@@ -83,36 +83,38 @@ Switch instantly from the header or settings.
 
 ## Quick Start
 
+Quorum is **BYOK-first (bring your own key)**: paste your own provider API keys and go. No account, no database, no sign-in. Keys are stored only in your browser.
+
 ```bash
 git clone https://github.com/aiedwardyi/quorum.git
 cd quorum
 npm install
+npm run dev
 ```
 
-Create a `.env.local` file from [`.env.example`](./.env.example):
+Open [localhost:3000](http://localhost:3000), open **Settings**, and paste an API key for any provider you want on the panel. That is the whole setup.
+
+> The consensus verdict and document OCR always run on **Gemini**, so add a Gemini key even if your panel is Claude/GPT/Perplexity only.
+
+To require a key before any request runs (recommended for a public deploy), set `REQUIRE_USER_API_KEYS=true`. Anonymous BYOK gives you an in-session thread; sign in (below) to save history across visits.
+
+---
+
+## Self-Hosting with Accounts (optional)
+
+Sign-in is an optional upgrade: saved, encrypted provider keys and thread history synced to a database. Skip this entire section for pure BYOK.
+
+Create a `.env.local` from [`.env.example`](./.env.example):
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env.local        # PowerShell: Copy-Item .env.example .env.local
 ```
-
-```powershell
-Copy-Item .env.example .env.local
-```
-
-Fill in your credentials (see `.env.example` for all placeholders). Quorum is BYOK-first: you can run it with server-side provider keys in `.env.local`, and signed-in users can save their own encrypted provider keys from Settings.
 
 ```env
-# Gemini option A: Google AI Studio API key
-GEMINI_API_KEY=your_gemini_api_key
-
-# Gemini option B: Vertex AI with Application Default Credentials
-VERTEX_PROJECT_ID=your_google_cloud_project_id
-VERTEX_LOCATION=us-central1
-
-# Model Providers
-PERPLEXITY_API_KEY=your_perplexity_api_key
-ANTHROPIC_API_KEY=your_anthropic_api_key
-OPENAI_API_KEY=your_openai_api_key
+# Enable accounts: sign-in UI + the server-side session key lookup.
+# Build-time inlined - rebuild after changing.
+NEXT_PUBLIC_AUTH_ENABLED=true
+REQUIRE_USER_API_KEYS=true
 
 # Database (Neon PostgreSQL)
 DATABASE_URL=postgresql://user:password@host/neondb?sslmode=require
@@ -122,35 +124,43 @@ AUTH_SECRET=generate_with_openssl_rand_-base64_32
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 
-# Encryption for user-supplied API keys
+# Encryption for accounts' saved provider keys
 KEY_ENCRYPTION_SECRET=generate_with_openssl_rand_-base64_32
+
+# Optional server-side provider keys (used only when REQUIRE_USER_API_KEYS is false)
+GEMINI_API_KEY=your_gemini_api_key
+PERPLEXITY_API_KEY=your_perplexity_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+OPENAI_API_KEY=your_openai_api_key
 ```
 
 > **Important:** Prefer `.env.local` for local secrets. It takes precedence over `.env` and is gitignored by default.
 
-Gemini supports two server-side auth paths:
-
-- Google AI Studio/API key: set `GEMINI_API_KEY`.
-- Vertex AI ADC: leave `GEMINI_API_KEY` empty, set `VERTEX_PROJECT_ID` and `VERTEX_LOCATION`, then authenticate locally:
-
-```bash
-gcloud auth application-default login
-```
-
-For local Google login, create a Google OAuth client and add this authorized redirect URI:
+For Google login, create a Google OAuth client and add this authorized redirect URI:
 
 ```text
 http://localhost:3000/api/auth/callback/google
 ```
 
-Then initialize the database and run the app:
+Gemini has two server-side auth paths (only relevant when serving your own keys):
+
+- Google AI Studio API key: set `GEMINI_API_KEY`.
+- Vertex AI ADC: leave `GEMINI_API_KEY` empty, set `VERTEX_PROJECT_ID` and `VERTEX_LOCATION`, then `gcloud auth application-default login`.
+
+Then migrate the database and run:
 
 ```bash
 npx prisma migrate dev
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000) and start debating.
+---
+
+## Privacy & Security
+
+- Your keys live only in your browser's `localStorage` and are sent to the server solely to call the model you picked. They are never persisted or logged server-side.
+- Signed-in users' saved keys are encrypted at rest, scoped per account, and never travel back to the client.
+- Browser BYOK is inherently exposed to XSS: any script running on the page can read `localStorage`. Use your own revocable keys, and self-hosters should serve a strict Content-Security-Policy.
 
 ---
 
