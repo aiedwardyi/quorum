@@ -32,13 +32,6 @@ export default function DemoPage() {
               >
                 Open Full Demo
               </Link>
-              <Link
-                href="/demo/quorum-pipeline-demo-backup.html"
-                target="_blank"
-                className="inline-flex items-center justify-center rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-              >
-                Open Backup Cut
-              </Link>
             </div>
           </div>
         </div>

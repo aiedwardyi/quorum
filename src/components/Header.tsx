@@ -19,7 +19,6 @@ import {
   ChevronDown,
   User,
   Settings2,
-  Sparkles,
   LogIn,
   LogOut,
   Sunrise,
@@ -58,7 +57,6 @@ const translations = {
     login: "Sign In",
     logout: "Log Out",
     settings: "Settings",
-    unlimitedDebates: "Unlimited debates",
     ...leaveDebateStrings.en,
   },
   ko: {
@@ -73,7 +71,6 @@ const translations = {
     login: "로그인",
     logout: "로그아웃",
     settings: "설정",
-    unlimitedDebates: "무제한 토론",
     ...leaveDebateStrings.ko,
   },
 }
@@ -365,24 +362,6 @@ export default function ChatHeader({
         {/* Right side controls */}
         <div className="flex items-center gap-2 sm:gap-4 ml-auto">
           <div className="flex items-center gap-2 sm:gap-3">
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              title={t.unlimitedDebates}
-              aria-label={t.unlimitedDebates}
-              className={cn(
-                "h-7 sm:h-8 px-2.5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center gap-1.5 border border-zinc-200 dark:border-zinc-700 transition-all",
-                theme === "lovelace" && "hover:ring-[1.5px] hover:ring-[#eb6f92]/60",
-                theme === "tokyonight" && "hover:ring-[1.5px] hover:ring-[#7aa2f7]/40",
-                theme === "gruvbox" && "hover:ring-[1.5px] hover:ring-[#fe8019]/50",
-                theme === "catppuccin" && "hover:ring-[1.5px] hover:ring-[#cba6f7]/50",
-                theme === "nord" && "hover:ring-[1.5px] hover:ring-[#88c0d0]/50",
-                theme === "solarized" && "hover:ring-[1.5px] hover:ring-[#073642]/50"
-              )}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">∞</span>
-            </motion.div>
-
             <motion.button
               whileTap={{ scale: 0.95 }}
               whileHover={{ scale: 1.05 }}

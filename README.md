@@ -6,6 +6,7 @@ Replaces the manual workflow of copy-pasting between AI tabs. Instead of switchi
 
 **[Try it live](https://main.d30ss3zib1fsu2.amplifyapp.com/)** - bring your own key, no sign-in.
 
+[![CI](https://github.com/aiedwardyi/quorum/actions/workflows/ci.yml/badge.svg)](https://github.com/aiedwardyi/quorum/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
@@ -71,11 +72,11 @@ Switch instantly from the header or settings.
   <tr>
     <td align="center">
       <img src="docs/assets/theme-tokyonight.png" alt="Quorum Tokyo Night theme" width="356" /><br />
-      <img alt="Tokyo Night" src="https://img.shields.io/badge/Tokyo_Night-7AA2F7?style=flat-square&labelColor=1A1B26&color=7AA2F7" />
+      <img alt="Tokyo" src="https://img.shields.io/badge/Tokyo-7AA2F7?style=flat-square&labelColor=1A1B26&color=7AA2F7" />
     </td>
     <td align="center">
       <img src="docs/assets/theme-lovelace.png" alt="Quorum Lovelace theme" width="356" /><br />
-      <img alt="Lovelace" src="https://img.shields.io/badge/Lovelace-C792EA?style=flat-square&labelColor=1F2335&color=C792EA" />
+      <img alt="Rosé" src="https://img.shields.io/badge/Rosé-C792EA?style=flat-square&labelColor=1F2335&color=C792EA" />
     </td>
   </tr>
 </table>
@@ -178,18 +179,18 @@ npm run dev
 | Auth      | NextAuth v5 + Google OAuth                                                                                      |
 | Streaming | Server-Sent Events (SSE)                                                                                        |
 | i18n      | English / Korean                                                                                                |
-| Themes    | Light, Dark, Tokyo Night, Lovelace, Gruvbox, Catppuccin, Nord, Solarized                                        |
+| Themes    | Light, Solar, Dark, Tokyo, Rosé, Gruvbox, Mocha, Nord                                                          |
 
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) for details.
 
-| Version | Focus                                                     | Status      |
+| Phase   | Focus                                                     | Status      |
 | ------- | --------------------------------------------------------- | ----------- |
-| **v1**  | Core group chat - Gemini + Perplexity                     | Done        |
-| **v2**  | Claude + GPT, decisive verdict, continue-thread, 8 themes | Done        |
-| **v3**  | Persistence, OAuth, thread history, BYOK backend          | In Progress |
-| **v4**  | Share verdicts, decision workflows, custom models         | Future      |
+| **Phase 1** | Core group chat - Gemini + Perplexity                 | Done        |
+| **Phase 2** | Claude + GPT, decisive verdict, continue-thread, 8 themes | Done    |
+| **Phase 3** | Persistence, OAuth, thread history, BYOK backend      | Done        |
+| **Phase 4** | Share verdicts, decision workflows, custom models     | Future      |
 
 ## License
 
