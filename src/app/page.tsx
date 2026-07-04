@@ -32,7 +32,7 @@ export default function ChatPage() {
 
 function ChatPageContent() {
   // Config loaded from sessionStorage (set by homepage)
-  const [locale, setLocale] = useState<Locale>("ko")
+  const [locale, setLocale] = useState<Locale>("en")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(1)
   const [theme, setTheme] = useState<Theme>("tokyonight")
