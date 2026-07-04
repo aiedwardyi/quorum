@@ -491,6 +491,13 @@ export default function SettingsModal({
     }
   }
 
+  // Ignore IME composition-commit and auto-repeat so a held Enter saves once.
+  const handleSaveOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter" || e.nativeEvent.isComposing || e.repeat) return
+    e.preventDefault()
+    handleSave()
+  }
+
   const descriptions: Record<Provider, string> = {
     gemini: MODEL_INFO.gemini.description[locale],
     perplexity: MODEL_INFO.perplexity.description[locale],
@@ -625,6 +632,7 @@ export default function SettingsModal({
                               setKeys((prev) => ({ ...prev, [provider]: e.target.value }))
                               setTouchedKeys((prev) => ({ ...prev, [provider]: true }))
                             }}
+                            onKeyDown={handleSaveOnEnter}
                             placeholder={placeholder}
                             className="flex-1 bg-transparent border-none p-0 text-[13px] text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 font-medium"
                           />
@@ -652,6 +660,7 @@ export default function SettingsModal({
                       type={accessCodeVisible ? "text" : "password"}
                       value={accessCodeValue}
                       onChange={(e) => setAccessCodeValue(e.target.value)}
+                      onKeyDown={handleSaveOnEnter}
                       placeholder={t.accessCode}
                       aria-label={t.accessCode}
                       className="flex-1 bg-transparent border-none p-0 text-[13px] text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 font-medium"
