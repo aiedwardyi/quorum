@@ -625,6 +625,12 @@ export default function SettingsModal({
                               setKeys((prev) => ({ ...prev, [provider]: e.target.value }))
                               setTouchedKeys((prev) => ({ ...prev, [provider]: true }))
                             }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault()
+                                handleSave()
+                              }
+                            }}
                             placeholder={placeholder}
                             className="flex-1 bg-transparent border-none p-0 text-[13px] text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 font-medium"
                           />
@@ -652,6 +658,12 @@ export default function SettingsModal({
                       type={accessCodeVisible ? "text" : "password"}
                       value={accessCodeValue}
                       onChange={(e) => setAccessCodeValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          handleSave()
+                        }
+                      }}
                       placeholder={t.accessCode}
                       aria-label={t.accessCode}
                       className="flex-1 bg-transparent border-none p-0 text-[13px] text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/50 font-medium"
