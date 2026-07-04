@@ -51,7 +51,7 @@ export const viewport: Viewport = {
 // other forbidden characters), which makes classList.add throw
 // InvalidCharacterError. The catch then swallows the throw and the
 // dark class never lands, reintroducing the light flash.
-const themeInitScript = `(function(){try{var t=localStorage.getItem('quorum_theme')||'dark';if(t==='github')t='solarized';var a={light:1,solarized:1,dark:1,tokyonight:1,lovelace:1,gruvbox:1,catppuccin:1,nord:1};if(!a[t])t='dark';var c=document.documentElement.classList;if(t!=='light'&&t!=='solarized'){c.add('dark');if(t!=='dark')c.add(t);}else if(t==='solarized'){c.add('solarized');}}catch(e){}})();`
+const themeInitScript = `(function(){try{var t=localStorage.getItem('quorum_theme')||'tokyonight';if(t==='github')t='solarized';var a={light:1,solarized:1,dark:1,tokyonight:1,lovelace:1,gruvbox:1,catppuccin:1,nord:1};if(!a[t])t='tokyonight';var c=document.documentElement.classList;if(t!=='light'&&t!=='solarized'){c.add('dark');if(t!=='dark')c.add(t);}else if(t==='solarized'){c.add('solarized');}}catch(e){}})();`
 
 export default function RootLayout({
   children,
