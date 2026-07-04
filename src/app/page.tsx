@@ -35,7 +35,7 @@ function ChatPageContent() {
   const [locale, setLocale] = useState<Locale>("ko")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(1)
-  const [theme, setTheme] = useState<Theme>("dark")
+  const [theme, setTheme] = useState<Theme>("tokyonight")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingThread, setIsLoadingThread] = useState(false)
   const [fileWarning, setFileWarning] = useState<string | null>(null)
