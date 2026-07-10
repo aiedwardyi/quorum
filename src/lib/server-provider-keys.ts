@@ -4,7 +4,7 @@ import type { Provider } from "@/types"
 import { authEnabled, requireUserKeys } from "@/lib/deploy-config"
 import { redactSecrets } from "@/lib/redact-secrets"
 
-function isValidAccessCode(code: unknown): boolean {
+export function isValidAccessCode(code: unknown): boolean {
   if (typeof code !== "string") return false
   const trimmed = code.trim()
   if (!trimmed) return false
@@ -15,20 +15,24 @@ function isValidAccessCode(code: unknown): boolean {
     .includes(trimmed)
 }
 
-export async function resolveUserProviderApiKey(
+export type SoftKeyResult =
+  | { status: "user"; apiKey: string }
+  | { status: "server" }
+  | { status: "none" }
+  | { status: "lookup_failed" }
+
+/** Soft resolve for multi-provider fallback - never returns a 402 Response. */
+export async function softResolveProviderApiKey(
   provider: Provider,
   logLabel: string,
   requestKey?: string,
   accessCode?: string
-): Promise<{ userApiKey?: string; blockedResponse?: NextResponse }> {
-  // Anonymous BYOK: a key supplied in the request body short-circuits before any
-  // auth import, DB read, or 402. Never logged.
+): Promise<SoftKeyResult> {
   const bodyKey = typeof requestKey === "string" ? requestKey.trim() : undefined
-  if (bodyKey) return { userApiKey: bodyKey }
+  if (bodyKey) return { status: "user", apiKey: bodyKey }
 
   let userApiKey: string | undefined
 
-  // Session lookup only when auth is configured, so a zero-backend deploy never imports @/lib/auth.
   if (authEnabled()) {
     const { auth } = await import("@/lib/auth")
     const session = await auth()
@@ -40,23 +44,37 @@ export async function resolveUserProviderApiKey(
       } catch (error) {
         const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
         console.error(`[${logLabel}] failed to load user ${provider} API key:`, msg)
-
-        if (requireUserKeys()) {
-          return {
-            blockedResponse: NextResponse.json({ error: "key_lookup_failed" }, { status: 500 }),
-          }
-        }
+        if (requireUserKeys()) return { status: "lookup_failed" }
       }
     }
   }
 
-  if (requireUserKeys() && !userApiKey) {
-    // Guest pass: a valid access code unlocks this deploy's own env keys.
-    if (isValidAccessCode(accessCode)) return {}
-    return {
-      blockedResponse: NextResponse.json({ error: "no_key", provider }, { status: 402 }),
-    }
+  if (userApiKey) return { status: "user", apiKey: userApiKey }
+
+  if (requireUserKeys()) {
+    if (isValidAccessCode(accessCode)) return { status: "server" }
+    return { status: "none" }
   }
 
-  return { userApiKey }
+  return { status: "server" }
+}
+
+export async function resolveUserProviderApiKey(
+  provider: Provider,
+  logLabel: string,
+  requestKey?: string,
+  accessCode?: string
+): Promise<{ userApiKey?: string; blockedResponse?: NextResponse }> {
+  const soft = await softResolveProviderApiKey(provider, logLabel, requestKey, accessCode)
+
+  if (soft.status === "user") return { userApiKey: soft.apiKey }
+  if (soft.status === "server") return {}
+  if (soft.status === "lookup_failed") {
+    return {
+      blockedResponse: NextResponse.json({ error: "key_lookup_failed" }, { status: 500 }),
+    }
+  }
+  return {
+    blockedResponse: NextResponse.json({ error: "no_key", provider }, { status: 402 }),
+  }
 }

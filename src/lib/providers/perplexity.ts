@@ -87,3 +87,43 @@ export async function* streamPerplexity(
     }
   }
 }
+
+/** Non-streaming JSON verdict for /api/consensus (last-resort fallback). */
+export async function generatePerplexityVerdict({
+  apiKey,
+  systemPrompt,
+  userPrompt,
+  signal,
+}: {
+  apiKey?: string
+  systemPrompt: string
+  userPrompt: string
+  signal?: AbortSignal
+}): Promise<string> {
+  const response = await fetch(PERPLEXITY_URL, {
+    method: "POST",
+    headers: getHeaders(apiKey),
+    body: JSON.stringify({
+      model: "sonar-pro",
+      max_tokens: 4096,
+      // Strong JSON nudge - Sonar is search-first and may still wrap prose.
+      messages: [
+        {
+          role: "system",
+          content: `${systemPrompt}\n\nReturn ONLY a single valid JSON object. No markdown fences, no citations, no prose outside the JSON.`,
+        },
+        { role: "user", content: userPrompt },
+      ],
+      stream: false,
+    }),
+    signal,
+  })
+
+  if (!response.ok) {
+    const error = redactSecrets(await response.text())
+    throw new Error(`Perplexity API error (${response.status}): ${error}`)
+  }
+
+  const data = await response.json()
+  return data.choices?.[0]?.message?.content ?? ""
+}

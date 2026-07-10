@@ -73,3 +73,34 @@ export async function* streamClaude(
     throw new Error(redactSecrets(msg))
   }
 }
+
+/** Non-streaming JSON verdict for /api/consensus. */
+export async function generateClaudeVerdict({
+  apiKey,
+  systemPrompt,
+  userPrompt,
+  signal,
+}: {
+  apiKey?: string
+  systemPrompt: string
+  userPrompt: string
+  signal?: AbortSignal
+}): Promise<string> {
+  const client = getClient(apiKey)
+  try {
+    const msg = await client.messages.create(
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+      },
+      { signal }
+    )
+    const text = msg.content.find((b) => b.type === "text")
+    return text && text.type === "text" ? text.text : ""
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error"
+    throw new Error(redactSecrets(msg))
+  }
+}

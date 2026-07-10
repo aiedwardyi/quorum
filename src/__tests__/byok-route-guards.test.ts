@@ -18,9 +18,22 @@ const validVerdict = {
 
 vi.mock("@/lib/auth", () => ({ auth: authMock }))
 vi.mock("@/lib/user-api-keys", () => ({ getUserProviderApiKey: getUserProviderApiKeyMock }))
-vi.mock("@/lib/providers/gpt", () => ({ streamGPT: streamGPTMock }))
-vi.mock("@/lib/providers/claude", () => ({ streamClaude: vi.fn() }))
-vi.mock("@/lib/providers/perplexity", () => ({ streamPerplexity: vi.fn() }))
+const generateClaudeVerdictMock = vi.hoisted(() => vi.fn())
+const generateGptVerdictMock = vi.hoisted(() => vi.fn())
+const generatePerplexityVerdictMock = vi.hoisted(() => vi.fn())
+
+vi.mock("@/lib/providers/gpt", () => ({
+  streamGPT: streamGPTMock,
+  generateGptVerdict: generateGptVerdictMock,
+}))
+vi.mock("@/lib/providers/claude", () => ({
+  streamClaude: vi.fn(),
+  generateClaudeVerdict: generateClaudeVerdictMock,
+}))
+vi.mock("@/lib/providers/perplexity", () => ({
+  streamPerplexity: vi.fn(),
+  generatePerplexityVerdict: generatePerplexityVerdictMock,
+}))
 vi.mock("@/lib/providers/gemini", () => ({
   getConfiguredGeminiApiKey: vi.fn(() => "server-gemini-key"),
   generateGeminiVerdictWithApiKey: generateGeminiVerdictWithApiKeyMock,
@@ -101,6 +114,9 @@ describe("BYOK-required route guards", () => {
       yield "server response"
     })
     generateGeminiVerdictWithApiKeyMock.mockResolvedValue(JSON.stringify(validVerdict))
+    generateClaudeVerdictMock.mockResolvedValue(JSON.stringify(validVerdict))
+    generateGptVerdictMock.mockResolvedValue(JSON.stringify(validVerdict))
+    generatePerplexityVerdictMock.mockResolvedValue(JSON.stringify(validVerdict))
     generateGoogleAiContentWithApiKeyMock.mockResolvedValue("ocr text")
   })
 
@@ -156,7 +172,7 @@ describe("BYOK-required route guards", () => {
     }
   })
 
-  it("consensus returns no_key before using Gemini server credentials", async () => {
+  it("consensus returns no_key before using server credentials for any provider", async () => {
     const response = await consensusPOST(
       jsonRequest("/api/consensus", {
         messages,
@@ -166,8 +182,14 @@ describe("BYOK-required route guards", () => {
     )
 
     expect(response.status).toBe(402)
-    await expect(response.json()).resolves.toEqual({ error: "no_key", provider: "gemini" })
+    await expect(response.json()).resolves.toMatchObject({
+      error: "no_key",
+      message: expect.stringMatching(/API key/i),
+    })
     expect(generateGeminiVerdictWithApiKeyMock).not.toHaveBeenCalled()
+    expect(generateClaudeVerdictMock).not.toHaveBeenCalled()
+    expect(generateGptVerdictMock).not.toHaveBeenCalled()
+    expect(generatePerplexityVerdictMock).not.toHaveBeenCalled()
   })
 
   it("ocr returns no_key before using Gemini server credentials", async () => {
@@ -217,7 +239,9 @@ describe("BYOK-required route guards", () => {
 
   it("consensus proceeds with the saved Gemini key when BYOK is required", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
-    getUserProviderApiKeyMock.mockResolvedValue("user-gemini-key")
+    getUserProviderApiKeyMock.mockImplementation(async (_userId: string, provider: string) =>
+      provider === "gemini" ? "user-gemini-key" : undefined
+    )
 
     const response = await consensusPOST(
       jsonRequest("/api/consensus", {
@@ -232,6 +256,51 @@ describe("BYOK-required route guards", () => {
     expect(generateGeminiVerdictWithApiKeyMock).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "user-gemini-key" })
     )
+  })
+
+  it("consensus uses a saved Claude key when Gemini is missing", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockImplementation(async (_userId: string, provider: string) =>
+      provider === "claude" ? "user-claude-key" : undefined
+    )
+
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages,
+        locale: "en",
+        responseLength: "medium",
+        preferredProviders: ["claude", "gpt"],
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject(validVerdict)
+    expect(generateGeminiVerdictWithApiKeyMock).not.toHaveBeenCalled()
+    expect(generateClaudeVerdictMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "user-claude-key" })
+    )
+  })
+
+  it("consensus falls back to Claude when Gemini errors", async () => {
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockImplementation(async (_userId: string, provider: string) => {
+      if (provider === "gemini") return "user-gemini-key"
+      if (provider === "claude") return "user-claude-key"
+      return undefined
+    })
+    generateGeminiVerdictWithApiKeyMock.mockRejectedValue(new Error("429 rate limit"))
+
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages,
+        locale: "en",
+        responseLength: "medium",
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject(validVerdict)
+    expect(generateClaudeVerdictMock).toHaveBeenCalled()
   })
 
   it("consensus falls back to the configured Gemini key when BYOK is unset", async () => {
@@ -312,6 +381,44 @@ describe("BYOK-required route guards", () => {
     expect(generateGeminiVerdictWithApiKeyMock).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "body-gemini-key" })
     )
+    expect(authMock).not.toHaveBeenCalled()
+  })
+
+  it("consensus uses request-body userApiKeys for Claude without touching auth", async () => {
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages,
+        locale: "en",
+        responseLength: "medium",
+        userApiKeys: { claude: "body-claude-key" },
+        preferredProviders: ["claude"],
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject(validVerdict)
+    expect(generateClaudeVerdictMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "body-claude-key" })
+    )
+    expect(authMock).not.toHaveBeenCalled()
+  })
+
+  it("consensus uses Perplexity as last-resort body key", async () => {
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages,
+        locale: "en",
+        responseLength: "medium",
+        userApiKeys: { perplexity: "body-pplx-key" },
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject(validVerdict)
+    expect(generatePerplexityVerdictMock).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "body-pplx-key" })
+    )
+    expect(generateGeminiVerdictWithApiKeyMock).not.toHaveBeenCalled()
     expect(authMock).not.toHaveBeenCalled()
   })
 
