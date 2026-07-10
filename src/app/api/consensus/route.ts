@@ -396,9 +396,7 @@ export async function POST(req: NextRequest) {
         )
 
         if (
-          HEDGING_PHRASES.some((phrase) =>
-            verdict.recommendedAnswer.toLowerCase().includes(phrase)
-          )
+          HEDGING_PHRASES.some((phrase) => verdict.recommendedAnswer.toLowerCase().includes(phrase))
         ) {
           console.warn(
             `[verdict] Hedging detected in recommendedAnswer: "${verdict.recommendedAnswer}"`

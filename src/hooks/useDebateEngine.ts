@@ -524,13 +524,7 @@ export function useDebateEngine(config: {
       // After each intermediate round: fire-and-forget confidence update (does not block next round).
       if (updateConfidence && getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
         const consensusMsgs = getConsensusMessages(msgs)
-        fetchConsensus(
-          consensusMsgs,
-          locale,
-          responseLength,
-          isAnonymousRef.current,
-          activeModels
-        )
+        fetchConsensus(consensusMsgs, locale, responseLength, isAnonymousRef.current, activeModels)
           .then(async (res) => {
             if (sessionIdRef.current !== sessionId || stopRef.current) return
             if (res.status === 402) {

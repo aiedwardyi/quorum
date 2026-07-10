@@ -133,5 +133,4 @@ export function humanVerdictError(err: unknown): string {
   return "Couldn't finish the consensus this time. Send a new message to try again."
 }
 
-export const NO_CONSENSUS_KEY_MESSAGE =
-  "Add an API key in Settings so we can write the consensus."
+export const NO_CONSENSUS_KEY_MESSAGE = "Add an API key in Settings so we can write the consensus."
