@@ -111,7 +111,7 @@ export function getConsensusMessages(messages: Message[]): Message[] {
   return messages.filter((m) => m.sender !== "system")
 }
 
-/** Shared consensus request. Anonymous users attach every browser key they have. */
+/** Shared consensus request. Anonymous: only keys for models in this debate (not every saved key). */
 function fetchConsensus(
   messages: Message[],
   locale: Locale,
@@ -121,7 +121,12 @@ function fetchConsensus(
 ): Promise<Response> {
   const userApiKeys: Partial<Record<Provider, string>> = {}
   if (isAnonymous) {
-    for (const p of USER_API_KEY_PROVIDERS) {
+    // Scope to active debate models so inactive BYOK keys never leave the browser.
+    const keyProviders =
+      preferredProviders && preferredProviders.length > 0
+        ? preferredProviders
+        : USER_API_KEY_PROVIDERS
+    for (const p of keyProviders) {
       const k = getClientKey(p)
       if (k) userApiKeys[p] = k
     }

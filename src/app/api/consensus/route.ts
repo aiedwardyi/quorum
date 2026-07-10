@@ -20,7 +20,7 @@ import { redactSecrets } from "@/lib/redact-secrets"
 import {
   buildConsensusProviderOrder,
   humanVerdictError,
-  NO_CONSENSUS_KEY_MESSAGE,
+  noConsensusKeyMessage,
   resolveConsensusCandidates,
   type ConsensusCandidate,
 } from "@/lib/consensus-resolve"
@@ -152,13 +152,23 @@ function parseBodyKeys(body: Record<string, unknown>): Partial<Record<Provider, 
   return out
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs)
-    ),
-  ])
+/** Race a promise against a timeout; abort signal fires so upstream work can stop. */
+function withTimeout<T>(
+  factory: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
+  const controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      reject(new Error(`${label} timed out`))
+    }, timeoutMs)
+  })
+  return Promise.race([factory(controller.signal), timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer)
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -235,7 +245,7 @@ export async function POST(req: NextRequest) {
         {
           error: "no_key",
           provider: order[0] ?? "gemini",
-          message: NO_CONSENSUS_KEY_MESSAGE,
+          message: noConsensusKeyMessage(effectiveLocale),
         },
         { status: 402 }
       )
@@ -256,79 +266,88 @@ export async function POST(req: NextRequest) {
       userPrompt: string,
       timeoutMs: number
     ): Promise<string> => {
-      const run = async (): Promise<string> => {
-        if (candidate.provider === "claude") {
-          return generateClaudeVerdict({
-            apiKey: candidate.apiKey,
-            systemPrompt: verdictPrompt,
-            userPrompt,
-          })
-        }
-        if (candidate.provider === "gpt") {
-          return generateGptVerdict({
-            apiKey: candidate.apiKey,
-            systemPrompt: verdictPrompt,
-            userPrompt,
-          })
-        }
-        if (candidate.provider === "perplexity") {
-          return generatePerplexityVerdict({
-            apiKey: candidate.apiKey,
-            systemPrompt: verdictPrompt,
-            userPrompt,
-          })
-        }
-
-        // Gemini: user/server AI Studio key, else Vertex ADC.
-        const geminiApiKey = candidate.apiKey || getConfiguredGeminiApiKey()
-        if (geminiApiKey) {
-          return generateGeminiVerdictWithApiKey({
-            apiKey: geminiApiKey,
-            modelName: verdictModelName,
-            systemPrompt: verdictPrompt,
-            userPrompt,
-            generationConfig: verdictGenerationConfig as unknown as Record<string, unknown>,
-          })
-        }
-
-        const { projectId, location } = getVertexConfig()
-        const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
-        if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-          opts.googleAuthOptions = {
-            credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+      return withTimeout(
+        async (signal) => {
+          if (candidate.provider === "claude") {
+            return generateClaudeVerdict({
+              apiKey: candidate.apiKey,
+              systemPrompt: verdictPrompt,
+              userPrompt,
+              signal,
+            })
           }
-        }
-        const vertexAI = new VertexAI(opts)
-        const model = vertexAI.getGenerativeModel({
-          model: verdictModelName,
-          safetySettings: [
-            {
-              category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            },
-            {
-              category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-            },
-          ],
-        })
-        const result = await model.generateContent({
-          systemInstruction: {
-            role: "system",
-            parts: [{ text: verdictPrompt }],
-          },
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: userPrompt }],
-            },
-          ],
-          generationConfig: verdictGenerationConfig,
-        })
-        return result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
-      }
+          if (candidate.provider === "gpt") {
+            return generateGptVerdict({
+              apiKey: candidate.apiKey,
+              systemPrompt: verdictPrompt,
+              userPrompt,
+              signal,
+            })
+          }
+          if (candidate.provider === "perplexity") {
+            return generatePerplexityVerdict({
+              apiKey: candidate.apiKey,
+              systemPrompt: verdictPrompt,
+              userPrompt,
+              signal,
+            })
+          }
 
-      return withTimeout(run(), timeoutMs, "Verdict generation")
+          // Gemini: user/server AI Studio key, else Vertex ADC.
+          const geminiApiKey = candidate.apiKey || getConfiguredGeminiApiKey()
+          if (geminiApiKey) {
+            return generateGeminiVerdictWithApiKey({
+              apiKey: geminiApiKey,
+              modelName: verdictModelName,
+              systemPrompt: verdictPrompt,
+              userPrompt,
+              generationConfig: verdictGenerationConfig as unknown as Record<string, unknown>,
+              signal,
+            })
+          }
+
+          if (signal.aborted) throw new Error("Verdict generation timed out")
+
+          const { projectId, location } = getVertexConfig()
+          const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
+          if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+            opts.googleAuthOptions = {
+              credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+            }
+          }
+          const vertexAI = new VertexAI(opts)
+          const model = vertexAI.getGenerativeModel({
+            model: verdictModelName,
+            safetySettings: [
+              {
+                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+              {
+                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+            ],
+          })
+          // Vertex SDK has no request-level AbortSignal; timeout still races the promise.
+          const result = await model.generateContent({
+            systemInstruction: {
+              role: "system",
+              parts: [{ text: verdictPrompt }],
+            },
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: userPrompt }],
+              },
+            ],
+            generationConfig: verdictGenerationConfig,
+          })
+          return result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+        },
+        timeoutMs,
+        "Verdict generation"
+      )
     }
 
     let lastError: unknown
@@ -370,7 +389,7 @@ export async function POST(req: NextRequest) {
           const retryRaw = await generateRaw(
             candidate,
             `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}`,
-            30_000
+            VERDICT_TIMEOUT_MS
           )
           const retryCleaned = extractJson(retryRaw)
           try {
@@ -412,7 +431,7 @@ export async function POST(req: NextRequest) {
     }
 
     const elapsed = Date.now() - startTime
-    const message = humanVerdictError(lastError)
+    const message = humanVerdictError(lastError, effectiveLocale)
     console.error(`[verdict] All providers failed after ${elapsed}ms:`, message)
     return NextResponse.json(
       {
@@ -426,7 +445,8 @@ export async function POST(req: NextRequest) {
     )
   } catch (error) {
     const elapsed = Date.now() - startTime
-    const message = humanVerdictError(error)
+    // Locale may be unavailable if body parse failed - default English copy.
+    const message = humanVerdictError(error, "en")
     const detail = redactSecrets(error instanceof Error ? error.message : "Unknown error")
     console.error(`[verdict] Failed after ${elapsed}ms:`, detail)
     return NextResponse.json(
