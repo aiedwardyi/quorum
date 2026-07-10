@@ -2,6 +2,7 @@
 
 import { useReducer, useCallback, useRef, useEffect } from "react"
 import type { Message, Provider, VerdictResult, Locale, ResponseLength } from "@/types"
+import { USER_API_KEY_PROVIDERS } from "@/types"
 import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
 import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
 import { waitForDrain } from "@/lib/drain-registry"
@@ -44,13 +45,25 @@ export const SYSTEM_MESSAGES = {
   analyzing: (locale: Locale) => (locale === "ko" ? "토론 분석 중..." : "Analyzing discussion..."),
   analysisFailed: (locale: Locale) =>
     locale === "ko"
-      ? "분석을 완료할 수 없습니다. 새 메시지를 보내 계속하세요."
-      : "Could not complete analysis. Send a new message to continue.",
+      ? "합의를 끝내지 못했어요. 새 메시지를 보내 다시 시도해 주세요."
+      : "Couldn't finish the consensus this time. Send a new message to try again.",
+  analysisTimeout: (locale: Locale) =>
+    locale === "ko"
+      ? "합의 단계가 너무 오래 걸렸어요. 다시 시도하거나 응답 길이를 Medium으로 바꿔 보세요."
+      : "The consensus step took too long. Try again, or switch Response length to Medium.",
+  analysisRateLimited: (locale: Locale) =>
+    locale === "ko"
+      ? "AI가 잠시 한도에 걸렸어요. 몇 초 기다렸다가 다시 보내 주세요."
+      : "The AI hit a temporary rate limit. Wait a few seconds and send again.",
   emptyResponse: (locale: Locale, provider: Provider) =>
     locale === "ko"
       ? `${DISPLAY_NAMES[provider]} 잠깐 간식 먹으러 갔어요. 곧 돌아올게요.`
       : `${DISPLAY_NAMES[provider]} stepped out for a snack break. Back soon.`,
   missingApiKey: (locale: Locale, provider: Provider) => getMissingApiKeyMessage(provider, locale),
+  missingConsensusKey: (locale: Locale) =>
+    locale === "ko"
+      ? "합의를 쓰려면 Settings에서 API 키를 하나 이상 추가해 주세요."
+      : "Add an API key in Settings so we can write the consensus.",
 }
 
 /* ---- Client-side verdict validation ---- */
@@ -98,14 +111,26 @@ export function getConsensusMessages(messages: Message[]): Message[] {
   return messages.filter((m) => m.sender !== "system")
 }
 
-/** Shared consensus request. Only anonymous users attach the browser gemini key. */
+/** Shared consensus request. Anonymous: only keys for models in this debate (not every saved key). */
 function fetchConsensus(
   messages: Message[],
   locale: Locale,
   responseLength: ResponseLength,
-  isAnonymous: boolean
+  isAnonymous: boolean,
+  preferredProviders?: Provider[]
 ): Promise<Response> {
-  const userApiKey = isAnonymous ? getClientKey("gemini") : ""
+  const userApiKeys: Partial<Record<Provider, string>> = {}
+  if (isAnonymous) {
+    // Scope to active debate models so inactive BYOK keys never leave the browser.
+    const keyProviders =
+      preferredProviders && preferredProviders.length > 0
+        ? preferredProviders
+        : USER_API_KEY_PROVIDERS
+    for (const p of keyProviders) {
+      const k = getClientKey(p)
+      if (k) userApiKeys[p] = k
+    }
+  }
   const accessCode = getAccessCode()
   return fetch("/api/consensus", {
     method: "POST",
@@ -114,10 +139,24 @@ function fetchConsensus(
       messages,
       locale,
       responseLength,
-      ...(userApiKey ? { userApiKey } : {}),
+      ...(preferredProviders?.length ? { preferredProviders } : {}),
+      ...(Object.keys(userApiKeys).length ? { userApiKeys } : {}),
       ...(accessCode ? { accessCode } : {}),
     }),
   })
+}
+
+/** Prefer the server's plain-language message; fall back by status. */
+async function consensusFailureMessage(res: Response, locale: Locale): Promise<string> {
+  try {
+    const body = (await res.json()) as { message?: unknown; error?: unknown }
+    if (typeof body.message === "string" && body.message.trim()) return body.message.trim()
+  } catch {
+    // ignore non-JSON error bodies
+  }
+  if (res.status === 504 || res.status === 408) return SYSTEM_MESSAGES.analysisTimeout(locale)
+  if (res.status === 429) return SYSTEM_MESSAGES.analysisRateLimited(locale)
+  return SYSTEM_MESSAGES.analysisFailed(locale)
 }
 
 export function getAIMessageCount(messages: Message[]): number {
@@ -465,7 +504,9 @@ export function useDebateEngine(config: {
     async (
       currentMessages: Message[],
       activeModels: Provider[],
-      sessionId: number
+      sessionId: number,
+      /** Intermediate rounds only - last round's final card owns the consensus call. */
+      updateConfidence: boolean
     ): Promise<{ msgs: Message[]; done: boolean }> => {
       let msgs = [...currentMessages]
 
@@ -485,10 +526,10 @@ export function useDebateEngine(config: {
         return { msgs, done: true }
       }
 
-      // Mid-debate confidence update: fire-and-forget so the badge can arrive without blocking the next round.
-      if (getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
+      // After each intermediate round: fire-and-forget confidence update (does not block next round).
+      if (updateConfidence && getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
         const consensusMsgs = getConsensusMessages(msgs)
-        fetchConsensus(consensusMsgs, locale, responseLength, isAnonymousRef.current)
+        fetchConsensus(consensusMsgs, locale, responseLength, isAnonymousRef.current, activeModels)
           .then(async (res) => {
             if (sessionIdRef.current !== sessionId || stopRef.current) return
             if (res.status === 402) {
@@ -506,7 +547,7 @@ export function useDebateEngine(config: {
             }
           })
           .catch((err) => {
-            logDebate("mid-verdict:failed", {
+            logDebate("round-verdict:failed", {
               error: err instanceof Error ? err.message : String(err),
             })
           })
@@ -583,7 +624,9 @@ export function useDebateEngine(config: {
           for (let r = 0; r < rounds; r++) {
             if (stopRef.current || sessionIdRef.current !== thisSession) break
             dispatch({ type: "SET_ROUND", round: r + 1 })
-            const result = await runRound(msgs, orderedModels, thisSession)
+            // Last round skips the confidence call - the final summary card runs consensus once.
+            const isLastRound = r === rounds - 1
+            const result = await runRound(msgs, orderedModels, thisSession, !isLastRound)
             // Post-await guard: bail before pushing a divider for a round that won't run.
             if (sessionIdRef.current !== thisSession) break
             if (stopRef.current || stoppingRef.current) {
@@ -625,7 +668,8 @@ export function useDebateEngine(config: {
                   getConsensusMessages(msgs),
                   locale,
                   responseLength,
-                  isAnonymousRef.current
+                  isAnonymousRef.current,
+                  orderedModels
                 )
 
                 // Guard: if user stopped during fetch, let handleStop own the verdict
@@ -633,29 +677,21 @@ export function useDebateEngine(config: {
                   logDebate("verdict:skipped-stopped", {})
                 } else if (res.status === 402) {
                   if (sessionIdRef.current !== thisSession) return
-                  const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? "gemini"
-                  onApiKeyRequired?.(missingProvider)
+                  const missingProvider = await parseNoKeyProviderFromResponse(res)
+                  if (missingProvider) onApiKeyRequired?.(missingProvider)
+                  else onApiKeyRequired?.("gemini")
                   dispatch({
                     type: "UPDATE_MESSAGE",
                     id: analyzingMsg.id,
-                    content: SYSTEM_MESSAGES.missingApiKey(locale, missingProvider),
+                    content: SYSTEM_MESSAGES.missingConsensusKey(locale),
                   })
                 } else if (!res.ok) {
-                  // logDebate keeps detail visible in dev without triggering the red-box overlay.
-                  try {
-                    const errBody = await res.json()
-                    logDebate("verdict:failed", {
-                      status: res.status,
-                      error: errBody?.error,
-                      detail: errBody?.detail,
-                    })
-                  } catch {
-                    logDebate("verdict:failed", { status: res.status })
-                  }
+                  const failMsg = await consensusFailureMessage(res, locale)
+                  logDebate("verdict:failed", { status: res.status, message: failMsg })
                   dispatch({
                     type: "UPDATE_MESSAGE",
                     id: analyzingMsg.id,
-                    content: SYSTEM_MESSAGES.analysisFailed(locale),
+                    content: failMsg,
                   })
                 } else if (sessionIdRef.current === thisSession) {
                   const result = await res.json()
@@ -764,29 +800,44 @@ export function useDebateEngine(config: {
         getConsensusMessages(currentMessages),
         locale,
         responseLength,
-        isAnonymousRef.current
+        isAnonymousRef.current,
+        state.activeModels
       )
         .then(async (res) => {
           if (res.status === 402) {
             if (sessionIdRef.current !== stoppedSession) return null
-            const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? "gemini"
-            onApiKeyRequired?.(missingProvider)
+            const missingProvider = await parseNoKeyProviderFromResponse(res)
+            if (missingProvider) onApiKeyRequired?.(missingProvider)
+            else onApiKeyRequired?.("gemini")
             dispatch({
               type: "UPDATE_MESSAGE",
               id: analyzingMsg.id,
-              content: SYSTEM_MESSAGES.missingApiKey(locale, missingProvider),
+              content: SYSTEM_MESSAGES.missingConsensusKey(locale),
             })
             return null
           }
-          if (!res.ok) throw new Error(`API error: ${res.status}`)
+          if (!res.ok) {
+            const failMsg = await consensusFailureMessage(res, locale)
+            dispatch({
+              type: "UPDATE_MESSAGE",
+              id: analyzingMsg.id,
+              content: failMsg,
+            })
+            return null
+          }
           return res.json()
         })
         .then((result: unknown) => {
-          if (result === null) return
+          if (result === null || result === undefined) return
           if (sessionIdRef.current !== stoppedSession) return
           if (!isValidVerdict(result)) {
             logDebate("stop-verdict:invalid", {})
-            throw new Error("Invalid verdict data")
+            dispatch({
+              type: "UPDATE_MESSAGE",
+              id: analyzingMsg.id,
+              content: SYSTEM_MESSAGES.analysisFailed(locale),
+            })
+            return
           }
           dispatch({
             type: "UPDATE_MESSAGE",
@@ -817,7 +868,7 @@ export function useDebateEngine(config: {
           })
         })
     }
-  }, [locale, responseLength, onApiKeyRequired])
+  }, [locale, responseLength, onApiKeyRequired, state.activeModels])
 
   /* ---- handleReset ---- */
 

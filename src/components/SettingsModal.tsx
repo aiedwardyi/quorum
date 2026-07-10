@@ -292,7 +292,8 @@ const translations = {
     keysDesc: "Use your own API keys. They are encrypted and stored for your signed-in account.",
     keysDescAnon:
       "Use your own API keys. They stay in this browser and are sent only to the model you pick - never saved on our servers.",
-    keysGeminiNote: "The consensus verdict and document OCR always use your Gemini key.",
+    keysGeminiNote:
+      "Consensus uses any available model key (Perplexity is last-resort). Document OCR still needs Gemini.",
     save: "Save Changes",
     saved: "Saved!",
     keyConfigured: "saved",
@@ -319,7 +320,8 @@ const translations = {
     keysDesc: "자신의 API 키를 사용할 수 있습니다. 키는 암호화되어 로그인한 계정에 저장됩니다.",
     keysDescAnon:
       "자신의 API 키를 사용하세요. 키는 이 브라우저에만 저장되며 선택한 모델을 호출할 때만 전송됩니다. 서버에는 저장되지 않습니다.",
-    keysGeminiNote: "합의 판정과 문서 OCR은 항상 Gemini 키를 사용합니다.",
+    keysGeminiNote:
+      "합의는 사용 가능한 모델 키로 작성됩니다 (Perplexity는 최후 수단). 문서 OCR은 여전히 Gemini가 필요합니다.",
     save: "변경사항 저장",
     saved: "저장됨!",
     keyConfigured: "저장됨",

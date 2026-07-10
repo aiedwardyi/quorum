@@ -1,5 +1,6 @@
+/** Consensus verdict route - tries Gemini, Claude, GPT, then Perplexity. */
 import { NextRequest, NextResponse } from "next/server"
-import type { Message, Locale, ResponseLength } from "@/types"
+import type { Message, Locale, ResponseLength, Provider } from "@/types"
 import {
   VertexAI,
   HarmCategory,
@@ -12,8 +13,17 @@ import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt } from "@/lib/verdict-prompt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import { generateGeminiVerdictWithApiKey, getConfiguredGeminiApiKey } from "@/lib/providers/gemini"
-import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
+import { generateClaudeVerdict } from "@/lib/providers/claude"
+import { generateGptVerdict } from "@/lib/providers/gpt"
+import { generatePerplexityVerdict } from "@/lib/providers/perplexity"
 import { redactSecrets } from "@/lib/redact-secrets"
+import {
+  buildConsensusProviderOrder,
+  humanVerdictError,
+  noConsensusKeyMessage,
+  resolveConsensusCandidates,
+  type ConsensusCandidate,
+} from "@/lib/consensus-resolve"
 
 /** Forces structurally valid JSON with our exact field names - flash was seen
  *  emitting markdown lists and renaming fields under prose instructions alone.
@@ -114,6 +124,53 @@ function formatThread(messages: Message[]): string {
     .join("\n\n")
 }
 
+function extractJson(text: string): string {
+  const stripped = text
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim()
+  if (stripped.startsWith("{") && stripped.endsWith("}")) return stripped
+  const first = stripped.indexOf("{")
+  const last = stripped.lastIndexOf("}")
+  if (first < 0 || last < 0 || last <= first) return stripped
+  return stripped.slice(first, last + 1)
+}
+
+function parseBodyKeys(body: Record<string, unknown>): Partial<Record<Provider, string>> {
+  const out: Partial<Record<Provider, string>> = {}
+  const raw = body.userApiKeys
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const p of ["gemini", "claude", "gpt", "perplexity"] as Provider[]) {
+      const v = (raw as Record<string, unknown>)[p]
+      if (typeof v === "string" && v.trim()) out[p] = v.trim()
+    }
+  }
+  // Back-compat: single gemini body key from older clients.
+  if (typeof body.userApiKey === "string" && body.userApiKey.trim()) {
+    out.gemini = body.userApiKey.trim()
+  }
+  return out
+}
+
+/** Race a promise against a timeout; abort signal fires so upstream work can stop. */
+function withTimeout<T>(
+  factory: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
+  const controller = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      reject(new Error(`${label} timed out`))
+    }, timeoutMs)
+  })
+  return Promise.race([factory(controller.signal), timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer)
+  })
+}
+
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
 
@@ -170,214 +227,233 @@ export async function POST(req: NextRequest) {
       responseSchema: VERDICT_RESPONSE_SCHEMA,
     }
 
-    const requestApiKey = typeof body.userApiKey === "string" ? body.userApiKey : undefined
     const requestAccessCode = typeof body.accessCode === "string" ? body.accessCode : undefined
-    const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
-      "gemini",
-      "verdict",
-      requestApiKey,
-      requestAccessCode
+    const bodyKeys = parseBodyKeys(body as Record<string, unknown>)
+    const order = buildConsensusProviderOrder(body.preferredProviders)
+    const { candidates, lookupFailed } = await resolveConsensusCandidates(
+      order,
+      bodyKeys,
+      requestAccessCode,
+      "verdict"
     )
-    if (blockedResponse) return blockedResponse
 
-    const geminiApiKey = userGeminiApiKey || getConfiguredGeminiApiKey()
-    let model: ReturnType<VertexAI["getGenerativeModel"]> | null = null
-    if (!geminiApiKey) {
-      const { projectId, location } = getVertexConfig()
-      const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
-      if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-        opts.googleAuthOptions = {
-          credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
-        }
-      }
-      const vertexAI = new VertexAI(opts)
-      model = vertexAI.getGenerativeModel({
-        model: verdictModelName,
-        safetySettings: [
-          {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-          {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-          },
-        ],
-      })
+    if (lookupFailed && candidates.length === 0) {
+      return NextResponse.json({ error: "key_lookup_failed" }, { status: 500 })
+    }
+    if (candidates.length === 0) {
+      return NextResponse.json(
+        {
+          error: "no_key",
+          provider: order[0] ?? "gemini",
+          message: noConsensusKeyMessage(effectiveLocale),
+        },
+        { status: 402 }
+      )
     }
 
-    console.log(
-      `[verdict] Generating verdict tier=${verdictTier} source=${userGeminiApiKey ? "user-key" : geminiApiKey ? "gemini-api-key" : "vertex"} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
-    )
+    // Pro can legitimately take 2+ minutes; long Flash needs headroom past medium.
+    // Amplify may still cut at ~30s - client maps 504 to a plain-language timeout.
+    const VERDICT_TIMEOUT_MS = useProModel
+      ? 120_000
+      : responseLength === "long"
+        ? 55_000
+        : responseLength === "short"
+          ? 30_000
+          : 45_000
 
-    // Pro can legitimately take 2+ minutes on long debates; Flash is well under 10s so 30s surfaces real problems fast.
-    const VERDICT_TIMEOUT_MS = useProModel ? 120_000 : 30_000
-
-    const generateVerdictText = async (
+    const generateRaw = async (
+      candidate: ConsensusCandidate,
       userPrompt: string,
       timeoutMs: number
-    ): Promise<{
-      raw: string
-      finishReason?: string
-      safetyRatings?: unknown
-      promptFeedback?: unknown
-    }> => {
-      if (geminiApiKey) {
-        const raw = await Promise.race([
-          generateGeminiVerdictWithApiKey({
-            apiKey: geminiApiKey,
-            modelName: verdictModelName,
-            systemPrompt: verdictPrompt,
-            userPrompt,
-            generationConfig: verdictGenerationConfig as unknown as Record<string, unknown>,
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Verdict generation timed out")), timeoutMs)
-          ),
-        ])
-        return { raw, finishReason: "google-ai-key" }
-      }
+    ): Promise<string> => {
+      return withTimeout(
+        async (signal) => {
+          if (candidate.provider === "claude") {
+            return generateClaudeVerdict({
+              apiKey: candidate.apiKey,
+              systemPrompt: verdictPrompt,
+              userPrompt,
+              signal,
+            })
+          }
+          if (candidate.provider === "gpt") {
+            return generateGptVerdict({
+              apiKey: candidate.apiKey,
+              systemPrompt: verdictPrompt,
+              userPrompt,
+              signal,
+            })
+          }
+          if (candidate.provider === "perplexity") {
+            return generatePerplexityVerdict({
+              apiKey: candidate.apiKey,
+              systemPrompt: verdictPrompt,
+              userPrompt,
+              signal,
+            })
+          }
 
-      if (!model) throw new Error("Gemini model is not configured")
-      const result = await Promise.race([
-        model.generateContent({
-          systemInstruction: {
-            role: "system",
-            parts: [{ text: verdictPrompt }],
-          },
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: userPrompt }],
+          // Gemini: user/server AI Studio key, else Vertex ADC.
+          const geminiApiKey = candidate.apiKey || getConfiguredGeminiApiKey()
+          if (geminiApiKey) {
+            return generateGeminiVerdictWithApiKey({
+              apiKey: geminiApiKey,
+              modelName: verdictModelName,
+              systemPrompt: verdictPrompt,
+              userPrompt,
+              generationConfig: verdictGenerationConfig as unknown as Record<string, unknown>,
+              signal,
+            })
+          }
+
+          if (signal.aborted) throw new Error("Verdict generation timed out")
+
+          const { projectId, location } = getVertexConfig()
+          const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
+          if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+            opts.googleAuthOptions = {
+              credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+            }
+          }
+          const vertexAI = new VertexAI(opts)
+          const model = vertexAI.getGenerativeModel({
+            model: verdictModelName,
+            safetySettings: [
+              {
+                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+              {
+                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              },
+            ],
+          })
+          // Vertex SDK has no request-level AbortSignal; timeout still races the promise.
+          const result = await model.generateContent({
+            systemInstruction: {
+              role: "system",
+              parts: [{ text: verdictPrompt }],
             },
-          ],
-          generationConfig: verdictGenerationConfig,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Verdict generation timed out")), timeoutMs)
-        ),
-      ])
-
-      const candidate = result.response.candidates?.[0]
-      return {
-        raw: candidate?.content?.parts?.[0]?.text ?? "",
-        finishReason: candidate?.finishReason,
-        safetyRatings: candidate?.safetyRatings,
-        promptFeedback: result.response.promptFeedback,
-      }
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: userPrompt }],
+              },
+            ],
+            generationConfig: verdictGenerationConfig,
+          })
+          return result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+        },
+        timeoutMs,
+        "Verdict generation"
+      )
     }
 
-    const firstResult = await generateVerdictText(verdictUserPrompt, VERDICT_TIMEOUT_MS)
-
-    const generateElapsed = Date.now() - startTime
-    console.log(`[verdict] Gemini responded in ${generateElapsed}ms`)
-
-    const raw = firstResult.raw
-
-    if (!raw) {
-      // Safety filter or Pro thinking-only; log shape for debugging.
-      console.error(`[verdict] Empty response. finishReason=${firstResult.finishReason}`, {
-        safetyRatings: firstResult.safetyRatings,
-        promptFeedback: firstResult.promptFeedback,
-      })
-      throw new Error("Gemini returned an empty response")
-    }
-
-    // Raw preview only in dev - it echoes user document content which must not land in prod logs.
-    if (process.env.NODE_ENV === "development") {
+    let lastError: unknown
+    for (const candidate of candidates) {
+      const source = candidate.apiKey ? "user-key" : "server"
       console.log(
-        `[verdict] Raw response length=${raw.length}, finishReason=${firstResult.finishReason ?? "unknown"}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`
+        `[verdict] Trying provider=${candidate.provider} tier=${verdictTier} source=${source} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
       )
-    } else {
-      console.log(
-        `[verdict] Raw response length=${raw.length}, finishReason=${firstResult.finishReason ?? "unknown"}`
-      )
-    }
 
-    // Strip fences, then slice first-{ to last-} to tolerate Pro preamble/trailing text.
-    const extractJson = (text: string): string => {
-      const stripped = text
-        .replace(/```json\s*/gi, "")
-        .replace(/```\s*/g, "")
-        .trim()
-      if (stripped.startsWith("{") && stripped.endsWith("}")) return stripped
-      const first = stripped.indexOf("{")
-      const last = stripped.lastIndexOf("}")
-      if (first < 0 || last < 0 || last <= first) return stripped
-      return stripped.slice(first, last + 1)
-    }
-
-    const cleaned = extractJson(raw)
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(cleaned)
-    } catch (jsonErr) {
-      // Repair retry; previews gated to dev (echo user content).
-      const parseErrMsg = jsonErr instanceof Error ? jsonErr.message : String(jsonErr)
-      if (process.env.NODE_ENV === "development") {
-        console.warn(
-          `[verdict] JSON parse failed: ${parseErrMsg}. Cleaned preview=${cleaned.slice(0, 300).replace(/\n/g, "\\n")}`
-        )
-      } else {
-        console.warn(`[verdict] JSON parse failed: ${parseErrMsg}`)
-      }
-      const retryResult = await generateVerdictText(
-        `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}`,
-        30_000
-      )
-      const retryRaw = retryResult.raw
-      const retryCleaned = extractJson(retryRaw)
       try {
-        parsed = JSON.parse(retryCleaned)
-      } catch (retryErr) {
-        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr)
+        const raw = await generateRaw(candidate, verdictUserPrompt, VERDICT_TIMEOUT_MS)
+
+        const generateElapsed = Date.now() - startTime
+        console.log(
+          `[verdict] ${candidate.provider} responded in ${generateElapsed}ms, length=${raw.length}`
+        )
+
+        if (!raw) throw new Error("empty response")
+
         if (process.env.NODE_ENV === "development") {
-          console.error(
-            `[verdict] Retry parse ALSO failed: ${retryMsg}. Retry preview=${retryCleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+          console.log(
+            `[verdict] Raw response length=${raw.length}, first200=${raw.slice(0, 200).replace(/\n/g, "\\n")}`
           )
-        } else {
-          console.error(`[verdict] Retry parse ALSO failed: ${retryMsg}`)
         }
-        throw retryErr
+
+        const cleaned = extractJson(raw)
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(cleaned)
+        } catch (jsonErr) {
+          const parseErrMsg = jsonErr instanceof Error ? jsonErr.message : String(jsonErr)
+          if (process.env.NODE_ENV === "development") {
+            console.warn(
+              `[verdict] JSON parse failed: ${parseErrMsg}. Cleaned preview=${cleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+            )
+          } else {
+            console.warn(`[verdict] JSON parse failed: ${parseErrMsg}`)
+          }
+          const retryRaw = await generateRaw(
+            candidate,
+            `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}`,
+            VERDICT_TIMEOUT_MS
+          )
+          const retryCleaned = extractJson(retryRaw)
+          try {
+            parsed = JSON.parse(retryCleaned)
+          } catch (retryErr) {
+            const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr)
+            if (process.env.NODE_ENV === "development") {
+              console.error(
+                `[verdict] Retry parse ALSO failed: ${retryMsg}. Retry preview=${retryCleaned.slice(0, 300).replace(/\n/g, "\\n")}`
+              )
+            } else {
+              console.error(`[verdict] Retry parse ALSO failed: ${retryMsg}`)
+            }
+            throw retryErr
+          }
+        }
+
+        const verdict = validateVerdictResult(parsed)
+
+        const elapsed = Date.now() - startTime
+        console.log(
+          `[verdict] Generated via ${candidate.provider} in ${elapsed}ms, confidence=${verdict.confidence}`
+        )
+
+        if (
+          HEDGING_PHRASES.some((phrase) => verdict.recommendedAnswer.toLowerCase().includes(phrase))
+        ) {
+          console.warn(
+            `[verdict] Hedging detected in recommendedAnswer: "${verdict.recommendedAnswer}"`
+          )
+        }
+
+        return NextResponse.json(verdict)
+      } catch (err) {
+        lastError = err
+        const msg = redactSecrets(err instanceof Error ? err.message : String(err))
+        console.error(`[verdict] provider=${candidate.provider} failed:`, msg)
       }
     }
 
-    let verdict
-    try {
-      verdict = validateVerdictResult(parsed)
-    } catch (validationErr) {
-      const valMsg = validationErr instanceof Error ? validationErr.message : String(validationErr)
-      console.error(
-        `[verdict] Validation failed: ${valMsg}. Parsed keys=${
-          parsed && typeof parsed === "object"
-            ? Object.keys(parsed as object).join(",")
-            : typeof parsed
-        }`
-      )
-      throw validationErr
-    }
-
     const elapsed = Date.now() - startTime
-    console.log(`[verdict] Generated in ${elapsed}ms, confidence=${verdict.confidence}`)
-
-    if (
-      HEDGING_PHRASES.some((phrase) => verdict.recommendedAnswer.toLowerCase().includes(phrase))
-    ) {
-      console.warn(
-        `[verdict] Hedging detected in recommendedAnswer: "${verdict.recommendedAnswer}"`
-      )
-    }
-
-    return NextResponse.json(verdict)
-  } catch (error) {
-    const elapsed = Date.now() - startTime
-    const message = redactSecrets(error instanceof Error ? error.message : "Unknown error")
-    console.error(`[verdict] Failed after ${elapsed}ms:`, message)
+    const message = humanVerdictError(lastError, effectiveLocale)
+    console.error(`[verdict] All providers failed after ${elapsed}ms:`, message)
     return NextResponse.json(
       {
         error: "Failed to generate verdict",
-        ...(process.env.NODE_ENV === "development" ? { detail: message } : {}),
+        message,
+        ...(process.env.NODE_ENV === "development"
+          ? { detail: redactSecrets(lastError instanceof Error ? lastError.message : "Unknown") }
+          : {}),
+      },
+      { status: 500 }
+    )
+  } catch (error) {
+    const elapsed = Date.now() - startTime
+    // Locale may be unavailable if body parse failed - default English copy.
+    const message = humanVerdictError(error, "en")
+    const detail = redactSecrets(error instanceof Error ? error.message : "Unknown error")
+    console.error(`[verdict] Failed after ${elapsed}ms:`, detail)
+    return NextResponse.json(
+      {
+        error: "Failed to generate verdict",
+        message,
+        ...(process.env.NODE_ENV === "development" ? { detail } : {}),
       },
       { status: 500 }
     )

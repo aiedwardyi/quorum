@@ -53,3 +53,36 @@ export async function* streamGPT(
     throw new Error(redactSecrets(msg))
   }
 }
+
+/** Non-streaming JSON verdict for /api/consensus. */
+export async function generateGptVerdict({
+  apiKey,
+  systemPrompt,
+  userPrompt,
+  signal,
+}: {
+  apiKey?: string
+  systemPrompt: string
+  userPrompt: string
+  signal?: AbortSignal
+}): Promise<string> {
+  const client = getClient(apiKey)
+  try {
+    const res = await client.chat.completions.create(
+      {
+        model: "gpt-4o",
+        max_tokens: 4096,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      },
+      { signal }
+    )
+    return res.choices[0]?.message?.content ?? ""
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error"
+    throw new Error(redactSecrets(msg))
+  }
+}
