@@ -407,32 +407,30 @@ describe("resolveProviderContent", () => {
     expect(result).toBe("Option A is the better choice.")
   })
 
-  it("substitutes EN snack-break fallback when server flags empty", () => {
+  it("substitutes EN empty-response fallback when server flags empty", () => {
     const result = resolveProviderContent("", true, "en", "gemini")
-    expect(result).toBe("Gemini stepped out for a snack break. Back soon.")
+    expect(result).toBe("Gemini couldn't reply this round.")
   })
 
-  it("substitutes KO snack-break fallback when server flags empty", () => {
+  it("substitutes KO empty-response fallback when server flags empty", () => {
     const result = resolveProviderContent("", true, "ko", "gemini")
-    expect(result).toBe("Gemini 잠깐 간식 먹으러 갔어요. 곧 돌아올게요.")
+    expect(result).toBe("Gemini가 이번 라운드에 답하지 못했어요.")
   })
 
   it("substitutes fallback when raw content is whitespace only", () => {
     const result = resolveProviderContent("   \n\t  ", false, "en", "claude")
-    expect(result).toBe("Claude stepped out for a snack break. Back soon.")
+    expect(result).toBe("Claude couldn't reply this round.")
   })
 
   it("substitutes fallback when cleanResponse strips content to nothing", () => {
     // cleanResponse removes citation markers and horizontal rules; if that's
     // all the model returned we should still surface the fallback.
     const result = resolveProviderContent("[1][2][3]", false, "en", "perplexity")
-    expect(result).toBe("Perplexity stepped out for a snack break. Back soon.")
+    expect(result).toBe("Perplexity couldn't reply this round.")
   })
 
   it("uses provider display name in the fallback", () => {
-    expect(resolveProviderContent("", true, "en", "gpt")).toBe(
-      "GPT stepped out for a snack break. Back soon."
-    )
+    expect(resolveProviderContent("", true, "en", "gpt")).toBe("GPT couldn't reply this round.")
   })
 
   it("does not call fallback when content has any real text", () => {
