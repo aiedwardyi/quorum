@@ -57,8 +57,8 @@ export const SYSTEM_MESSAGES = {
       : "The AI hit a temporary rate limit. Wait a few seconds and send again.",
   emptyResponse: (locale: Locale, provider: Provider) =>
     locale === "ko"
-      ? `${DISPLAY_NAMES[provider]} 잠깐 간식 먹으러 갔어요. 곧 돌아올게요.`
-      : `${DISPLAY_NAMES[provider]} stepped out for a snack break. Back soon.`,
+      ? `${DISPLAY_NAMES[provider]}가 이번 라운드에 답하지 못했어요.`
+      : `${DISPLAY_NAMES[provider]} couldn't reply this round.`,
   missingApiKey: (locale: Locale, provider: Provider) => getMissingApiKeyMessage(provider, locale),
   missingConsensusKey: (locale: Locale) =>
     locale === "ko"
@@ -485,7 +485,7 @@ export function useDebateEngine(config: {
           updatePlaceholder(msg)
           return null
         }
-        // Covers transport errors and the route's {error} channel. Raw upstream errors are unactionable in a bubble - show the snack-break fallback and keep detail in logDebate (console.error would pop the dev overlay on a handled rejection).
+        // Covers transport errors and the route's {error} channel. Raw upstream errors are unactionable in a bubble - show a short fallback and keep detail in logDebate.
         const errorMsg = err instanceof Error ? err.message : "Unknown error"
         logDebate("callModel:error", { provider, error: errorMsg })
         clearTypingIfCurrentSession()
