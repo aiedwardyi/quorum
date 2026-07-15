@@ -415,7 +415,11 @@ export default function SettingsModal({
     fetch("/api/free-debate")
       .then(async (res) => {
         if (!res.ok) return null
-        return res.json() as Promise<{ remaining: number; active: boolean }>
+        return res.json() as Promise<{
+          remaining: number
+          active: boolean
+          callsRemaining?: number
+        }>
       })
       .then((data) => {
         if (!cancelled && data) setFreeDebate({ remaining: data.remaining, active: data.active })

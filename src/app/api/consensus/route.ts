@@ -268,6 +268,35 @@ export async function POST(req: NextRequest) {
     ): Promise<string> => {
       return withTimeout(
         async (signal) => {
+          // Host-key path: reserve budget, then burn free-call budget when applicable.
+          if (!candidate.apiKey) {
+            const { estimateHostCallCents, releaseHostSpend, tryReserveHostSpend } =
+              await import("@/lib/host-spend")
+            const { authEnabled, requireUserKeys } = await import("@/lib/deploy-config")
+            const { isValidAccessCode } = await import("@/lib/server-provider-keys")
+            const cents = estimateHostCallCents(candidate.provider)
+            const reserved = await tryReserveHostSpend(cents)
+            if (!reserved.ok) throw new Error("host_budget_exceeded")
+            if (requireUserKeys() && !isValidAccessCode(requestAccessCode) && authEnabled()) {
+              try {
+                const { auth } = await import("@/lib/auth")
+                const session = await auth()
+                if (!session?.user?.id) {
+                  await releaseHostSpend(reserved.cents, reserved.day)
+                  throw new Error("no_key")
+                }
+                const { tryConsumeFreeServerAccess } = await import("@/lib/free-debates")
+                if (!(await tryConsumeFreeServerAccess(session.user.id))) {
+                  await releaseHostSpend(reserved.cents, reserved.day)
+                  throw new Error("no_key")
+                }
+              } catch (err) {
+                if (err instanceof Error && err.message === "no_key") throw err
+                await releaseHostSpend(reserved.cents, reserved.day)
+                throw new Error("no_key")
+              }
+            }
+          }
           if (candidate.provider === "claude") {
             return generateClaudeVerdict({
               apiKey: candidate.apiKey,
@@ -351,6 +380,7 @@ export async function POST(req: NextRequest) {
     }
 
     let lastError: unknown
+    let lastFailedProvider: Provider | undefined
     for (const candidate of candidates) {
       const source = candidate.apiKey ? "user-key" : "server"
       console.log(
@@ -425,12 +455,33 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(verdict)
       } catch (err) {
         lastError = err
+        lastFailedProvider = candidate.provider
         const msg = redactSecrets(err instanceof Error ? err.message : String(err))
         console.error(`[verdict] provider=${candidate.provider} failed:`, msg)
       }
     }
 
     const elapsed = Date.now() - startTime
+    const lastMsg = lastError instanceof Error ? lastError.message : String(lastError ?? "")
+    if (lastMsg.includes("host_budget_exceeded")) {
+      return NextResponse.json(
+        {
+          error: "host_budget_exceeded",
+          provider: lastFailedProvider ?? order[0] ?? "gemini",
+        },
+        { status: 402 }
+      )
+    }
+    if (lastMsg === "no_key" || lastMsg.includes("no_key")) {
+      return NextResponse.json(
+        {
+          error: "no_key",
+          provider: lastFailedProvider ?? order[0] ?? "gemini",
+          message: noConsensusKeyMessage(effectiveLocale),
+        },
+        { status: 402 }
+      )
+    }
     const message = humanVerdictError(lastError, effectiveLocale)
     console.error(`[verdict] All providers failed after ${elapsed}ms:`, message)
     return NextResponse.json(

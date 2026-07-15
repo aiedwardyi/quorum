@@ -131,7 +131,7 @@ GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 # Encryption for accounts' saved provider keys
 KEY_ENCRYPTION_SECRET=generate_with_openssl_rand_-base64_32
 
-# Optional server-side provider keys (used only when REQUIRE_USER_API_KEYS is false)
+# Host provider keys: open deploy (REQUIRE_USER_API_KEYS=false), access codes, and free debates
 GEMINI_API_KEY=your_gemini_api_key
 PERPLEXITY_API_KEY=your_perplexity_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key
@@ -174,7 +174,11 @@ Set `REQUIRE_USER_API_KEYS=true`, `ACCESS_CODES=code-one,code-two`, and your ser
 
 ### Free debate after Google login
 
-With `NEXT_PUBLIC_AUTH_ENABLED=true` and `REQUIRE_USER_API_KEYS=true`, each new account gets **1 free debate** on your server keys (30-minute window for multi-call chat + consensus). BYOK and access codes still take priority and do not burn the grant. Set hard spend limits on provider dashboards before launching publicly.
+With `NEXT_PUBLIC_AUTH_ENABLED=true` and `REQUIRE_USER_API_KEYS=true`, each new account gets **1 free debate** on host keys (time window + per-grant call budget for multi-call chat + consensus). BYOK and access codes still take priority and do not burn the grant.
+
+### Host-key daily budget
+
+`HOST_KEY_DAILY_BUDGET_USD` (default **25**) caps estimated spend on host keys for free debates and access codes. When the budget is hit, host keys stop for the UTC day; BYOK still works. This is an app-side stop, independent of provider dashboards.
 
 ---
 

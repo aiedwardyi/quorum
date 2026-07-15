@@ -1,7 +1,7 @@
 /** Pick a consensus provider from preferred models + available keys. */
 import type { Locale, Provider } from "@/types"
 import { softResolveProviderApiKey, isValidAccessCode } from "@/lib/server-provider-keys"
-import { getConfiguredGeminiApiKey } from "@/lib/providers/gemini"
+import { hasServerCreds } from "@/lib/host-credentials"
 
 /** Full consensus chain. Structured models first; Perplexity always last (search-first JSON). */
 export const CONSENSUS_PROVIDERS: readonly Provider[] = ["gemini", "claude", "gpt", "perplexity"]
@@ -11,25 +11,6 @@ export type ConsensusCandidate = {
   provider: Provider
   /** User/body key when present; omit to use server env / Vertex. */
   apiKey?: string
-}
-
-function hasServerCreds(provider: Provider): boolean {
-  switch (provider) {
-    case "gemini":
-      return Boolean(getConfiguredGeminiApiKey() || process.env.VERTEX_PROJECT_ID?.trim())
-    case "claude": {
-      const k = process.env.ANTHROPIC_API_KEY?.trim()
-      return Boolean(k && !k.startsWith("your_"))
-    }
-    case "gpt": {
-      const k = process.env.OPENAI_API_KEY?.trim()
-      return Boolean(k && !k.startsWith("your_"))
-    }
-    case "perplexity": {
-      const k = process.env.PERPLEXITY_API_KEY?.trim()
-      return Boolean(k && !k.startsWith("your_"))
-    }
-  }
 }
 
 /**
@@ -78,7 +59,11 @@ export async function resolveConsensusCandidates(
       continue
     }
 
-    const soft = await softResolveProviderApiKey(provider, logLabel, undefined, accessCode)
+    // Peek only: do not claim free while scanning candidates (saved keys later in
+    // the chain must still win without burning a grant).
+    const soft = await softResolveProviderApiKey(provider, logLabel, undefined, accessCode, {
+      claimFree: false,
+    })
     if (soft.status === "lookup_failed") {
       lookupFailed = true
       continue

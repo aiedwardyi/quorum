@@ -68,15 +68,23 @@ export async function POST(req: NextRequest) {
       accessCode?: string
     }
 
-    if (!images?.length) {
+    const MAX_OCR_PAGES = 20
+    if (!Array.isArray(images) || images.length === 0) {
       return NextResponse.json({ error: "No images provided" }, { status: 400 })
+    }
+    if (images.length > MAX_OCR_PAGES) {
+      return NextResponse.json({ error: "Too many images" }, { status: 400 })
+    }
+    if (!images.every((img) => typeof img === "string" && img.length > 0)) {
+      return NextResponse.json({ error: "Invalid images" }, { status: 400 })
     }
 
     const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
       "gemini",
       "ocr",
       typeof userApiKey === "string" ? userApiKey : undefined,
-      typeof accessCode === "string" ? accessCode : undefined
+      typeof accessCode === "string" ? accessCode : undefined,
+      { units: images.length }
     )
     if (blockedResponse) return blockedResponse
 
