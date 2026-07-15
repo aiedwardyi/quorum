@@ -57,9 +57,9 @@ describe("getApiKeyPromptMessage", () => {
   })
 
   it("invites sign-in for a free debate when auth is on and visitor is signed out", () => {
-    expect(getApiKeyPromptMessage("perplexity", true, "en", { authOn: true, signedIn: false })).toBe(
-      "Sign in with Google for 1 free debate, or add an API key in Settings."
-    )
+    expect(
+      getApiKeyPromptMessage("perplexity", true, "en", { authOn: true, signedIn: false })
+    ).toBe("Sign in with Google for 1 free debate, or add an API key in Settings.")
   })
 
   it("tells signed-in users the free debate is used", () => {
