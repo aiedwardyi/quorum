@@ -311,6 +311,10 @@ const translations = {
     accessCode: "Access code",
     accessCodeDesc:
       "Have a code from the host? It unlocks this deployment's built-in keys - no API keys needed.",
+    freeDebate: "Free debate",
+    freeDebateAvailable: "1 free debate on host keys included with your account.",
+    freeDebateActive: "Free debate in progress - host keys unlocked for a bit.",
+    freeDebateUsed: "Free debate used. Paste your own API keys to keep going.",
   },
   ko: {
     settings: "설정",
@@ -339,6 +343,10 @@ const translations = {
     accessCode: "액세스 코드",
     accessCodeDesc:
       "호스트에게 받은 코드가 있나요? 이 배포에 내장된 키를 사용할 수 있습니다 - API 키가 필요 없습니다.",
+    freeDebate: "무료 토론",
+    freeDebateAvailable: "계정에 호스트 키로 무료 토론 1회가 포함되어 있어요.",
+    freeDebateActive: "무료 토론 진행 중 - 잠시 호스트 키를 쓸 수 있어요.",
+    freeDebateUsed: "무료 토론을 다 썼어요. API 키를 넣으면 계속할 수 있어요.",
   },
 }
 
@@ -382,6 +390,7 @@ export default function SettingsModal({
   const [saved, setSaved] = useState(false)
   const [accessCodeValue, setAccessCodeValue] = useState("")
   const [accessCodeVisible, setAccessCodeVisible] = useState(false)
+  const [freeDebate, setFreeDebate] = useState<{ remaining: number; active: boolean } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const t = translations[locale]
 
@@ -396,7 +405,26 @@ export default function SettingsModal({
     setKeys(createEmptyKeys())
     setTouchedKeys(createEmptyKeyStatus())
     setAccessCodeValue(getAccessCode())
+    setFreeDebate(null)
   }, [isOpen])
+
+  // Load free-debate grant when signed-in account tab is open.
+  useEffect(() => {
+    if (!isOpen || anonymous || !authEnabled()) return
+    let cancelled = false
+    fetch("/api/free-debate")
+      .then(async (res) => {
+        if (!res.ok) return null
+        return res.json() as Promise<{ remaining: number; active: boolean }>
+      })
+      .then((data) => {
+        if (!cancelled && data) setFreeDebate({ remaining: data.remaining, active: data.active })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, anonymous])
 
   // Load which providers already have a saved key, re-running once auth settles.
   useEffect(() => {
@@ -610,6 +638,16 @@ export default function SettingsModal({
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
                       {anonymous ? t.keysDescAnon : t.keysDesc}
                     </p>
+                    {!anonymous && freeDebate && (
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        <span className="font-medium text-foreground/80">{t.freeDebate}: </span>
+                        {freeDebate.active
+                          ? t.freeDebateActive
+                          : freeDebate.remaining > 0
+                            ? t.freeDebateAvailable
+                            : t.freeDebateUsed}
+                      </p>
+                    )}
                     <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
                       {t.keysGeminiNote}
                     </p>

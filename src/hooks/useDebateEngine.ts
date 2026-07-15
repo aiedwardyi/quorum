@@ -12,6 +12,7 @@ import {
   parseNoKeyProviderFromResponse,
 } from "@/lib/api-key-errors"
 import { getClientKey, getAccessCode, isFirstRunKeyless } from "@/lib/client-api-keys"
+import { authEnabled } from "@/lib/deploy-config"
 
 /* ---- Constants ---- */
 
@@ -60,10 +61,21 @@ export const SYSTEM_MESSAGES = {
       ? `${DISPLAY_NAMES[provider]}가 이번 라운드에 답하지 못했어요.`
       : `${DISPLAY_NAMES[provider]} couldn't reply this round.`,
   missingApiKey: (locale: Locale, provider: Provider) => getMissingApiKeyMessage(provider, locale),
-  missingConsensusKey: (locale: Locale) =>
-    locale === "ko"
+  missingConsensusKey: (locale: Locale, signedIn = false) => {
+    if (authEnabled() && !signedIn) {
+      return locale === "ko"
+        ? "합의를 쓰려면 Google로 로그인(무료 1회)하거나 Settings에서 API 키를 추가하세요."
+        : "Sign in for 1 free debate, or add an API key in Settings for the consensus."
+    }
+    if (signedIn) {
+      return locale === "ko"
+        ? "무료 토론을 다 썼어요. 합의를 쓰려면 Settings에서 API 키를 추가하세요."
+        : "Free debate used. Add an API key in Settings so we can write the consensus."
+    }
+    return locale === "ko"
       ? "합의를 쓰려면 Settings에서 API 키를 하나 이상 추가해 주세요."
-      : "Add an API key in Settings so we can write the consensus.",
+      : "Add an API key in Settings so we can write the consensus."
+  },
 }
 
 /* ---- Client-side verdict validation ---- */
@@ -399,7 +411,11 @@ export function useDebateEngine(config: {
             getApiKeyPromptMessage(
               missingProvider,
               isFirstRunKeyless(isAnonymousRef.current),
-              locale
+              locale,
+              {
+                signedIn: !isAnonymousRef.current,
+                authOn: authEnabled(),
+              }
             )
           )
           stopRef.current = true
@@ -683,7 +699,7 @@ export function useDebateEngine(config: {
                   dispatch({
                     type: "UPDATE_MESSAGE",
                     id: analyzingMsg.id,
-                    content: SYSTEM_MESSAGES.missingConsensusKey(locale),
+                    content: SYSTEM_MESSAGES.missingConsensusKey(locale, !isAnonymousRef.current),
                   })
                 } else if (!res.ok) {
                   const failMsg = await consensusFailureMessage(res, locale)
@@ -812,7 +828,7 @@ export function useDebateEngine(config: {
             dispatch({
               type: "UPDATE_MESSAGE",
               id: analyzingMsg.id,
-              content: SYSTEM_MESSAGES.missingConsensusKey(locale),
+              content: SYSTEM_MESSAGES.missingConsensusKey(locale, !isAnonymousRef.current),
             })
             return null
           }
