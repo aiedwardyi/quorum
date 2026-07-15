@@ -1,4 +1,4 @@
-/** Server-side API key resolution: user-supplied key, env fallback, or 402 block. */
+/** Server-side API key resolution: user-supplied key, free grant, env fallback, or 402 block. */
 import { NextResponse } from "next/server"
 import type { Provider } from "@/types"
 import { authEnabled, requireUserKeys } from "@/lib/deploy-config"
@@ -32,15 +32,17 @@ export async function softResolveProviderApiKey(
   if (bodyKey) return { status: "user", apiKey: bodyKey }
 
   let userApiKey: string | undefined
+  let userId: string | undefined
 
   if (authEnabled()) {
     const { auth } = await import("@/lib/auth")
     const session = await auth()
+    userId = session?.user?.id
 
-    if (session?.user?.id) {
+    if (userId) {
       try {
         const { getUserProviderApiKey } = await import("@/lib/user-api-keys")
-        userApiKey = await getUserProviderApiKey(session.user.id, provider)
+        userApiKey = await getUserProviderApiKey(userId, provider)
       } catch (error) {
         const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
         console.error(`[${logLabel}] failed to load user ${provider} API key:`, msg)
@@ -53,6 +55,18 @@ export async function softResolveProviderApiKey(
 
   if (requireUserKeys()) {
     if (isValidAccessCode(accessCode)) return { status: "server" }
+
+    if (userId) {
+      try {
+        const { tryClaimFreeServerAccess } = await import("@/lib/free-debates")
+        if (await tryClaimFreeServerAccess(userId)) return { status: "server" }
+      } catch (error) {
+        const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
+        console.error(`[${logLabel}] free debate claim failed:`, msg)
+        // Fall through to none - do not 500 the whole debate path on grant errors.
+      }
+    }
+
     return { status: "none" }
   }
 

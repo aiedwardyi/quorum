@@ -641,7 +641,10 @@ function ChatPageContent() {
         >
           <KeyRound className="h-4 w-4 shrink-0 text-warning" />
           <span className="min-w-0 flex-1">
-            {getApiKeyPromptMessage(apiKeyToastProvider, isFirstRunKeyless(isAnonymous), locale)}
+            {getApiKeyPromptMessage(apiKeyToastProvider, isFirstRunKeyless(isAnonymous), locale, {
+              signedIn: !isAnonymous,
+              authOn: authEnabled(),
+            })}
           </span>
           <button
             type="button"

@@ -3,6 +3,7 @@ import type { Message } from "@/types"
 
 const authMock = vi.hoisted(() => vi.fn())
 const getUserProviderApiKeyMock = vi.hoisted(() => vi.fn())
+const tryClaimFreeServerAccessMock = vi.hoisted(() => vi.fn())
 const streamGPTMock = vi.hoisted(() => vi.fn())
 const generateGeminiVerdictWithApiKeyMock = vi.hoisted(() => vi.fn())
 const generateGoogleAiContentWithApiKeyMock = vi.hoisted(() => vi.fn())
@@ -18,6 +19,10 @@ const validVerdict = {
 
 vi.mock("@/lib/auth", () => ({ auth: authMock }))
 vi.mock("@/lib/user-api-keys", () => ({ getUserProviderApiKey: getUserProviderApiKeyMock }))
+vi.mock("@/lib/free-debates", () => ({
+  tryClaimFreeServerAccess: tryClaimFreeServerAccessMock,
+  getFreeDebateStatus: vi.fn(),
+}))
 const generateClaudeVerdictMock = vi.hoisted(() => vi.fn())
 const generateGptVerdictMock = vi.hoisted(() => vi.fn())
 const generatePerplexityVerdictMock = vi.hoisted(() => vi.fn())
@@ -110,6 +115,7 @@ describe("BYOK-required route guards", () => {
     process.env.NEXT_PUBLIC_AUTH_ENABLED = "true"
     authMock.mockResolvedValue(null)
     getUserProviderApiKeyMock.mockResolvedValue(undefined)
+    tryClaimFreeServerAccessMock.mockResolvedValue(false)
     streamGPTMock.mockImplementation(async function* () {
       yield "server response"
     })
@@ -609,5 +615,63 @@ describe("access codes", () => {
     process.env.ACCESS_CODES = ""
     const result = await resolveUserProviderApiKey("gemini", "test", undefined, "")
     expect(result.blockedResponse?.status).toBe(402)
+  })
+})
+
+describe("free debate grant", () => {
+  let previousRequireUserApiKeys: string | undefined
+  let previousAuthEnabled: string | undefined
+
+  beforeEach(() => {
+    previousRequireUserApiKeys = process.env.REQUIRE_USER_API_KEYS
+    previousAuthEnabled = process.env.NEXT_PUBLIC_AUTH_ENABLED
+    process.env.REQUIRE_USER_API_KEYS = "true"
+    process.env.NEXT_PUBLIC_AUTH_ENABLED = "true"
+    authMock.mockResolvedValue({ user: { id: "user-1" } })
+    getUserProviderApiKeyMock.mockResolvedValue(undefined)
+    tryClaimFreeServerAccessMock.mockResolvedValue(false)
+  })
+
+  afterEach(() => {
+    if (previousRequireUserApiKeys === undefined) {
+      delete process.env.REQUIRE_USER_API_KEYS
+    } else {
+      process.env.REQUIRE_USER_API_KEYS = previousRequireUserApiKeys
+    }
+    if (previousAuthEnabled === undefined) {
+      delete process.env.NEXT_PUBLIC_AUTH_ENABLED
+    } else {
+      process.env.NEXT_PUBLIC_AUTH_ENABLED = previousAuthEnabled
+    }
+    vi.clearAllMocks()
+  })
+
+  it("uses server keys when the signed-in user claims a free debate", async () => {
+    tryClaimFreeServerAccessMock.mockResolvedValue(true)
+    const result = await resolveUserProviderApiKey("gpt", "test")
+    expect(result.blockedResponse).toBeUndefined()
+    expect(result.userApiKey).toBeUndefined()
+    expect(tryClaimFreeServerAccessMock).toHaveBeenCalledWith("user-1")
+  })
+
+  it("still 402s when free grant is exhausted", async () => {
+    tryClaimFreeServerAccessMock.mockResolvedValue(false)
+    const result = await resolveUserProviderApiKey("gpt", "test")
+    expect(result.blockedResponse?.status).toBe(402)
+  })
+
+  it("prefers body key over free grant", async () => {
+    tryClaimFreeServerAccessMock.mockResolvedValue(true)
+    const result = await resolveUserProviderApiKey("gpt", "test", "user-key")
+    expect(result.userApiKey).toBe("user-key")
+    expect(tryClaimFreeServerAccessMock).not.toHaveBeenCalled()
+  })
+
+  it("prefers access code over free grant", async () => {
+    process.env.ACCESS_CODES = "alpha-1234"
+    tryClaimFreeServerAccessMock.mockResolvedValue(true)
+    const result = await resolveUserProviderApiKey("gpt", "test", undefined, "alpha-1234")
+    expect(result.blockedResponse).toBeUndefined()
+    expect(tryClaimFreeServerAccessMock).not.toHaveBeenCalled()
   })
 })

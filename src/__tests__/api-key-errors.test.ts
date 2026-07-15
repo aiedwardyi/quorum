@@ -56,6 +56,18 @@ describe("getApiKeyPromptMessage", () => {
     )
   })
 
+  it("invites sign-in for a free debate when auth is on and visitor is signed out", () => {
+    expect(getApiKeyPromptMessage("perplexity", true, "en", { authOn: true, signedIn: false })).toBe(
+      "Sign in with Google for 1 free debate, or add an API key in Settings."
+    )
+  })
+
+  it("tells signed-in users the free debate is used", () => {
+    expect(getApiKeyPromptMessage("perplexity", true, "en", { authOn: true, signedIn: true })).toBe(
+      "Free debate used. Add an API key in Settings to continue."
+    )
+  })
+
   it("ignores the provider when keyless (rotation order should not leak)", () => {
     expect(getApiKeyPromptMessage("perplexity", true)).toBe(getApiKeyPromptMessage("gpt", true))
   })
