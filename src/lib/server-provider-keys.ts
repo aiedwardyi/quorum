@@ -24,7 +24,7 @@ export type SoftKeyResult =
   | { status: "lookup_failed" }
 
 export type SoftResolveOptions = {
-  /** When false, only an already-open free window counts (no new claim). Default true. */
+  /** When false, only free eligibility (active or unopened) counts - no consume. Default true. */
   claimFree?: boolean
 }
 
@@ -76,10 +76,9 @@ export async function softResolveProviderApiKey(
     if (userId && hasServerCreds(provider)) {
       try {
         const free = await import("@/lib/free-debates")
-        // Callers that actually bill should pass claimFree: false and consume after budget reserve.
         const ok = claimFree
           ? await free.tryConsumeFreeServerAccess(userId)
-          : await free.peekFreeServerAccess(userId)
+          : await free.canUseFreeServerAccess(userId)
         if (ok) return { status: "server" }
       } catch (error) {
         const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
@@ -98,6 +97,38 @@ function budgetExceededResponse(provider: Provider): NextResponse {
   return NextResponse.json({ error: "host_budget_exceeded", provider }, { status: 402 })
 }
 
+function noKeyResponse(provider: Provider): NextResponse {
+  return NextResponse.json({ error: "no_key", provider }, { status: 402 })
+}
+
+/** After host spend is reserved for free path: consume grant or refund. */
+async function consumeFreeAfterReserve(
+  provider: Provider,
+  logLabel: string,
+  cents: number,
+  day: string
+): Promise<{ ok: true } | { ok: false; blockedResponse: NextResponse }> {
+  try {
+    const { auth } = await import("@/lib/auth")
+    const session = await auth()
+    if (!session?.user?.id) {
+      await releaseHostSpend(cents, day)
+      return { ok: false, blockedResponse: noKeyResponse(provider) }
+    }
+    const free = await import("@/lib/free-debates")
+    if (!(await free.tryConsumeFreeServerAccess(session.user.id))) {
+      await releaseHostSpend(cents, day)
+      return { ok: false, blockedResponse: noKeyResponse(provider) }
+    }
+    return { ok: true }
+  } catch (error) {
+    await releaseHostSpend(cents, day)
+    const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
+    console.error(`[${logLabel}] free debate enforce failed:`, msg)
+    return { ok: false, blockedResponse: noKeyResponse(provider) }
+  }
+}
+
 export async function resolveUserProviderApiKey(
   provider: Provider,
   logLabel: string,
@@ -108,7 +139,7 @@ export async function resolveUserProviderApiKey(
   const units = options?.units ?? 1
   const cents = estimateHostCallCents(provider, units)
 
-  // Peek only - never burn free before budget is reserved.
+  // Eligibility only - never burn free before budget is reserved.
   const soft = await softResolveProviderApiKey(provider, logLabel, requestKey, accessCode, {
     claimFree: false,
   })
@@ -121,53 +152,38 @@ export async function resolveUserProviderApiKey(
   }
 
   if (soft.status === "server") {
-    if (!(await tryReserveHostSpend(cents))) {
+    const reserved = await tryReserveHostSpend(cents)
+    if (!reserved.ok) {
       return { blockedResponse: budgetExceededResponse(provider) }
     }
-    // Free window was peeked: consume one call after budget is locked.
+    // Free-eligible host path (not access code): consume after budget lock.
     if (requireUserKeys() && !isValidAccessCode(accessCode) && authEnabled()) {
-      const { auth } = await import("@/lib/auth")
-      const session = await auth()
-      if (session?.user?.id) {
-        const free = await import("@/lib/free-debates")
-        if (!(await free.tryConsumeFreeServerAccess(session.user.id))) {
-          await releaseHostSpend(cents)
-          return {
-            blockedResponse: NextResponse.json({ error: "no_key", provider }, { status: 402 }),
-          }
-        }
-      }
+      const enforced = await consumeFreeAfterReserve(
+        provider,
+        logLabel,
+        reserved.cents,
+        reserved.day
+      )
+      if (!enforced.ok) return { blockedResponse: enforced.blockedResponse }
     }
     return {}
   }
 
-  // No active free window / access code: try claiming free only after budget reserve.
+  // Soft none: still try free claim after budget if the user may have a grant.
   if (
     requireUserKeys() &&
     hasServerCreds(provider) &&
     authEnabled() &&
     !isValidAccessCode(accessCode)
   ) {
-    const { auth } = await import("@/lib/auth")
-    const session = await auth()
-    if (session?.user?.id) {
-      if (!(await tryReserveHostSpend(cents))) {
-        return { blockedResponse: budgetExceededResponse(provider) }
-      }
-      try {
-        const free = await import("@/lib/free-debates")
-        if (await free.tryConsumeFreeServerAccess(session.user.id)) {
-          return {}
-        }
-      } catch (error) {
-        const msg = error instanceof Error ? redactSecrets(error.message) : "Unknown error"
-        console.error(`[${logLabel}] free debate claim failed:`, msg)
-      }
-      await releaseHostSpend(cents)
+    const reserved = await tryReserveHostSpend(cents)
+    if (!reserved.ok) {
+      return { blockedResponse: budgetExceededResponse(provider) }
     }
+    const enforced = await consumeFreeAfterReserve(provider, logLabel, reserved.cents, reserved.day)
+    if (enforced.ok) return {}
+    return { blockedResponse: enforced.blockedResponse }
   }
 
-  return {
-    blockedResponse: NextResponse.json({ error: "no_key", provider }, { status: 402 }),
-  }
+  return { blockedResponse: noKeyResponse(provider) }
 }

@@ -37,6 +37,10 @@ export type HostSpendStatus = {
   remainingCents: number
 }
 
+export type HostSpendReserveResult =
+  | { ok: true; day: string; cents: number }
+  | { ok: false; day: string; cents: number }
+
 function hasDatabase(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim())
 }
@@ -57,16 +61,16 @@ export async function getHostSpendStatus(): Promise<HostSpendStatus> {
   }
 }
 
-/** Atomically reserve estimated cents for one host-key call. False = over budget. */
-export async function tryReserveHostSpend(cents: number): Promise<boolean> {
-  if (cents <= 0) return true
+/** Atomically reserve estimated cents for one host-key call. */
+export async function tryReserveHostSpend(cents: number): Promise<HostSpendReserveResult> {
+  const day = utcSpendDay()
+  if (cents <= 0) return { ok: true, day, cents: 0 }
   const budgetCents = getDailyBudgetCents()
-  if (budgetCents <= 0) return false
+  if (budgetCents <= 0) return { ok: false, day, cents }
   // Pure local BYOK / no DB: don't hard-fail host keys on missing tracking table.
-  if (!hasDatabase()) return true
+  if (!hasDatabase()) return { ok: true, day, cents }
 
   try {
-    const day = utcSpendDay()
     await prisma.hostSpendDay.upsert({
       where: { day },
       create: { day, centsUsed: 0 },
@@ -75,24 +79,23 @@ export async function tryReserveHostSpend(cents: number): Promise<boolean> {
     })
 
     const maxBefore = budgetCents - cents
-    if (maxBefore < 0) return false
+    if (maxBefore < 0) return { ok: false, day, cents }
 
     const updated = await prisma.hostSpendDay.updateMany({
       where: { day, centsUsed: { lte: maxBefore } },
       data: { centsUsed: { increment: cents } },
     })
-    return updated.count === 1
+    return updated.count === 1 ? { ok: true, day, cents } : { ok: false, day, cents }
   } catch (error) {
     console.error("[host-spend] reserve failed:", error)
-    return false
+    return { ok: false, day, cents }
   }
 }
 
-/** Undo a reserve when a free grant consume fails after budget was taken. */
-export async function releaseHostSpend(cents: number): Promise<void> {
-  if (cents <= 0 || !hasDatabase()) return
+/** Undo a reserve; pass the day from tryReserveHostSpend so midnight cannot orphan the refund. */
+export async function releaseHostSpend(cents: number, day: string): Promise<void> {
+  if (cents <= 0 || !hasDatabase() || !day) return
   try {
-    const day = utcSpendDay()
     await prisma.hostSpendDay.updateMany({
       where: { day, centsUsed: { gte: cents } },
       data: { centsUsed: { decrement: cents } },

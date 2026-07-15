@@ -131,7 +131,7 @@ GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 # Encryption for accounts' saved provider keys
 KEY_ENCRYPTION_SECRET=generate_with_openssl_rand_-base64_32
 
-# Optional server-side provider keys (used only when REQUIRE_USER_API_KEYS is false)
+# Host provider keys: open deploy (REQUIRE_USER_API_KEYS=false), access codes, and free debates
 GEMINI_API_KEY=your_gemini_api_key
 PERPLEXITY_API_KEY=your_perplexity_api_key
 ANTHROPIC_API_KEY=your_anthropic_api_key

@@ -54,6 +54,23 @@ export async function peekFreeServerAccess(userId: string): Promise<boolean> {
   return isActiveWindow(user.freeDebateExpiresAt, user.freeDebateCallsRemaining, new Date())
 }
 
+/** Read-only: active window or an unopened remaining grant (still no consume). */
+export async function canUseFreeServerAccess(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      freeDebatesRemaining: true,
+      freeDebateExpiresAt: true,
+      freeDebateCallsRemaining: true,
+    },
+  })
+  if (!user) return false
+  if (isActiveWindow(user.freeDebateExpiresAt, user.freeDebateCallsRemaining, new Date())) {
+    return true
+  }
+  return user.freeDebatesRemaining > 0
+}
+
 /**
  * Consume one free host call. Claims a remaining grant if needed, then decrements
  * the per-grant call budget so multi-request debates work without multi-debate abuse.

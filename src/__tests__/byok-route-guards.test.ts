@@ -5,6 +5,7 @@ const authMock = vi.hoisted(() => vi.fn())
 const getUserProviderApiKeyMock = vi.hoisted(() => vi.fn())
 const tryConsumeFreeServerAccessMock = vi.hoisted(() => vi.fn())
 const peekFreeServerAccessMock = vi.hoisted(() => vi.fn())
+const canUseFreeServerAccessMock = vi.hoisted(() => vi.fn())
 const tryReserveHostSpendMock = vi.hoisted(() => vi.fn())
 const hasServerCredsMock = vi.hoisted(() => vi.fn())
 const streamGPTMock = vi.hoisted(() => vi.fn())
@@ -26,6 +27,7 @@ vi.mock("@/lib/free-debates", () => ({
   tryConsumeFreeServerAccess: tryConsumeFreeServerAccessMock,
   tryClaimFreeServerAccess: tryConsumeFreeServerAccessMock,
   peekFreeServerAccess: peekFreeServerAccessMock,
+  canUseFreeServerAccess: canUseFreeServerAccessMock,
   getFreeDebateStatus: vi.fn(),
 }))
 const releaseHostSpendMock = vi.hoisted(() => vi.fn())
@@ -132,7 +134,8 @@ describe("BYOK-required route guards", () => {
     getUserProviderApiKeyMock.mockResolvedValue(undefined)
     tryConsumeFreeServerAccessMock.mockResolvedValue(false)
     peekFreeServerAccessMock.mockResolvedValue(false)
-    tryReserveHostSpendMock.mockResolvedValue(true)
+    canUseFreeServerAccessMock.mockResolvedValue(false)
+    tryReserveHostSpendMock.mockResolvedValue({ ok: true, day: "2026-07-15", cents: 1 })
     releaseHostSpendMock.mockResolvedValue(undefined)
     hasServerCredsMock.mockReturnValue(true)
     streamGPTMock.mockImplementation(async function* () {
@@ -593,7 +596,8 @@ describe("access codes", () => {
     previousRequireUserApiKeys = process.env.REQUIRE_USER_API_KEYS
     previousAccessCodes = process.env.ACCESS_CODES
     hasServerCredsMock.mockReturnValue(true)
-    tryReserveHostSpendMock.mockResolvedValue(true)
+    tryReserveHostSpendMock.mockResolvedValue({ ok: true, day: "2026-07-15", cents: 1 })
+    releaseHostSpendMock.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -652,7 +656,9 @@ describe("free debate grant", () => {
     getUserProviderApiKeyMock.mockResolvedValue(undefined)
     tryConsumeFreeServerAccessMock.mockResolvedValue(false)
     peekFreeServerAccessMock.mockResolvedValue(false)
-    tryReserveHostSpendMock.mockResolvedValue(true)
+    canUseFreeServerAccessMock.mockResolvedValue(false)
+    tryReserveHostSpendMock.mockResolvedValue({ ok: true, day: "2026-07-15", cents: 1 })
+    releaseHostSpendMock.mockResolvedValue(undefined)
     hasServerCredsMock.mockReturnValue(true)
   })
 
@@ -671,7 +677,7 @@ describe("free debate grant", () => {
   })
 
   it("uses server keys when the signed-in user claims a free debate", async () => {
-    peekFreeServerAccessMock.mockResolvedValue(false)
+    canUseFreeServerAccessMock.mockResolvedValue(true)
     tryConsumeFreeServerAccessMock.mockResolvedValue(true)
     const result = await resolveUserProviderApiKey("gpt", "test")
     expect(result.blockedResponse).toBeUndefined()
@@ -681,26 +687,33 @@ describe("free debate grant", () => {
   })
 
   it("reserves budget before consuming an open free window", async () => {
-    peekFreeServerAccessMock.mockResolvedValue(true)
-    tryConsumeFreeServerAccessMock.mockResolvedValue(true)
+    const order: string[] = []
+    tryReserveHostSpendMock.mockImplementation(async () => {
+      order.push("reserve")
+      return { ok: true, day: "2026-07-15", cents: 1 }
+    })
+    tryConsumeFreeServerAccessMock.mockImplementation(async () => {
+      order.push("consume")
+      return true
+    })
+    canUseFreeServerAccessMock.mockResolvedValue(true)
     const result = await resolveUserProviderApiKey("gpt", "test")
     expect(result.blockedResponse).toBeUndefined()
-    expect(tryReserveHostSpendMock).toHaveBeenCalled()
-    expect(tryConsumeFreeServerAccessMock).toHaveBeenCalledWith("user-1")
+    expect(order).toEqual(["reserve", "consume"])
   })
 
   it("still 402s when free grant is exhausted", async () => {
-    peekFreeServerAccessMock.mockResolvedValue(false)
+    canUseFreeServerAccessMock.mockResolvedValue(true)
     tryConsumeFreeServerAccessMock.mockResolvedValue(false)
     const result = await resolveUserProviderApiKey("gpt", "test")
     expect(result.blockedResponse?.status).toBe(402)
-    expect(releaseHostSpendMock).toHaveBeenCalled()
+    expect(releaseHostSpendMock).toHaveBeenCalledWith(1, "2026-07-15")
   })
 
   it("402s when host daily budget is exceeded without burning free", async () => {
-    peekFreeServerAccessMock.mockResolvedValue(true)
+    canUseFreeServerAccessMock.mockResolvedValue(true)
     tryConsumeFreeServerAccessMock.mockResolvedValue(true)
-    tryReserveHostSpendMock.mockResolvedValue(false)
+    tryReserveHostSpendMock.mockResolvedValue({ ok: false, day: "2026-07-15", cents: 1 })
     const result = await resolveUserProviderApiKey("gpt", "test")
     expect(result.blockedResponse?.status).toBe(402)
     await expect(result.blockedResponse?.json()).resolves.toEqual({

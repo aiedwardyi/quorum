@@ -15,6 +15,7 @@ vi.mock("@/lib/prisma", () => ({
 import {
   FREE_DEBATE_MAX_CALLS,
   FREE_DEBATE_WINDOW_MS,
+  canUseFreeServerAccess,
   getFreeDebateStatus,
   peekFreeServerAccess,
   tryConsumeFreeServerAccess,
@@ -75,6 +76,15 @@ describe("free debates", () => {
       freeDebateCallsRemaining: 0,
     })
     await expect(peekFreeServerAccess("u1")).resolves.toBe(false)
+  })
+
+  it("canUse is true for unopened remaining grants", async () => {
+    findUniqueMock.mockResolvedValue({
+      freeDebatesRemaining: 1,
+      freeDebateExpiresAt: null,
+      freeDebateCallsRemaining: 0,
+    })
+    await expect(canUseFreeServerAccess("u1")).resolves.toBe(true)
   })
 
   it("consumes one call from an open window without reclaiming", async () => {

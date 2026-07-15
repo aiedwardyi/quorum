@@ -17,6 +17,8 @@ vi.mock("@/lib/prisma", () => ({
 import {
   estimateHostCallCents,
   getDailyBudgetCents,
+  getHostSpendStatus,
+  releaseHostSpend,
   tryReserveHostSpend,
   utcSpendDay,
 } from "@/lib/host-spend"
@@ -54,13 +56,21 @@ describe("host spend", () => {
 
   it("blocks host keys when budget is 0", async () => {
     process.env.HOST_KEY_DAILY_BUDGET_USD = "0"
-    await expect(tryReserveHostSpend(3)).resolves.toBe(false)
+    await expect(tryReserveHostSpend(3)).resolves.toEqual({
+      ok: false,
+      day: utcSpendDay(),
+      cents: 3,
+    })
     expect(updateManyMock).not.toHaveBeenCalled()
   })
 
   it("reserves when under budget", async () => {
     updateManyMock.mockResolvedValue({ count: 1 })
-    await expect(tryReserveHostSpend(10)).resolves.toBe(true)
+    await expect(tryReserveHostSpend(10)).resolves.toEqual({
+      ok: true,
+      day: utcSpendDay(),
+      cents: 10,
+    })
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         update: { centsUsed: { increment: 0 } },
@@ -77,23 +87,44 @@ describe("host spend", () => {
     )
   })
 
+  it("rejects when the day is already at the cap", async () => {
+    updateManyMock.mockResolvedValue({ count: 0 })
+    await expect(tryReserveHostSpend(10)).resolves.toMatchObject({ ok: false })
+  })
+
+  it("prices providers conservatively", () => {
+    expect(estimateHostCallCents("gemini")).toBeLessThan(estimateHostCallCents("claude"))
+    expect(estimateHostCallCents("gpt")).toBeGreaterThan(0)
+  })
+
   it("scales estimates by units", () => {
     expect(estimateHostCallCents("gemini", 4)).toBe(estimateHostCallCents("gemini") * 4)
   })
 
   it("allows host keys when DATABASE_URL is unset", async () => {
     delete process.env.DATABASE_URL
-    await expect(tryReserveHostSpend(10)).resolves.toBe(true)
+    await expect(tryReserveHostSpend(10)).resolves.toMatchObject({ ok: true })
     expect(upsertMock).not.toHaveBeenCalled()
   })
 
-  it("rejects when the day is already at the cap", async () => {
-    updateManyMock.mockResolvedValue({ count: 0 })
-    await expect(tryReserveHostSpend(10)).resolves.toBe(false)
+  it("releases against the reserved day", async () => {
+    updateManyMock.mockResolvedValue({ count: 1 })
+    await releaseHostSpend(10, "2026-07-14")
+    expect(updateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { day: "2026-07-14", centsUsed: { gte: 10 } },
+        data: { centsUsed: { decrement: 10 } },
+      })
+    )
   })
 
-  it("prices providers conservatively", () => {
-    expect(estimateHostCallCents("gemini")).toBeLessThan(estimateHostCallCents("claude"))
-    expect(estimateHostCallCents("gpt")).toBeGreaterThan(0)
+  it("reports remaining budget in status", async () => {
+    findUniqueMock.mockResolvedValue({ centsUsed: 400 })
+    await expect(getHostSpendStatus()).resolves.toEqual({
+      day: utcSpendDay(),
+      centsUsed: 400,
+      budgetCents: 2500,
+      remainingCents: 2100,
+    })
   })
 })
