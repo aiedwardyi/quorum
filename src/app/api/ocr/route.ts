@@ -76,7 +76,8 @@ export async function POST(req: NextRequest) {
       "gemini",
       "ocr",
       typeof userApiKey === "string" ? userApiKey : undefined,
-      typeof accessCode === "string" ? accessCode : undefined
+      typeof accessCode === "string" ? accessCode : undefined,
+      { units: images.length }
     )
     if (blockedResponse) return blockedResponse
 

@@ -23,10 +23,13 @@ import {
 
 describe("host spend", () => {
   let previousBudget: string | undefined
+  let previousDatabaseUrl: string | undefined
 
   beforeEach(() => {
     previousBudget = process.env.HOST_KEY_DAILY_BUDGET_USD
+    previousDatabaseUrl = process.env.DATABASE_URL
     delete process.env.HOST_KEY_DAILY_BUDGET_USD
+    process.env.DATABASE_URL = "postgresql://test/db"
     findUniqueMock.mockReset()
     upsertMock.mockReset()
     updateManyMock.mockReset()
@@ -36,6 +39,8 @@ describe("host spend", () => {
   afterEach(() => {
     if (previousBudget === undefined) delete process.env.HOST_KEY_DAILY_BUDGET_USD
     else process.env.HOST_KEY_DAILY_BUDGET_USD = previousBudget
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL
+    else process.env.DATABASE_URL = previousDatabaseUrl
   })
 
   it("defaults the daily budget to $25", () => {
@@ -56,6 +61,11 @@ describe("host spend", () => {
   it("reserves when under budget", async () => {
     updateManyMock.mockResolvedValue({ count: 1 })
     await expect(tryReserveHostSpend(10)).resolves.toBe(true)
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: { centsUsed: { increment: 0 } },
+      })
+    )
     expect(updateManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -65,6 +75,16 @@ describe("host spend", () => {
         data: { centsUsed: { increment: 10 } },
       })
     )
+  })
+
+  it("scales estimates by units", () => {
+    expect(estimateHostCallCents("gemini", 4)).toBe(estimateHostCallCents("gemini") * 4)
+  })
+
+  it("allows host keys when DATABASE_URL is unset", async () => {
+    delete process.env.DATABASE_URL
+    await expect(tryReserveHostSpend(10)).resolves.toBe(true)
+    expect(upsertMock).not.toHaveBeenCalled()
   })
 
   it("rejects when the day is already at the cap", async () => {

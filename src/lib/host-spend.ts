@@ -21,8 +21,9 @@ export function getDailyBudgetCents(): number {
   return Math.round(usd * 100)
 }
 
-export function estimateHostCallCents(provider: Provider): number {
-  return ESTIMATE_CENTS[provider]
+export function estimateHostCallCents(provider: Provider, units = 1): number {
+  const n = Number.isFinite(units) ? Math.max(1, Math.floor(units)) : 1
+  return ESTIMATE_CENTS[provider] * n
 }
 
 export function utcSpendDay(now = new Date()): string {
@@ -36,9 +37,16 @@ export type HostSpendStatus = {
   remainingCents: number
 }
 
+function hasDatabase(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim())
+}
+
 export async function getHostSpendStatus(): Promise<HostSpendStatus> {
   const day = utcSpendDay()
   const budgetCents = getDailyBudgetCents()
+  if (!hasDatabase()) {
+    return { day, centsUsed: 0, budgetCents, remainingCents: budgetCents }
+  }
   const row = await prisma.hostSpendDay.findUnique({ where: { day } })
   const centsUsed = row?.centsUsed ?? 0
   return {
@@ -54,20 +62,42 @@ export async function tryReserveHostSpend(cents: number): Promise<boolean> {
   if (cents <= 0) return true
   const budgetCents = getDailyBudgetCents()
   if (budgetCents <= 0) return false
+  // Pure local BYOK / no DB: don't hard-fail host keys on missing tracking table.
+  if (!hasDatabase()) return true
 
-  const day = utcSpendDay()
-  await prisma.hostSpendDay.upsert({
-    where: { day },
-    create: { day, centsUsed: 0 },
-    update: {},
-  })
+  try {
+    const day = utcSpendDay()
+    await prisma.hostSpendDay.upsert({
+      where: { day },
+      create: { day, centsUsed: 0 },
+      // Prisma rejects empty update objects - no-op increment keeps the row touch valid.
+      update: { centsUsed: { increment: 0 } },
+    })
 
-  const maxBefore = budgetCents - cents
-  if (maxBefore < 0) return false
+    const maxBefore = budgetCents - cents
+    if (maxBefore < 0) return false
 
-  const updated = await prisma.hostSpendDay.updateMany({
-    where: { day, centsUsed: { lte: maxBefore } },
-    data: { centsUsed: { increment: cents } },
-  })
-  return updated.count === 1
+    const updated = await prisma.hostSpendDay.updateMany({
+      where: { day, centsUsed: { lte: maxBefore } },
+      data: { centsUsed: { increment: cents } },
+    })
+    return updated.count === 1
+  } catch (error) {
+    console.error("[host-spend] reserve failed:", error)
+    return false
+  }
+}
+
+/** Undo a reserve when a free grant consume fails after budget was taken. */
+export async function releaseHostSpend(cents: number): Promise<void> {
+  if (cents <= 0 || !hasDatabase()) return
+  try {
+    const day = utcSpendDay()
+    await prisma.hostSpendDay.updateMany({
+      where: { day, centsUsed: { gte: cents } },
+      data: { centsUsed: { decrement: cents } },
+    })
+  } catch (error) {
+    console.error("[host-spend] release failed:", error)
+  }
 }

@@ -268,11 +268,29 @@ export async function POST(req: NextRequest) {
     ): Promise<string> => {
       return withTimeout(
         async (signal) => {
-          // Host-key path only: reserve estimated spend before the provider call.
+          // Host-key path: reserve budget, then burn free-call budget when applicable.
           if (!candidate.apiKey) {
-            const { estimateHostCallCents, tryReserveHostSpend } = await import("@/lib/host-spend")
-            const reserved = await tryReserveHostSpend(estimateHostCallCents(candidate.provider))
+            const { estimateHostCallCents, releaseHostSpend, tryReserveHostSpend } =
+              await import("@/lib/host-spend")
+            const { requireUserKeys } = await import("@/lib/deploy-config")
+            const { isValidAccessCode } = await import("@/lib/server-provider-keys")
+            const cents = estimateHostCallCents(candidate.provider)
+            const reserved = await tryReserveHostSpend(cents)
             if (!reserved) throw new Error("host_budget_exceeded")
+            if (requireUserKeys() && !isValidAccessCode(requestAccessCode)) {
+              const { authEnabled } = await import("@/lib/deploy-config")
+              if (authEnabled()) {
+                const { auth } = await import("@/lib/auth")
+                const session = await auth()
+                if (session?.user?.id) {
+                  const { tryConsumeFreeServerAccess } = await import("@/lib/free-debates")
+                  if (!(await tryConsumeFreeServerAccess(session.user.id))) {
+                    await releaseHostSpend(cents)
+                    throw new Error("no_key")
+                  }
+                }
+              }
+            }
           }
           if (candidate.provider === "claude") {
             return generateClaudeVerdict({
@@ -437,6 +455,13 @@ export async function POST(req: NextRequest) {
     }
 
     const elapsed = Date.now() - startTime
+    const lastMsg = lastError instanceof Error ? lastError.message : String(lastError ?? "")
+    if (lastMsg.includes("host_budget_exceeded")) {
+      return NextResponse.json(
+        { error: "host_budget_exceeded", provider: order[0] ?? "gemini" },
+        { status: 402 }
+      )
+    }
     const message = humanVerdictError(lastError, effectiveLocale)
     console.error(`[verdict] All providers failed after ${elapsed}ms:`, message)
     return NextResponse.json(
