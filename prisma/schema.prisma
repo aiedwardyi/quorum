@@ -14,15 +14,23 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  // 1 free debate on host keys after Google login; window covers multi-call debates.
-  freeDebatesRemaining Int       @default(1)
-  freeDebateExpiresAt  DateTime?
+  // 1 free debate on host keys after Google login; call budget bounds multi-request use.
+  freeDebatesRemaining     Int       @default(1)
+  freeDebateExpiresAt      DateTime?
+  freeDebateCallsRemaining Int       @default(0)
   accounts           Account[]
   sessions           Session[]
   threads            Thread[]
   apiKeys            UserApiKey[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+// UTC day rollup for host-key spend estimates (BYOK excluded).
+model HostSpendDay {
+  day       String   @id
+  centsUsed Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 model Account {

@@ -268,6 +268,12 @@ export async function POST(req: NextRequest) {
     ): Promise<string> => {
       return withTimeout(
         async (signal) => {
+          // Host-key path only: reserve estimated spend before the provider call.
+          if (!candidate.apiKey) {
+            const { estimateHostCallCents, tryReserveHostSpend } = await import("@/lib/host-spend")
+            const reserved = await tryReserveHostSpend(estimateHostCallCents(candidate.provider))
+            if (!reserved) throw new Error("host_budget_exceeded")
+          }
           if (candidate.provider === "claude") {
             return generateClaudeVerdict({
               apiKey: candidate.apiKey,
