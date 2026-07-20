@@ -4,7 +4,7 @@
 
 Replaces the manual workflow of copy-pasting between AI tabs. Instead of switching between Gemini, Perplexity, ChatGPT, and Claude to get multiple perspectives - just ask once and let them talk it out.
 
-**[Try it live](https://main.d30ss3zib1fsu2.amplifyapp.com/)** - bring your own key, no sign-in.
+**[Try it live](https://heyquorum.com)** - bring your own key, or sign in with Google for a free debate.
 
 [![CI](https://github.com/aiedwardyi/quorum/actions/workflows/ci.yml/badge.svg)](https://github.com/aiedwardyi/quorum/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
@@ -87,7 +87,7 @@ Switch instantly from the header or settings.
 
 Quorum is **BYOK-first (bring your own key)**: paste your own provider API keys and go. No account, no database, no sign-in. Keys are stored only in your browser.
 
-Prefer not to install? **[Try the hosted demo](https://main.d30ss3zib1fsu2.amplifyapp.com/)** and paste your keys there. To run it locally:
+Prefer not to install? **[Try the hosted demo](https://heyquorum.com)** and paste your keys there. To run it locally:
 
 ```bash
 git clone https://github.com/aiedwardyi/quorum.git
