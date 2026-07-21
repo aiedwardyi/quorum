@@ -35,13 +35,13 @@ export async function parse402FromResponse(response: Response): Promise<Blocked4
   }
 }
 
-// The daily host budget blocks BEFORE a grant is consumed, so a signed-in
-// user's free debate genuinely survives to tomorrow - the copy relies on that.
+// The budget wall blocks before an UNUSED grant is consumed, but it can also
+// hit mid-debate after the grant was already claimed - promise only the unused case.
 export function getBudgetExceededMessage(signedIn: boolean, locale: Locale = "en"): string {
   if (signedIn) {
     return locale === "ko"
-      ? "오늘의 무료 토론이 모두 소진됐어요. 내 무료 토론은 그대로니 내일 다시 오거나, Settings에서 API 키를 추가해 바로 시작하세요."
-      : "Today's free debates are maxed out - yours is safe for tomorrow. Or add your own API key in Settings to start now."
+      ? "오늘의 무료 토론이 모두 소진됐어요. 아직 안 쓴 무료 토론은 내일 그대로 쓸 수 있어요. Settings에서 API 키를 추가하면 바로 시작할 수 있어요."
+      : "Today's free debates are maxed out - an unused free debate stays yours for tomorrow. Or add your own API key in Settings to start now."
   }
   return locale === "ko"
     ? "오늘의 무료 토론이 모두 소진됐어요. 내일 다시 오거나 Settings에서 API 키를 추가해 시작하세요."

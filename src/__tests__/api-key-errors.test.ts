@@ -57,9 +57,9 @@ describe("api key error helpers", () => {
   })
 
   it("keeps the free debate promise honest at the budget wall", () => {
-    expect(getBudgetExceededMessage(true)).toContain("yours is safe for tomorrow")
+    expect(getBudgetExceededMessage(true)).toContain("an unused free debate stays yours")
     expect(getBudgetExceededMessage(false)).toContain("come back tomorrow")
-    expect(getBudgetExceededMessage(true, "ko")).toContain("무료 토론은 그대로")
+    expect(getBudgetExceededMessage(true, "ko")).toContain("아직 안 쓴 무료 토론")
   })
 
   it("formats the user-facing Settings message", () => {

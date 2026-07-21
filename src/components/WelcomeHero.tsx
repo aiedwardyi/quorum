@@ -327,16 +327,27 @@ export default function WelcomeHero({
   useEffect(() => {
     if (!authEnabled()) return
     let cancelled = false
+    const controller = new AbortController()
     const decide = async (): Promise<"signin" | "ready" | null> => {
       if (status === "unauthenticated") return isFirstRunKeyless(true) ? "signin" : null
       if (status !== "authenticated") return null
       const [grant, keyStatus] = await Promise.all([
-        fetch("/api/free-debate").then((r) => (r.ok ? r.json() : null)),
-        fetch("/api/user-api-keys").then((r) => (r.ok ? r.json() : null)),
+        fetch("/api/free-debate", { signal: controller.signal }).then((r) =>
+          r.ok ? r.json() : null
+        ),
+        fetch("/api/user-api-keys", { signal: controller.signal }).then((r) =>
+          r.ok ? r.json() : null
+        ),
       ])
       if (!grant) return null
       // Saved keys win over the grant server-side, so "free debate ready" would lie to key holders.
-      const hasKey = Boolean(keyStatus?.keys && Object.values(keyStatus.keys).some(Boolean))
+      // Key status values are objects - check the configured flag, not truthiness.
+      const hasKey = Boolean(
+        keyStatus?.keys &&
+          Object.values(keyStatus.keys).some(
+            (k) => (k as { configured?: boolean } | null)?.configured
+          )
+      )
       return grant.remaining > 0 && !grant.active && !hasKey ? "ready" : null
     }
     decide()
@@ -346,6 +357,7 @@ export default function WelcomeHero({
       .catch(() => {})
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [status])
 
