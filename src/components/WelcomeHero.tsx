@@ -1,8 +1,12 @@
 "use client"
 
 import type { CSSProperties } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
+import { useSession } from "next-auth/react"
 import { Provider, Locale } from "@/types"
+import { authEnabled } from "@/lib/deploy-config"
+import { isFirstRunKeyless } from "@/lib/client-api-keys"
 
 const suggestions = {
   en: [
@@ -20,6 +24,17 @@ const suggestions = {
 }
 
 const tryMeLabel = { en: "Try me", ko: "클릭해 보세요" }
+
+const freeDebateHint = {
+  en: {
+    signin: "Sign in with Google - your first debate is free",
+    ready: "Your free debate is ready - no API keys needed",
+  },
+  ko: {
+    signin: "Google로 로그인하면 첫 토론이 무료예요",
+    ready: "무료 토론이 준비돼 있어요 - API 키 없이 시작하세요",
+  },
+}
 
 const translations = {
   en: {
@@ -306,6 +321,45 @@ export default function WelcomeHero({
 }) {
   const t = translations[locale]
   const s = suggestions[locale]
+  const { status } = useSession()
+  const [freeHint, setFreeHint] = useState<"signin" | "ready" | null>(null)
+
+  useEffect(() => {
+    if (!authEnabled()) return
+    let cancelled = false
+    const controller = new AbortController()
+    const decide = async (): Promise<"signin" | "ready" | null> => {
+      if (status === "unauthenticated") return isFirstRunKeyless(true) ? "signin" : null
+      if (status !== "authenticated") return null
+      const [grant, keyStatus] = await Promise.all([
+        fetch("/api/free-debate", { signal: controller.signal }).then((r) =>
+          r.ok ? r.json() : null
+        ),
+        fetch("/api/user-api-keys", { signal: controller.signal }).then((r) =>
+          r.ok ? r.json() : null
+        ),
+      ])
+      if (!grant) return null
+      // Saved keys win over the grant server-side, so "free debate ready" would lie to key holders.
+      // Key status values are objects - check the configured flag, not truthiness.
+      const hasKey = Boolean(
+        keyStatus?.keys &&
+        Object.values(keyStatus.keys).some(
+          (k) => (k as { configured?: boolean } | null)?.configured
+        )
+      )
+      return grant.remaining > 0 && !grant.active && !hasKey ? "ready" : null
+    }
+    decide()
+      .then((hint) => {
+        if (!cancelled) setFreeHint(hint)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [status])
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 sm:px-6 py-8 sm:py-12">
@@ -346,6 +400,20 @@ export default function WelcomeHero({
         >
           {t.description}
         </motion.p>
+
+        {/* -- Free debate hint -- */}
+        {freeHint && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.9, duration: 0.4 }}
+          >
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-[13px] font-medium text-emerald-600 dark:text-emerald-300">
+              <span aria-hidden>✦</span>
+              {freeDebateHint[locale][freeHint]}
+            </span>
+          </motion.div>
+        )}
 
         {/* -- Model badges -- */}
         <motion.div

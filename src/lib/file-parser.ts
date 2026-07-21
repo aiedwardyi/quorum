@@ -1,7 +1,7 @@
 /** Client-side PDF/DOCX/Excel/text extraction for AI prompts. */
 
 import type { Provider } from "@/types"
-import { parseNoKeyProviderFromResponse } from "@/lib/api-key-errors"
+import { parse402FromResponse } from "@/lib/api-key-errors"
 import { getClientKey, getAccessCode } from "@/lib/client-api-keys"
 
 const MAX_FILE_CHARS = 50000
@@ -250,8 +250,10 @@ async function parsePDF(
       })
 
       if (res.status === 402) {
-        const missingProvider = await parseNoKeyProviderFromResponse(res)
-        if (missingProvider) options?.onApiKeyRequired?.(missingProvider)
+        const blocked = await parse402FromResponse(res)
+        if (blocked?.kind === "no_key" && blocked.provider) {
+          options?.onApiKeyRequired?.(blocked.provider)
+        }
         throw new Error("OCR API key required")
       }
       if (!res.ok) throw new Error(`OCR API error: ${res.status}`)

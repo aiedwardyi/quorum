@@ -8,8 +8,9 @@ import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
 import { waitForDrain } from "@/lib/drain-registry"
 import {
   getApiKeyPromptMessage,
+  getBudgetExceededMessage,
   getMissingApiKeyMessage,
-  parseNoKeyProviderFromResponse,
+  parse402FromResponse,
 } from "@/lib/api-key-errors"
 import { getClientKey, getAccessCode, isFirstRunKeyless } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
@@ -403,7 +404,15 @@ export function useDebateEngine(config: {
         }
 
         if (res.status === 402) {
-          const missingProvider = (await parseNoKeyProviderFromResponse(res)) ?? provider
+          const blocked = await parse402FromResponse(res)
+          if (blocked?.kind === "host_budget_exceeded") {
+            // Daily host budget wall, not a key problem - the key toast would mislead.
+            updatePlaceholder(getBudgetExceededMessage(!isAnonymousRef.current, locale))
+            stopRef.current = true
+            clearTypingIfCurrentSession()
+            return null
+          }
+          const missingProvider = blocked?.provider ?? provider
           onApiKeyRequired?.(missingProvider)
           // A keyless first-run visitor gets a generic welcome; the panel's
           // lead provider (perplexity) is arbitrary, so don't single it out.
@@ -549,8 +558,11 @@ export function useDebateEngine(config: {
           .then(async (res) => {
             if (sessionIdRef.current !== sessionId || stopRef.current) return
             if (res.status === 402) {
-              const missingProvider = await parseNoKeyProviderFromResponse(res)
-              if (missingProvider) onApiKeyRequired?.(missingProvider)
+              // Budget wall stays silent here - the chat calls surface it.
+              const blocked = await parse402FromResponse(res)
+              if (blocked?.kind === "no_key" && blocked.provider) {
+                onApiKeyRequired?.(blocked.provider)
+              }
               return
             }
             if (!res.ok) return
@@ -693,14 +705,21 @@ export function useDebateEngine(config: {
                   logDebate("verdict:skipped-stopped", {})
                 } else if (res.status === 402) {
                   if (sessionIdRef.current !== thisSession) return
-                  const missingProvider = await parseNoKeyProviderFromResponse(res)
-                  if (missingProvider) onApiKeyRequired?.(missingProvider)
-                  else onApiKeyRequired?.("gemini")
-                  dispatch({
-                    type: "UPDATE_MESSAGE",
-                    id: analyzingMsg.id,
-                    content: SYSTEM_MESSAGES.missingConsensusKey(locale, !isAnonymousRef.current),
-                  })
+                  const blocked = await parse402FromResponse(res)
+                  if (blocked?.kind === "host_budget_exceeded") {
+                    dispatch({
+                      type: "UPDATE_MESSAGE",
+                      id: analyzingMsg.id,
+                      content: getBudgetExceededMessage(!isAnonymousRef.current, locale),
+                    })
+                  } else {
+                    onApiKeyRequired?.(blocked?.provider ?? "gemini")
+                    dispatch({
+                      type: "UPDATE_MESSAGE",
+                      id: analyzingMsg.id,
+                      content: SYSTEM_MESSAGES.missingConsensusKey(locale, !isAnonymousRef.current),
+                    })
+                  }
                 } else if (!res.ok) {
                   const failMsg = await consensusFailureMessage(res, locale)
                   logDebate("verdict:failed", { status: res.status, message: failMsg })
@@ -822,9 +841,16 @@ export function useDebateEngine(config: {
         .then(async (res) => {
           if (res.status === 402) {
             if (sessionIdRef.current !== stoppedSession) return null
-            const missingProvider = await parseNoKeyProviderFromResponse(res)
-            if (missingProvider) onApiKeyRequired?.(missingProvider)
-            else onApiKeyRequired?.("gemini")
+            const blocked = await parse402FromResponse(res)
+            if (blocked?.kind === "host_budget_exceeded") {
+              dispatch({
+                type: "UPDATE_MESSAGE",
+                id: analyzingMsg.id,
+                content: getBudgetExceededMessage(!isAnonymousRef.current, locale),
+              })
+              return null
+            }
+            onApiKeyRequired?.(blocked?.provider ?? "gemini")
             dispatch({
               type: "UPDATE_MESSAGE",
               id: analyzingMsg.id,

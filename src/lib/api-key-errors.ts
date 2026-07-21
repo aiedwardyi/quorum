@@ -11,20 +11,41 @@ const PROVIDER_NAMES: Record<Provider, string> = {
 
 const PROVIDERS = new Set<Provider>(Object.keys(PROVIDER_NAMES) as Provider[])
 
-export function parseNoKeyProvider(payload: unknown): Provider | null {
-  if (!payload || typeof payload !== "object") return null
-  const obj = payload as Record<string, unknown>
-  if (obj.error !== "no_key") return null
-  if (typeof obj.provider !== "string") return null
-  return PROVIDERS.has(obj.provider as Provider) ? (obj.provider as Provider) : null
+export type Blocked402 = {
+  kind: "no_key" | "host_budget_exceeded"
+  provider: Provider | null
 }
 
-export async function parseNoKeyProviderFromResponse(response: Response): Promise<Provider | null> {
+export function parse402Payload(payload: unknown): Blocked402 | null {
+  if (!payload || typeof payload !== "object") return null
+  const obj = payload as Record<string, unknown>
+  if (obj.error !== "no_key" && obj.error !== "host_budget_exceeded") return null
+  const provider =
+    typeof obj.provider === "string" && PROVIDERS.has(obj.provider as Provider)
+      ? (obj.provider as Provider)
+      : null
+  return { kind: obj.error, provider }
+}
+
+export async function parse402FromResponse(response: Response): Promise<Blocked402 | null> {
   try {
-    return parseNoKeyProvider(await response.json())
+    return parse402Payload(await response.json())
   } catch {
     return null
   }
+}
+
+// The budget wall blocks before an UNUSED grant is consumed, but it can also
+// hit mid-debate after the grant was already claimed - promise only the unused case.
+export function getBudgetExceededMessage(signedIn: boolean, locale: Locale = "en"): string {
+  if (signedIn) {
+    return locale === "ko"
+      ? "오늘의 무료 토론이 모두 소진됐어요. 아직 안 쓴 무료 토론은 내일 그대로 쓸 수 있어요. Settings에서 API 키를 추가하면 바로 시작할 수 있어요."
+      : "Today's free debates are maxed out - an unused free debate stays yours for tomorrow. Or add your own API key in Settings to start now."
+  }
+  return locale === "ko"
+    ? "오늘의 무료 토론이 모두 소진됐어요. 내일 다시 오거나 Settings에서 API 키를 추가해 시작하세요."
+    : "Today's free debates are maxed out - come back tomorrow, or add your own API key in Settings to start now."
 }
 
 export function getMissingApiKeyMessage(provider: Provider, locale: Locale = "en"): string {
