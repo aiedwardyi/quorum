@@ -344,9 +344,9 @@ export default function WelcomeHero({
       // Key status values are objects - check the configured flag, not truthiness.
       const hasKey = Boolean(
         keyStatus?.keys &&
-          Object.values(keyStatus.keys).some(
-            (k) => (k as { configured?: boolean } | null)?.configured
-          )
+        Object.values(keyStatus.keys).some(
+          (k) => (k as { configured?: boolean } | null)?.configured
+        )
       )
       return grant.remaining > 0 && !grant.active && !hasKey ? "ready" : null
     }
