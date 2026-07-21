@@ -1,30 +1,50 @@
 import { describe, expect, it } from "vitest"
 import {
   getApiKeyPromptMessage,
+  getBudgetExceededMessage,
   getMissingApiKeyMessage,
-  parseNoKeyProvider,
-  parseNoKeyProviderFromResponse,
+  parse402Payload,
+  parse402FromResponse,
 } from "@/lib/api-key-errors"
 
 describe("api key error helpers", () => {
-  it("recognizes no_key responses with a known provider", () => {
-    expect(parseNoKeyProvider({ error: "no_key", provider: "gemini" })).toBe("gemini")
-    expect(parseNoKeyProvider({ error: "no_key", provider: "bogus" })).toBeNull()
-    expect(parseNoKeyProvider({ error: "other", provider: "gemini" })).toBeNull()
+  it("classifies no_key responses and keeps a known provider", () => {
+    expect(parse402Payload({ error: "no_key", provider: "gemini" })).toEqual({
+      kind: "no_key",
+      provider: "gemini",
+    })
+    expect(parse402Payload({ error: "no_key", provider: "bogus" })).toEqual({
+      kind: "no_key",
+      provider: null,
+    })
+    expect(parse402Payload({ error: "other", provider: "gemini" })).toBeNull()
   })
 
-  it("returns null for malformed no_key payloads", () => {
-    expect(parseNoKeyProvider(null)).toBeNull()
-    expect(parseNoKeyProvider(undefined)).toBeNull()
-    expect(parseNoKeyProvider("no_key")).toBeNull()
-    expect(parseNoKeyProvider({ error: "no_key" })).toBeNull()
-    expect(parseNoKeyProvider({ error: "no_key", provider: 123 })).toBeNull()
+  it("classifies host_budget_exceeded responses", () => {
+    expect(parse402Payload({ error: "host_budget_exceeded", provider: "claude" })).toEqual({
+      kind: "host_budget_exceeded",
+      provider: "claude",
+    })
   })
 
-  it("parses no_key provider from a response body", async () => {
+  it("returns null for malformed payloads", () => {
+    expect(parse402Payload(null)).toBeNull()
+    expect(parse402Payload(undefined)).toBeNull()
+    expect(parse402Payload("no_key")).toBeNull()
+    expect(parse402Payload({ error: "no_key" })).toEqual({ kind: "no_key", provider: null })
+    expect(parse402Payload({ error: "no_key", provider: 123 })).toEqual({
+      kind: "no_key",
+      provider: null,
+    })
+  })
+
+  it("parses a 402 body from a response", async () => {
     const response = Response.json({ error: "no_key", provider: "claude" }, { status: 402 })
 
-    await expect(parseNoKeyProviderFromResponse(response)).resolves.toBe("claude")
+    await expect(parse402FromResponse(response)).resolves.toEqual({
+      kind: "no_key",
+      provider: "claude",
+    })
   })
 
   it("returns null when response JSON parsing fails", async () => {
@@ -33,7 +53,13 @@ describe("api key error helpers", () => {
       headers: { "Content-Type": "application/json" },
     })
 
-    await expect(parseNoKeyProviderFromResponse(response)).resolves.toBeNull()
+    await expect(parse402FromResponse(response)).resolves.toBeNull()
+  })
+
+  it("keeps the free debate promise honest at the budget wall", () => {
+    expect(getBudgetExceededMessage(true)).toContain("yours is safe for tomorrow")
+    expect(getBudgetExceededMessage(false)).toContain("come back tomorrow")
+    expect(getBudgetExceededMessage(true, "ko")).toContain("무료 토론은 그대로")
   })
 
   it("formats the user-facing Settings message", () => {
