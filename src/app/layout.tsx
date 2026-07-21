@@ -14,20 +14,32 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Quorum | AI Group Chat",
-  description: "Multi-AI group chat for consensus",
+  metadataBase: new URL("https://heyquorum.com"),
+  title: "Quorum | Four AIs debate, one verdict",
+  description:
+    "One question in, four AIs debate it, one verdict out - Gemini, Perplexity, ChatGPT, and Claude.",
   openGraph: {
-    title: "Quorum | AI Group Chat",
+    title: "Quorum | Four AIs debate, one verdict",
     description:
-      "Ask a question and watch Gemini, Claude, GPT, and Perplexity debate it - then get a unified consensus verdict.",
+      "One question in, four AIs debate it, one verdict out - Gemini, Perplexity, ChatGPT, and Claude.",
     type: "website",
     siteName: "Quorum",
+    url: "https://heyquorum.com",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Quorum - four AI debate threads converging into one verdict",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
-    title: "Quorum | AI Group Chat",
+    card: "summary_large_image",
+    title: "Quorum | Four AIs debate, one verdict",
     description:
-      "Ask a question and watch Gemini, Claude, GPT, and Perplexity debate it - then get a unified consensus verdict.",
+      "One question in, four AIs debate it, one verdict out - Gemini, Perplexity, ChatGPT, and Claude.",
+    images: ["/og.png"],
   },
   robots: {
     index: true,
