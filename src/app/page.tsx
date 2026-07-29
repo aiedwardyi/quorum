@@ -287,12 +287,10 @@ function ChatPageContent() {
   }, [])
 
   const toggleLocale = useCallback(() => {
-    setLocale((current) => {
-      const next = current === "en" ? "ko" : "en"
-      localStorage.setItem("quorum_locale", next)
-      return next
-    })
-  }, [])
+    const next = locale === "en" ? "ko" : "en"
+    setLocale(next)
+    localStorage.setItem("quorum_locale", next)
+  }, [locale])
 
   // Persistence-related refs
   const creatingThreadRef = useRef(false)
@@ -502,7 +500,7 @@ function ChatPageContent() {
         if (thread.models?.length) dispatch({ type: "SET_MODELS", models: thread.models })
         if (thread.responseLength) setResponseLength(thread.responseLength)
         if (thread.rounds) setMaxRounds(thread.rounds)
-        if (thread.locale) setLocale(thread.locale)
+        if (!localStorage.getItem("quorum_locale") && thread.locale) setLocale(thread.locale)
 
         // Hydrate debate engine
         dispatch({
