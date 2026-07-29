@@ -286,6 +286,12 @@ function ChatPageContent() {
     })
   }, [])
 
+  const toggleLocale = useCallback(() => {
+    const next = locale === "en" ? "ko" : "en"
+    setLocale(next)
+    localStorage.setItem("quorum_locale", next)
+  }, [locale])
+
   // Persistence-related refs
   const creatingThreadRef = useRef(false)
   const prevMessageCount = useRef(0)
@@ -494,7 +500,7 @@ function ChatPageContent() {
         if (thread.models?.length) dispatch({ type: "SET_MODELS", models: thread.models })
         if (thread.responseLength) setResponseLength(thread.responseLength)
         if (thread.rounds) setMaxRounds(thread.rounds)
-        if (thread.locale) setLocale(thread.locale)
+        if (!localStorage.getItem("quorum_locale") && thread.locale) setLocale(thread.locale)
 
         // Hydrate debate engine
         dispatch({
@@ -541,6 +547,7 @@ function ChatPageContent() {
         activeModels={state.activeModels}
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         locale={locale}
+        onToggleLocale={toggleLocale}
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -555,13 +562,7 @@ function ChatPageContent() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         locale={locale}
-        onToggleLocale={() =>
-          setLocale((l) => {
-            const next = l === "en" ? "ko" : "en"
-            localStorage.setItem("quorum_locale", next)
-            return next
-          })
-        }
+        onToggleLocale={toggleLocale}
         activeModels={state.activeModels}
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         isDebating={state.isDebating}

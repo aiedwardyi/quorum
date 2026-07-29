@@ -84,6 +84,7 @@ export default function ChatHeader({
   activeModels,
   onToggleModel,
   locale,
+  onToggleLocale,
   theme,
   onToggleTheme,
   onOpenSettings,
@@ -101,6 +102,7 @@ export default function ChatHeader({
   activeModels: Provider[]
   onToggleModel: (model: Provider) => void
   locale: Locale
+  onToggleLocale: () => void
   theme: Theme
   onToggleTheme: () => void
   onOpenSettings: () => void
@@ -180,7 +182,7 @@ export default function ChatHeader({
 
   return (
     <>
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 sm:px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
+      <header className="flex flex-wrap items-center justify-between gap-x-2 sm:gap-x-4 gap-y-2 px-4 sm:px-6 py-3 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
         {/* Title + Round + Length */}
         <div className="flex items-center gap-2 sm:gap-4">
           <button
@@ -360,7 +362,16 @@ export default function ChatHeader({
         </div>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-2 sm:gap-4 ml-auto">
+        <div className="flex items-center gap-1 sm:gap-4 ml-auto">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={onToggleLocale}
+            aria-label={locale === "en" ? "Switch language to Korean" : "언어를 영어로 변경"}
+            className="h-7 min-w-5 sm:h-8 sm:px-2.5 rounded-full flex items-center justify-center border border-transparent sm:border-zinc-200 sm:dark:border-zinc-700 bg-transparent sm:bg-zinc-100 sm:dark:bg-zinc-800 text-[11px] font-bold text-zinc-600 dark:text-zinc-400 sm:hover:bg-zinc-200 sm:dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all"
+          >
+            {locale === "en" ? "EN" : "한글"}
+          </motion.button>
+
           <div className="flex items-center gap-2 sm:gap-3">
             <motion.button
               whileTap={{ scale: 0.95 }}
