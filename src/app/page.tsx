@@ -286,6 +286,14 @@ function ChatPageContent() {
     })
   }, [])
 
+  const toggleLocale = useCallback(() => {
+    setLocale((current) => {
+      const next = current === "en" ? "ko" : "en"
+      localStorage.setItem("quorum_locale", next)
+      return next
+    })
+  }, [])
+
   // Persistence-related refs
   const creatingThreadRef = useRef(false)
   const prevMessageCount = useRef(0)
@@ -541,6 +549,7 @@ function ChatPageContent() {
         activeModels={state.activeModels}
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         locale={locale}
+        onToggleLocale={toggleLocale}
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -555,13 +564,7 @@ function ChatPageContent() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         locale={locale}
-        onToggleLocale={() =>
-          setLocale((l) => {
-            const next = l === "en" ? "ko" : "en"
-            localStorage.setItem("quorum_locale", next)
-            return next
-          })
-        }
+        onToggleLocale={toggleLocale}
         activeModels={state.activeModels}
         onToggleModel={(m) => dispatch({ type: "TOGGLE_MODEL", model: m })}
         isDebating={state.isDebating}

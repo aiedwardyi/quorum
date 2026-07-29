@@ -84,6 +84,7 @@ export default function ChatHeader({
   activeModels,
   onToggleModel,
   locale,
+  onToggleLocale,
   theme,
   onToggleTheme,
   onOpenSettings,
@@ -101,6 +102,7 @@ export default function ChatHeader({
   activeModels: Provider[]
   onToggleModel: (model: Provider) => void
   locale: Locale
+  onToggleLocale: () => void
   theme: Theme
   onToggleTheme: () => void
   onOpenSettings: () => void
@@ -361,6 +363,15 @@ export default function ChatHeader({
 
         {/* Right side controls */}
         <div className="flex items-center gap-2 sm:gap-4 ml-auto">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={onToggleLocale}
+            aria-label={locale === "en" ? "Switch language to Korean" : "언어를 영어로 변경"}
+            className="h-7 sm:h-8 px-2.5 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-[11px] font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all"
+          >
+            {locale === "en" ? "EN" : "한글"}
+          </motion.button>
+
           <div className="flex items-center gap-2 sm:gap-3">
             <motion.button
               whileTap={{ scale: 0.95 }}
