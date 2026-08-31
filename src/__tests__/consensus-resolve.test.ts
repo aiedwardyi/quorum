@@ -7,11 +7,11 @@ import {
 } from "@/lib/consensus-resolve"
 
 describe("buildConsensusProviderOrder", () => {
-  it("prefers structured debate models, then fills set, Perplexity always last", () => {
+  it("always tries gemini first, then other structured models, Perplexity last", () => {
     expect(buildConsensusProviderOrder(["claude", "perplexity", "gpt"])).toEqual([
+      "gemini",
       "claude",
       "gpt",
-      "gemini",
       "perplexity",
     ])
   })

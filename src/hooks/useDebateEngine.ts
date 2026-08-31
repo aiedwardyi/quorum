@@ -202,6 +202,17 @@ export function consensusKeyProviders(preferred?: Provider[]): Provider[] {
   return [...preferred, "gemini"]
 }
 
+/** Drop empty AI placeholders so stop/consensus cannot treat thinking rows as answers. */
+export function messagesReadyForConsensus(messages: Message[]): Message[] {
+  return messages.filter(
+    (m) =>
+      m.sender === "user" ||
+      m.sender === "system" ||
+      m.sender === "verdict" ||
+      Boolean(m.content.trim())
+  )
+}
+
 export function seedPendingMessages(models: Provider[]): Message[] {
   return models.map((model) => ({
     id: createMessageId(model),
@@ -889,7 +900,7 @@ export function useDebateEngine(config: {
     const stoppedSession = sessionIdRef.current
 
     // Fetch consensus on what we have so far
-    const currentMessages = messagesRef.current
+    const currentMessages = messagesReadyForConsensus(messagesRef.current)
     const aiCount = getAIMessageCount(currentMessages)
     if (aiCount >= 2) {
       // Reuse existing "Analyzing..." divider if the normal flow already created one

@@ -9,6 +9,7 @@ import {
   messagesForBlindRound,
   consensusKeyProviders,
   isBlindRound,
+  messagesReadyForConsensus,
 } from "@/hooks/useDebateEngine"
 import type { State } from "@/hooks/useDebateEngine"
 import type { Message, VerdictResult } from "@/types"
@@ -509,5 +510,24 @@ describe("consensusKeyProviders", () => {
 
   it("falls back to every user-key provider when no panel is given", () => {
     expect(consensusKeyProviders()).toEqual(["gemini", "perplexity", "claude", "gpt"])
+  })
+})
+
+describe("messagesReadyForConsensus", () => {
+  it("drops empty AI placeholders so an early stop cannot verdict on blanks", () => {
+    const pending: Message = {
+      ...aiMsg,
+      id: "claude-pending",
+      sender: "claude",
+      displayName: "Claude",
+      content: "",
+    }
+    const result = messagesReadyForConsensus([userMsg, pending, aiMsg])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "gemini-1"])
+  })
+
+  it("keeps completed AI replies, users, and verdicts", () => {
+    const result = messagesReadyForConsensus([userMsg, aiMsg, systemMsg, verdictMsg])
+    expect(result.map((m) => m.sender)).toEqual(["user", "gemini", "system", "verdict"])
   })
 })

@@ -14,8 +14,8 @@ export type ConsensusCandidate = {
 }
 
 /**
- * Prefer structured models that joined the debate, then the rest of the structured
- * set, then Perplexity last so a Perplexity-only BYOK still gets a shot.
+ * Verdict writer first, then other structured models from the panel, then
+ * Perplexity last so a Perplexity-only BYOK still gets a shot.
  */
 export function buildConsensusProviderOrder(preferred?: unknown): Provider[] {
   const preferredStructured = Array.isArray(preferred)
@@ -24,8 +24,8 @@ export function buildConsensusProviderOrder(preferred?: unknown): Provider[] {
           typeof p === "string" && (STRUCTURED_CONSENSUS as readonly string[]).includes(p)
       )
     : []
-  const seen = new Set<Provider>()
-  const order: Provider[] = []
+  const seen = new Set<Provider>(["gemini"])
+  const order: Provider[] = ["gemini"]
   for (const p of [...preferredStructured, ...STRUCTURED_CONSENSUS, "perplexity" as Provider]) {
     if (seen.has(p)) continue
     seen.add(p)
