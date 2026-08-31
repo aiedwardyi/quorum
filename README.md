@@ -1,10 +1,10 @@
 # Quorum
 
-**Multi-AI decision assistant powered by model debate**
+**A decision assistant, not a group chat.**
 
-Replaces the manual workflow of copy-pasting between AI tabs. Instead of switching between Gemini, Perplexity, ChatGPT, and Claude to get multiple perspectives - just ask once and let them talk it out.
+Ask once. Four models answer on their own first, then argue if you add rounds. You get a recommendation, the vote split, and the strongest objection.
 
-**[Try it live](https://heyquorum.com)** - bring your own key, or sign in with Google for a free debate.
+**[Try it live](https://heyquorum.com)** with your own keys on the homepage, or sign in with Google for one free debate.
 
 [![CI](https://github.com/aiedwardyi/quorum/actions/workflows/ci.yml/badge.svg)](https://github.com/aiedwardyi/quorum/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
@@ -15,7 +15,7 @@ Replaces the manual workflow of copy-pasting between AI tabs. Instead of switchi
 [![Claude](https://img.shields.io/badge/Claude-Anthropic-F97316?logo=anthropic&logoColor=white)](https://anthropic.com/)
 [![GPT](https://img.shields.io/badge/GPT-OpenAI-10B981?logo=openai&logoColor=white)](https://openai.com/)
 
-https://github.com/user-attachments/assets/67258631-1c65-4f15-a82c-f788538ddb50
+https://github.com/user-attachments/assets/867d4590-a62e-4f41-97db-658f6d86c23f
 
 ---
 
@@ -37,7 +37,7 @@ Quorum:        "Recommended answer: Start with a monolith for the MVP.
                move toward services earlier.
 ```
 
-Each model's first take is independent. Extra rounds can see those takes, then Quorum returns a decisive recommendation rather than a neutral recap.
+Round 1 is independent. Extra rounds can argue. Gemini writes the verdict from the models that actually replied. Empty seats are not counted as votes.
 
 ---
 
@@ -96,7 +96,7 @@ npm install
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000), open **Settings**, and paste an API key for any provider you want on the panel. That is the whole setup.
+Open [localhost:3000](http://localhost:3000) and use **Use your own keys** on the homepage. Keys stay in this browser's `localStorage`. They are sent to the server only to call that provider, and are not saved there.
 
 > The consensus verdict and document OCR always run on **Gemini**, so add a Gemini key even if your panel is Claude/GPT/Perplexity only.
 
@@ -162,7 +162,7 @@ npm run dev
 
 ## Privacy & Security
 
-- Your keys live only in your browser's `localStorage` and are sent to the server solely to call the model you picked. They are never persisted or logged server-side.
+- Anonymous keys stay in this browser's `localStorage`. They are sent to the server only to call that provider, and are not saved in the database or logged. They do leave the computer for the provider call. Signed-in saved keys are encrypted at rest.
 - Signed-in users' saved keys are encrypted at rest, scoped per account, and never travel back to the client.
 - Browser BYOK is inherently exposed to XSS: any script running on the page can read `localStorage`. Use your own revocable keys, and self-hosters should serve a strict Content-Security-Policy.
 
