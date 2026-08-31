@@ -116,12 +116,12 @@ export function createSystemMessage(content: string, locale: Locale): Message {
 }
 
 export function getApiMessages(messages: Message[]): Message[] {
-  return messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
+  return messages.filter((m) => m.sender !== "system" && m.sender !== "verdict" && !m.failed)
 }
 
 /** Like getApiMessages but keeps verdict messages for consensus context */
 export function getConsensusMessages(messages: Message[]): Message[] {
-  return messages.filter((m) => m.sender !== "system")
+  return messages.filter((m) => m.sender !== "system" && !m.failed)
 }
 
 /** Shared consensus request. Anonymous: only keys for models in this debate (not every saved key). */
@@ -562,7 +562,7 @@ export function useDebateEngine(config: {
 
         // If loop exited due to stop/session change, don't overwrite newer state
         if (cancelled) {
-          if (!fullContent) {
+          if (isEmptyProviderReply(fullContent, false)) {
             failPlaceholder("Response cancelled.")
           }
           clearTypingIfCurrentSession()

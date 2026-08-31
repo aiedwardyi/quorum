@@ -4,6 +4,7 @@ import {
   createMessageId,
   createSystemMessage,
   getApiMessages,
+  getConsensusMessages,
   getAIMessageCount,
   resolveProviderContent,
   isEmptyProviderReply,
@@ -247,6 +248,34 @@ describe("getApiMessages", () => {
 
   it("returns empty array for empty input", () => {
     expect(getApiMessages([])).toEqual([])
+  })
+
+  it("drops failed provider rows so error bubbles are not sent as answers", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "claude-failed",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Add your Claude API key in Settings to start debating.",
+      failed: true,
+    }
+    const result = getApiMessages([userMsg, failed, aiMsg])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "gemini-1"])
+  })
+})
+
+describe("getConsensusMessages", () => {
+  it("keeps verdicts but drops failed provider rows", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "claude-failed",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Response cancelled.",
+      failed: true,
+    }
+    const result = getConsensusMessages([userMsg, failed, aiMsg, systemMsg, verdictMsg])
+    expect(result.map((m) => m.sender)).toEqual(["user", "gemini", "verdict"])
   })
 })
 
@@ -516,6 +545,24 @@ describe("messagesForBlindRound", () => {
   it("strips system and verdict messages", () => {
     const result = messagesForBlindRound([userMsg, systemMsg, aiMsg, verdictMsg])
     expect(result.map((m) => m.sender)).toEqual(["user"])
+  })
+
+  it("drops failed provider rows from the blind snapshot", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "claude-failed",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Add your Claude API key in Settings to start debating.",
+      failed: true,
+    }
+    const followUp: Message = {
+      ...userMsg,
+      id: "user-2",
+      content: "What about option C?",
+    }
+    const result = messagesForBlindRound([userMsg, failed, followUp])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "user-2"])
   })
 })
 
