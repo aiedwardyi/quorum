@@ -172,6 +172,18 @@ describe("reducer", () => {
     expect(next.messages[2].content).toBe("")
   })
 
+  it("UPDATE_MESSAGE can mark a provider row as failed", () => {
+    const state = makeState({ messages: [userMsg, { ...aiMsg, content: "" }] })
+    const next = reducer(state, {
+      type: "UPDATE_MESSAGE",
+      id: aiMsg.id,
+      content: "Response cancelled.",
+      failed: true,
+    })
+    expect(next.messages[1].content).toBe("Response cancelled.")
+    expect(next.messages[1].failed).toBe(true)
+  })
+
   it("RESET returns initial state with current models", () => {
     const state = makeState({
       messages: [userMsg, aiMsg],
@@ -529,5 +541,19 @@ describe("messagesReadyForConsensus", () => {
   it("keeps completed AI replies, users, and verdicts", () => {
     const result = messagesReadyForConsensus([userMsg, aiMsg, systemMsg, verdictMsg])
     expect(result.map((m) => m.sender)).toEqual(["user", "gemini", "system", "verdict"])
+  })
+
+  it("drops failed provider rows so stop cannot verdict on error text", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "claude-failed",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Add your Claude API key in Settings to start debating.",
+      failed: true,
+    }
+    const result = messagesReadyForConsensus([userMsg, failed, aiMsg])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "gemini-1"])
+    expect(getAIMessageCount(result)).toBe(1)
   })
 })

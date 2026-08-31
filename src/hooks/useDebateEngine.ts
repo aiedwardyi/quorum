@@ -202,14 +202,14 @@ export function consensusKeyProviders(preferred?: Provider[]): Provider[] {
   return [...preferred, "gemini"]
 }
 
-/** Drop empty AI placeholders so stop/consensus cannot treat thinking rows as answers. */
+/** Drop empty AI placeholders and failed rows so stop cannot treat them as answers. */
 export function messagesReadyForConsensus(messages: Message[]): Message[] {
   return messages.filter(
     (m) =>
       m.sender === "user" ||
       m.sender === "system" ||
       m.sender === "verdict" ||
-      Boolean(m.content.trim())
+      (Boolean(m.content.trim()) && !m.failed)
   )
 }
 
@@ -267,7 +267,7 @@ export type Action =
   | { type: "TOGGLE_MODEL"; model: Provider }
   | { type: "SET_MODELS"; models: Provider[] }
   | { type: "SET_THREAD_ID"; id: string | null }
-  | { type: "UPDATE_MESSAGE"; id: string; content: string }
+  | { type: "UPDATE_MESSAGE"; id: string; content: string; failed?: boolean }
   | {
       type: "HYDRATE_THREAD"
       messages: Message[]
@@ -297,7 +297,13 @@ export function reducer(state: State, action: Action): State {
       return {
         ...state,
         messages: state.messages.map((m) =>
-          m.id === action.id ? { ...m, content: action.content } : m
+          m.id === action.id
+            ? {
+                ...m,
+                content: action.content,
+                ...(action.failed !== undefined ? { failed: action.failed } : {}),
+              }
+            : m
         ),
       }
     }
@@ -436,6 +442,8 @@ export function useDebateEngine(config: {
       abortControllersRef.current.add(controller)
       const updatePlaceholder = (content: string) =>
         dispatch({ type: "UPDATE_MESSAGE", id: placeholderId, content })
+      const failPlaceholder = (content: string) =>
+        dispatch({ type: "UPDATE_MESSAGE", id: placeholderId, content, failed: true })
       const clearTypingIfCurrentSession = () => {
         if (sessionIdRef.current === sessionId) {
           dispatch({ type: "TYPING_STOP", model: provider })
@@ -470,7 +478,7 @@ export function useDebateEngine(config: {
           // Release the unused stream so we don't keep the upstream connection
           // open after a newer session has taken over.
           if (!controller.signal.aborted) controller.abort()
-          updatePlaceholder("Response cancelled.")
+          failPlaceholder("Response cancelled.")
           return null
         }
 
@@ -478,7 +486,7 @@ export function useDebateEngine(config: {
           const blocked = await parse402FromResponse(res)
           if (blocked?.kind === "host_budget_exceeded") {
             // Daily host budget wall, not a key problem - the key toast would mislead.
-            updatePlaceholder(getBudgetExceededMessage(!isAnonymousRef.current, locale))
+            failPlaceholder(getBudgetExceededMessage(!isAnonymousRef.current, locale))
             clearTypingIfCurrentSession()
             return null
           }
@@ -486,7 +494,7 @@ export function useDebateEngine(config: {
           onApiKeyRequired?.(missingProvider)
           // A keyless first-run visitor gets a generic welcome; the panel's
           // lead provider (perplexity) is arbitrary, so don't single it out.
-          updatePlaceholder(
+          failPlaceholder(
             getApiKeyPromptMessage(
               missingProvider,
               isFirstRunKeyless(isAnonymousRef.current),
@@ -552,7 +560,7 @@ export function useDebateEngine(config: {
         // If loop exited due to stop/session change, don't overwrite newer state
         if (cancelled) {
           if (!fullContent) {
-            updatePlaceholder("Response cancelled.")
+            failPlaceholder("Response cancelled.")
           }
           clearTypingIfCurrentSession()
           return null
@@ -576,14 +584,14 @@ export function useDebateEngine(config: {
             sessionIdRef.current === sessionId && !stopRef.current && !stoppingRef.current
           const msg = wasTimeout ? `${DISPLAY_NAMES[provider]} timed out.` : "Response cancelled."
           logDebate("callModel:abort", { provider, wasTimeout })
-          updatePlaceholder(msg)
+          failPlaceholder(msg)
           return null
         }
         // Covers transport errors and the route's {error} channel. Raw upstream errors are unactionable in a bubble - show a short fallback and keep detail in logDebate.
         const errorMsg = err instanceof Error ? err.message : "Unknown error"
         logDebate("callModel:error", { provider, error: errorMsg })
         clearTypingIfCurrentSession()
-        updatePlaceholder(SYSTEM_MESSAGES.emptyResponse(locale, provider))
+        failPlaceholder(SYSTEM_MESSAGES.emptyResponse(locale, provider))
         return null
       } finally {
         clearTimeout(timeoutId)
@@ -686,6 +694,7 @@ export function useDebateEngine(config: {
 
         // Abort any in-flight request from the previous session
         abortAll()
+        dispatch({ type: "TYPING_CLEAR" })
 
         // Reset all coordination refs
         stopRef.current = false
