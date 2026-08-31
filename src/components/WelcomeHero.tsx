@@ -461,6 +461,38 @@ function HomeKeyStrip({ locale }: { locale: Locale }) {
   )
 }
 
+
+const demoCaption = {
+  en: "A recorded debate. Doesn't spend a round.",
+  ko: "실제 토론 녹화입니다. 라운드를 쓰지 않습니다.",
+}
+
+function HomeDemo({ locale }: { locale: Locale }) {
+  return (
+    <motion.figure
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 1.15, duration: 0.45 }}
+      className="w-full max-w-4xl mx-auto"
+    >
+      <div className="rounded-2xl border border-zinc-200/60 dark:border-zinc-800/40 aspect-[16/10] overflow-hidden bg-zinc-950 shadow-lg">
+        <video
+          className="h-full w-full object-cover"
+          controls
+          playsInline
+          preload="metadata"
+          muted
+          poster="/demo-poster.jpg"
+          src="/demo.mp4"
+        />
+      </div>
+      <figcaption className="mt-2 text-[11px] font-medium text-zinc-500 dark:text-zinc-500">
+        {demoCaption[locale]}
+      </figcaption>
+    </motion.figure>
+  )
+}
+
 export default function WelcomeHero({
   locale,
   onSuggestionClick,
@@ -511,7 +543,7 @@ export default function WelcomeHero({
   }, [status])
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 sm:px-6 py-8 sm:py-12">
+    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 sm:px-6 py-8 sm:py-12 gap-6 sm:gap-8">
       <div className="space-y-6 sm:space-y-8 max-w-2xl w-full">
         {/* -- Sparkle icon -- */}
         <div className="flex justify-center">
@@ -603,7 +635,11 @@ export default function WelcomeHero({
             </motion.div>
           ))}
         </motion.div>
+      </div>
 
+      <HomeDemo locale={locale} />
+
+      <div className="max-w-2xl w-full">
         {/* -- Suggestion cards -- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 sm:pt-4">
           {s.map((suggestion, i) => (
