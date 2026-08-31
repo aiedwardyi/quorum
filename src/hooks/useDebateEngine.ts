@@ -468,8 +468,6 @@ export function useDebateEngine(config: {
           if (blocked?.kind === "host_budget_exceeded") {
             // Daily host budget wall, not a key problem - the key toast would mislead.
             updatePlaceholder(getBudgetExceededMessage(!isAnonymousRef.current, locale))
-            stopRef.current = true
-            abortAll()
             clearTypingIfCurrentSession()
             return null
           }
@@ -488,8 +486,6 @@ export function useDebateEngine(config: {
               }
             )
           )
-          stopRef.current = true
-          abortAll()
           clearTypingIfCurrentSession()
           return null
         }
