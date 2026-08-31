@@ -239,8 +239,20 @@ export default function MessageInput({
   return (
     <div className="w-full max-w-3xl mx-auto px-4 pt-1 pb-3">
       <div
-        className={`relative rounded-3xl overflow-hidden transition-transform duration-200 ${isFocused ? "scale-[1.02]" : "scale-100"}`}
+        className={`relative p-[2px] rounded-3xl overflow-hidden transition-transform duration-200 ${isFocused ? "scale-[1.02]" : "scale-100"}`}
       >
+        {/* Animated rainbow border */}
+        <div
+          className={cn(
+            "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500%] aspect-square animate-rotate-border transition-opacity duration-1000 blur-3xl will-change-transform",
+            isFocused ? "opacity-100" : "opacity-30"
+          )}
+          style={{
+            background:
+              "conic-gradient(from 0deg, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)",
+          }}
+        />
+
         <div
           onDragOver={(e) => {
             e.preventDefault()
@@ -257,10 +269,7 @@ export default function MessageInput({
           }}
           onClick={() => textareaRef.current?.focus()}
           className={cn(
-            "relative flex flex-col bg-white dark:bg-zinc-900 rounded-[22px] shadow-sm transition-all duration-200 z-10 cursor-text border",
-            isFocused
-              ? "border-zinc-300 dark:border-zinc-600"
-              : "border-zinc-200 dark:border-zinc-800",
+            "relative flex flex-col bg-white dark:bg-zinc-900 rounded-[22px] shadow-sm transition-all duration-200 z-10 cursor-text",
             isDragging ? "ring-4 ring-purple-500/20 dark:ring-purple-500/30" : ""
           )}
         >
