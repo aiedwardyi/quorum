@@ -78,4 +78,10 @@ describe("getVerdictPrompt", () => {
     const prompt = getVerdictPrompt("en")
     expect(prompt).not.toContain("in Korean")
   })
+
+  it("asks for a steelman minority view even when models agree", () => {
+    const prompt = getVerdictPrompt("en")
+    expect(prompt).not.toMatch(/If all models agreed, write "No significant dissent\."/)
+    expect(prompt.toLowerCase()).toContain("steelman")
+  })
 })

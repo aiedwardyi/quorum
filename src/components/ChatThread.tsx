@@ -8,7 +8,7 @@ import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
 
 export default function ChatThread({
   messages,
-  typingModel,
+  typingModels,
   isDebating,
   locale,
   responseLength,
@@ -16,7 +16,7 @@ export default function ChatThread({
   onNewDiscussion,
 }: {
   messages: Message[]
-  typingModel?: Provider | null
+  typingModels?: Provider[]
   isDebating?: boolean
   locale: Locale
   responseLength?: ResponseLength
@@ -29,7 +29,7 @@ export default function ChatThread({
   // scroll logic so it doesn't chase the SummaryCard to the bottom.
   const verdictScrollActiveRef = useRef(false)
 
-  const hasMessages = messages.length > 0 || !!typingModel
+  const hasMessages = messages.length > 0 || (typingModels && typingModels.length > 0)
 
   // Count user messages so we can detect "user just sent a new prompt".
   // We cannot rely on checking `messages[last].sender === 'user'` inside
@@ -167,7 +167,7 @@ export default function ChatThread({
     }
   }, [messages, userMessageCount])
 
-  if (messages.length === 0 && !typingModel) {
+  if (messages.length === 0 && !(typingModels && typingModels.length > 0)) {
     return (
       <div className="w-full">
         <WelcomeHero locale={locale} onSuggestionClick={onSendMessage} />
@@ -175,17 +175,18 @@ export default function ChatThread({
     )
   }
 
-  // Find the single message currently being streamed. We match the LAST
-  // message whose sender equals typingModel, not every message with that
-  // sender. Otherwise a prior round's Gemini bubble keeps showing the caret
-  // (and speaking glow) when round 2 starts streaming into a new Gemini
-  // bubble, because both bubbles share `sender === "gemini"`.
-  let typingMessageId: string | undefined
-  if (typingModel) {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].sender === typingModel) {
-        typingMessageId = messages[i].id
-        break
+  // Find the message currently being streamed for each typing provider.
+  // Match the LAST message whose sender equals that provider, not every
+  // message with that sender. Otherwise a prior round's bubble keeps the
+  // caret when the next round streams into a new bubble.
+  const typingMessageIds = new Set<string>()
+  if (typingModels) {
+    for (const model of typingModels) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].sender === model) {
+          typingMessageIds.add(messages[i].id)
+          break
+        }
       }
     }
   }
@@ -220,13 +221,13 @@ export default function ChatThread({
           <ChatBubble
             key={msg.id}
             message={msg}
-            isTyping={msg.id === typingMessageId}
+            isTyping={typingMessageIds.has(msg.id)}
             isDebating={isDebating}
             // Force this bubble's smoothed stream to snap to full only
             // during the analyzing phase, so the verdict skeleton can
             // take over cleanly. Mid-debate handoffs are handled by the
             // engine's waitForDrain - no force-complete needed there.
-            forceCompleteForAnalysis={analyzingInProgress && msg.id !== typingMessageId}
+            forceCompleteForAnalysis={analyzingInProgress && !typingMessageIds.has(msg.id)}
             locale={locale}
             responseLength={responseLength}
             onNewDiscussion={onNewDiscussion}

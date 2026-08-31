@@ -3,6 +3,7 @@ import {
   polishTruncatedResponse,
   stripDanglingStructure,
   getFormattingInstruction,
+  getDebatePhaseInstruction,
 } from "@/app/api/chat/route"
 
 // These tests cover the truncation-polish helpers and the length-aware
@@ -128,5 +129,27 @@ describe("getFormattingInstruction", () => {
     expect(getFormattingInstruction("medium", true)).toContain("구조는 도구이지 장식이 아닙니다")
     expect(getFormattingInstruction("long", true)).toContain("###")
     expect(getFormattingInstruction("long", true)).toContain("GFM 표")
+  })
+})
+
+describe("getDebatePhaseInstruction", () => {
+  it("keeps the opening pass independent", () => {
+    const out = getDebatePhaseInstruction("opening", false)
+    expect(out).toMatch(/independently/i)
+    expect(out).toMatch(/do not recap/i)
+  })
+
+  it("tells rebuttal speakers to add a new reason or name the claim they dispute", () => {
+    const out = getDebatePhaseInstruction("rebuttal", false)
+    expect(out).toMatch(/new reason/i)
+    expect(out).toMatch(/claim you dispute/i)
+    expect(out).toMatch(/do not recap|do not summarize/i)
+    expect(out).toMatch(/I see merit in both/i)
+  })
+
+  it("has a Korean rebuttal instruction", () => {
+    const out = getDebatePhaseInstruction("rebuttal", true)
+    expect(out.length).toBeGreaterThan(20)
+    expect(out).toMatch(/한국어|반박|요약/)
   })
 })

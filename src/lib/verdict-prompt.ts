@@ -77,7 +77,7 @@ Rules:
 - voteSplit MUST be a short fraction like "3/4 models agree" or "4/4 unanimous" or "2/4 models agree (split decision)". Keep it under 8 words. Do NOT list model names here.
 - confidence scoring: 90-100 = strong consensus, 70-89 = clear lean, 50-69 = slight edge, below 50 = genuine toss-up (still pick one side).
 - reasons: provide ${responseLength === "short" ? "2-3" : "3-4"} short, scannable bullet points supporting the recommendation. Each reason should be one sentence.
-- minorityView: the single strongest counterargument. If all models agreed, write "No significant dissent."
+- minorityView: the single strongest counterargument, even if every model agreed. Steelman the opposite. Never write "No significant dissent."
 - oppositeCase: one sentence describing when the user should ignore this recommendation and do the opposite.
 - Return ONLY the JSON object. No markdown fences, no explanation, no preamble.
 - CRITICAL SCHEMA RULE: Every element inside any array field MUST be a PLAIN STRING. Do NOT wrap list items in objects like {"label": "X", "text": "Y"} or {"title": "X", "description": "Y"}. If you want a labeled point, write it as one flat string: "Label - Explanation here." The schema is fixed and any non-string array element is a failure.

@@ -202,21 +202,39 @@ Structure is a tool, not decoration. Use it when it aids comprehension of the sp
   }
 }
 
+export type DebatePhase = "opening" | "rebuttal"
+
+export function getDebatePhaseInstruction(phase: DebatePhase, isKorean: boolean): string {
+  if (isKorean) {
+    if (phase === "rebuttal") {
+      return '이번은 반박 차례입니다. 다른 모델의 첫 발언을 볼 수 있습니다. 그것을 요약하거나 되풀이하지 마세요. 새로운 이유를 보태거나, 당신이 반박하는 주장을 구체적으로 짚고 왜 틀렸는지 말하세요. "양쪽 다 일리가 있다" 또는 "X의 조언은 타당하다"로 시작하지 마세요.'
+    }
+    return "이번은 첫 발언입니다. 다른 모델의 답을 보지 말고 사용자 질문에 대해 당신 자신의 판단으로 답하세요. 다른 사람의 말을 요약하지 마세요. 입장을 정하세요."
+  }
+  if (phase === "rebuttal") {
+    return 'This is a later argument pass. You can see the other models\' opening takes. Do not recap or summarize them. Add a new reason, or name the specific claim you dispute and why. Do not open with "I see merit in both" or "X\'s advice is solid." Speak as yourself and push the decision forward.'
+  }
+  return "This is the opening pass. Answer the user's question independently from your own judgment. You do not see the other models' takes. Do not recap anyone else. Do not wait for consensus. Take a position."
+}
+
 function getSystemPrompt(
   provider: Provider,
   locale: Locale,
   responseLength: ResponseLength,
-  forceKorean: boolean
+  forceKorean: boolean,
+  phase: DebatePhase
 ): string {
   const lengthLine = getResponseLengthInstruction(responseLength)
   const isKorean = locale === "ko" || forceKorean
   const shortLimitBlock = responseLength === "short" ? `${lengthLine}\n\n` : ""
   const formattingBlock = getFormattingInstruction(responseLength, isKorean)
+  const phaseBlock = getDebatePhaseInstruction(phase, isKorean)
 
   return `${shortLimitBlock}${isKorean ? "CRITICAL LANGUAGE REQUIREMENT: You MUST respond ENTIRELY in Korean (한국어). Every single word of your response - including names, technical terms, and explanations - must be written in Korean. Do NOT use any English words except for proper nouns that have no Korean equivalent. The user's document is in Korean and they expect a Korean response. If you respond in English, the response is wrong.\n\nDo NOT switch languages mid-response. Stay in Korean from first character to last.\n\n" : "CRITICAL LANGUAGE REQUIREMENT: You MUST respond ENTIRELY in English. Every sentence, every bullet, every summary line must be in English. Do NOT insert Korean, Japanese, Chinese, or any other language anywhere in your response - not even for a 'key points' recap or a translated quote. If you see non-English text in prior AI responses, IGNORE their language choice and respond in English regardless. Do NOT switch languages mid-response. Stay in English from first character to last.\n\n"}You are ${DISPLAY_NAMES[provider]} in a group discussion with other AI models and a human user.
 Your name is ${DISPLAY_NAMES[provider]}. Always speak as yourself in first person.
 Do NOT introduce yourself or state your name. Jump straight into the topic.
 NEVER speak as another model. NEVER prefix your response with any name like "[Gemini]:" or "[Claude]:".
+${phaseBlock}
 The human is the decision-maker. Respond to the full conversation naturally.
 If you disagree with another model, say so directly and explain why.
 If you changed your mind based on new points, say that too.
@@ -252,11 +270,13 @@ export async function POST(request: Request) {
       provider,
       locale = "en",
       responseLength = "medium",
+      phase = "opening",
     } = body as {
       messages: Message[]
       provider: Provider
       locale?: Locale
       responseLength?: ResponseLength
+      phase?: DebatePhase
     }
 
     const validatedLocale: Locale = locale === "en" || locale === "ko" ? locale : "en"
@@ -264,6 +284,7 @@ export async function POST(request: Request) {
       responseLength === "short" || responseLength === "medium" || responseLength === "long"
         ? responseLength
         : "medium"
+    const validatedPhase: DebatePhase = phase === "rebuttal" ? "rebuttal" : "opening"
 
     if (!messages || !Array.isArray(messages) || !provider) {
       return new Response(JSON.stringify({ error: "Missing messages or provider" }), {
@@ -288,7 +309,8 @@ export async function POST(request: Request) {
       provider,
       validatedLocale,
       validatedResponseLength,
-      forceKorean
+      forceKorean,
+      validatedPhase
     )
     const maxTokens = getMaxTokens(validatedResponseLength)
     const requestApiKey = typeof body.userApiKey === "string" ? body.userApiKey : undefined
