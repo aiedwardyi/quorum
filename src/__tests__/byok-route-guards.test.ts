@@ -349,6 +349,59 @@ describe("BYOK-required route guards", () => {
     )
   })
 
+  it("does not count an empty-fail Gemini row as a 4/4 yes-vote", async () => {
+    delete process.env.REQUIRE_USER_API_KEYS
+    generateGeminiVerdictWithApiKeyMock.mockResolvedValue(
+      JSON.stringify({ ...validVerdict, voteSplit: "4/4 unanimous" })
+    )
+    const debate: Message[] = [
+      messages[0],
+      {
+        id: "p1",
+        sender: "perplexity",
+        displayName: "Perplexity",
+        content: "Ship a monolith first.",
+        timestamp: new Date(),
+      },
+      {
+        id: "c1",
+        sender: "claude",
+        displayName: "Claude",
+        content: "Start with a monolith.",
+        timestamp: new Date(),
+      },
+      {
+        id: "g2",
+        sender: "gpt",
+        displayName: "GPT",
+        content: "A well-structured monolith is enough.",
+        timestamp: new Date(),
+      },
+      {
+        id: "gm-fail",
+        sender: "gemini",
+        displayName: "Gemini",
+        content: "Gemini couldn't reply this round.",
+        timestamp: new Date(),
+        failed: true,
+      },
+    ]
+
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages: debate,
+        locale: "en",
+        responseLength: "medium",
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ voteSplit: "3/3 unanimous" })
+    const prompt = generateGeminiVerdictWithApiKeyMock.mock.calls[0]?.[0]?.userPrompt as string
+    expect(prompt).toContain("3 model(s) produced a real reply")
+    expect(prompt).not.toContain("couldn't reply this round")
+  })
+
   it("ocr proceeds with the saved Gemini key when BYOK is required", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
     getUserProviderApiKeyMock.mockResolvedValue("user-gemini-key")

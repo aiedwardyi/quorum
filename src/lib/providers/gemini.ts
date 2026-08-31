@@ -3,6 +3,7 @@ import { VertexAI, HarmCategory, HarmBlockThreshold } from "@google-cloud/vertex
 import type { Message } from "@/types"
 import { getVertexConfig } from "@/lib/vertex-config"
 import { redactSecrets } from "@/lib/redact-secrets"
+import { loadGoogleApplicationCredentialsJson } from "@/lib/google-credentials"
 
 const GOOGLE_AI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -22,10 +23,9 @@ export function getConfiguredGeminiApiKey(): string | undefined {
 function getModel() {
   const { projectId, location } = getVertexConfig()
   const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-    opts.googleAuthOptions = {
-      credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
-    }
+  const credentials = loadGoogleApplicationCredentialsJson()
+  if (credentials) {
+    opts.googleAuthOptions = { credentials }
   }
   const vertexAI = new VertexAI(opts)
   // gemini-2.5-flash for the chat path: Pro's 10-15s TTFT was the

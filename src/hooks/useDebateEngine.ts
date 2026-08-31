@@ -14,6 +14,9 @@ import {
 } from "@/lib/api-key-errors"
 import { getClientKey, getAccessCode, isFirstRunKeyless } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
+import { isFailedPanelistRow, providersWithReplies } from "@/lib/vote-split"
+
+export { isFailedPanelistRow, providersWithReplies }
 
 /* ---- Constants ---- */
 
@@ -61,6 +64,10 @@ export const SYSTEM_MESSAGES = {
     locale === "ko"
       ? `${DISPLAY_NAMES[provider]}가 이번 라운드에 답하지 못했어요.`
       : `${DISPLAY_NAMES[provider]} couldn't reply this round.`,
+  providerConfigError: (locale: Locale, provider: Provider) =>
+    locale === "ko"
+      ? `${DISPLAY_NAMES[provider]}를 시작하지 못했어요. Vertex 자격 증명 JSON이 잘못됐거나 잘렸습니다. .env.local의 GOOGLE_APPLICATION_CREDENTIALS_JSON을 한 줄로 쓰거나 작은따옴표로 감싸 주세요.`
+      : `${DISPLAY_NAMES[provider]} couldn't start: Vertex credentials JSON is invalid or truncated. Put GOOGLE_APPLICATION_CREDENTIALS_JSON on one line, or wrap the JSON in single quotes.`,
   missingApiKey: (locale: Locale, provider: Provider) => getMissingApiKeyMessage(provider, locale),
   missingConsensusKey: (locale: Locale, signedIn = false) => {
     if (authEnabled() && !signedIn) {
@@ -116,12 +123,14 @@ export function createSystemMessage(content: string, locale: Locale): Message {
 }
 
 export function getApiMessages(messages: Message[]): Message[] {
-  return messages.filter((m) => m.sender !== "system" && m.sender !== "verdict" && !m.failed)
+  return messages.filter(
+    (m) => m.sender !== "system" && m.sender !== "verdict" && !isFailedPanelistRow(m)
+  )
 }
 
 /** Like getApiMessages but keeps verdict messages for consensus context */
 export function getConsensusMessages(messages: Message[]): Message[] {
-  return messages.filter((m) => m.sender !== "system" && !m.failed)
+  return messages.filter((m) => m.sender !== "system" && !isFailedPanelistRow(m))
 }
 
 /** Shared consensus request. Anonymous: only keys for models in this debate (not every saved key). */
@@ -172,7 +181,11 @@ async function consensusFailureMessage(res: Response, locale: Locale): Promise<s
 
 export function getAIMessageCount(messages: Message[]): number {
   return messages.filter(
-    (m) => m.sender !== "user" && m.sender !== "system" && m.sender !== "verdict"
+    (m) =>
+      m.sender !== "user" &&
+      m.sender !== "system" &&
+      m.sender !== "verdict" &&
+      !isFailedPanelistRow(m)
   ).length
 }
 
@@ -209,7 +222,7 @@ export function messagesReadyForConsensus(messages: Message[]): Message[] {
       m.sender === "user" ||
       m.sender === "system" ||
       m.sender === "verdict" ||
-      (Boolean(m.content.trim()) && !m.failed)
+      !isFailedPanelistRow(m)
   )
 }
 
@@ -239,6 +252,28 @@ export function resolveProviderContent(
     return SYSTEM_MESSAGES.emptyResponse(locale, provider)
   }
   return cleanResponse(rawContent)
+}
+
+export function isProviderConfigError(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes("vertex credentials") ||
+    lower.includes("credentials json") ||
+    lower.includes("expected property name") ||
+    (lower.includes("json") && lower.includes("at position") && /invalid|unexpected/.test(lower))
+  )
+}
+
+/** Map stream/config failures to bubble copy. Credential errors are not empty-reply. */
+export function providerFailureCopy(
+  errorMessage: string,
+  locale: Locale,
+  provider: Provider
+): string {
+  if (isProviderConfigError(errorMessage)) {
+    return SYSTEM_MESSAGES.providerConfigError(locale, provider)
+  }
+  return SYSTEM_MESSAGES.emptyResponse(locale, provider)
 }
 
 /* ---- State ---- */
@@ -595,7 +630,7 @@ export function useDebateEngine(config: {
         const errorMsg = err instanceof Error ? err.message : "Unknown error"
         logDebate("callModel:error", { provider, error: errorMsg })
         clearTypingIfCurrentSession()
-        failPlaceholder(SYSTEM_MESSAGES.emptyResponse(locale, provider))
+        failPlaceholder(providerFailureCopy(errorMsg, locale, provider))
         return null
       } finally {
         clearTimeout(timeoutId)
@@ -614,7 +649,9 @@ export function useDebateEngine(config: {
       sessionId: number,
       /** Intermediate rounds only - last round's final card owns the consensus call. */
       updateConfidence: boolean,
-      roundIndex: number
+      roundIndex: number,
+      /** Original panel so Gemini stays the verdict writer even if it empty-failed as a panelist. */
+      consensusModels: Provider[]
     ): Promise<{ msgs: Message[]; done: boolean }> => {
       const blind = isBlindRound(roundIndex)
       const snapshot = blind
@@ -647,8 +684,14 @@ export function useDebateEngine(config: {
 
       // After each intermediate round: fire-and-forget confidence update (does not block next round).
       if (updateConfidence && getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
-        const consensusMsgs = getConsensusMessages(msgs)
-        fetchConsensus(consensusMsgs, locale, responseLength, isAnonymousRef.current, activeModels)
+        const consensusMsgs = getConsensusMessages(messagesReadyForConsensus(msgs))
+        fetchConsensus(
+          consensusMsgs,
+          locale,
+          responseLength,
+          isAnonymousRef.current,
+          consensusModels
+        )
           .then(async (res) => {
             if (sessionIdRef.current !== sessionId || stopRef.current) return
             if (res.status === 402) {
@@ -744,12 +787,17 @@ export function useDebateEngine(config: {
           const rounds = orderedModels.length >= 2 ? maxRoundsRef.current : 1
           let stoppedEarly = false
 
+          let panel = orderedModels
           for (let r = 0; r < rounds; r++) {
             if (stopRef.current || sessionIdRef.current !== thisSession) break
+            if (r > 0) {
+              panel = providersWithReplies(msgs, orderedModels)
+              if (panel.length < 2) break
+            }
             dispatch({ type: "SET_ROUND", round: r + 1 })
             // Last round skips the confidence call - the final summary card runs consensus once.
             const isLastRound = r === rounds - 1
-            const result = await runRound(msgs, orderedModels, thisSession, !isLastRound, r)
+            const result = await runRound(msgs, panel, thisSession, !isLastRound, r, orderedModels)
             // Post-await guard: bail before pushing a divider for a round that won't run.
             if (sessionIdRef.current !== thisSession) break
             if (stopRef.current || stoppingRef.current) {
@@ -780,7 +828,8 @@ export function useDebateEngine(config: {
             !stoppingRef.current &&
             orderedModels.length >= 2
           ) {
-            const aiCount = getAIMessageCount(msgs)
+            const ready = messagesReadyForConsensus(msgs)
+            const aiCount = getAIMessageCount(ready)
             if (aiCount >= 2) {
               const analyzingMsg = createSystemMessage(SYSTEM_MESSAGES.analyzing(locale), locale)
               dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
@@ -788,7 +837,7 @@ export function useDebateEngine(config: {
 
               try {
                 const res = await fetchConsensus(
-                  getConsensusMessages(msgs),
+                  getConsensusMessages(ready),
                   locale,
                   responseLength,
                   isAnonymousRef.current,

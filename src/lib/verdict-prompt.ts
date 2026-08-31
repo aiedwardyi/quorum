@@ -12,7 +12,7 @@ export function getVerdictPrompt(
 
   const shortSchema = `{
   "recommendedAnswer": "One short decisive sentence. Maximum 15 words. Start with a verb.",
-  "voteSplit": "3/4 models agree",
+  "voteSplit": "3/3 unanimous",
   "confidence": <number 0-100>,
   "reasons": ["reason 1", "reason 2"],
   "minorityView": "Strongest counterargument in one sentence",
@@ -21,7 +21,7 @@ export function getVerdictPrompt(
 
   const mediumSchema = `{
   "recommendedAnswer": "A clear, decisive recommendation in 1-2 sentences. Start with a verb.",
-  "voteSplit": "3/4 models agree",
+  "voteSplit": "3/3 unanimous",
   "confidence": <number 0-100>,
   "reasons": ["reason 1", "reason 2", "reason 3"],
   "minorityView": "The strongest argument against the recommendation, in 1-2 sentences",
@@ -35,7 +35,7 @@ export function getVerdictPrompt(
 
   const longSchema = `{
   "recommendedAnswer": "A clear, decisive recommendation in 1-2 sentences. Start with a verb.",
-  "voteSplit": "3/4 models agree",
+  "voteSplit": "3/3 unanimous",
   "confidence": <number 0-100>,
   "reasons": ["reason 1", "reason 2", "reason 3", "reason 4"],
   "minorityView": "The strongest argument against the recommendation, in 2-3 sentences with specific reasoning",
@@ -74,7 +74,7 @@ Rules:
 - ${lengthGuidance}
 - NEVER hedge. Never say "it depends", "both have merits", "there is no clear winner", "consider your needs", or "provide more details". NEVER ask the user for more information. You MUST pick a concrete answer even if the debate was inconclusive. If the models hedged, pick the option that had the strongest reasoning and commit to it.
 - If the debate is close, still pick the stronger position. Reflect the closeness in the confidence score, not by hedging the answer.
-- voteSplit MUST be a short fraction like "3/4 models agree" or "4/4 unanimous" or "2/4 models agree (split decision)". Keep it under 8 words. Do NOT list model names here.
+- voteSplit MUST be a short fraction whose denominator equals the number of models that actually produced a reply. If 3 models replied, write "3/3 unanimous" or "2/3 models agree", never "4/4". Do not count empty, failed, or missing panelists. Keep it under 8 words. Do NOT list model names here.
 - confidence scoring: 90-100 = strong consensus, 70-89 = clear lean, 50-69 = slight edge, below 50 = genuine toss-up (still pick one side).
 - reasons: provide ${responseLength === "short" ? "2-3" : "3-4"} short, scannable bullet points supporting the recommendation. Each reason should be one sentence.
 - minorityView: the single strongest counterargument, even if every model agreed. Steelman the opposite. Never write "No significant dissent."

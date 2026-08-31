@@ -12,6 +12,9 @@ import {
   consensusKeyProviders,
   isBlindRound,
   messagesReadyForConsensus,
+  isFailedPanelistRow,
+  providersWithReplies,
+  providerFailureCopy,
 } from "@/hooks/useDebateEngine"
 import type { State } from "@/hooks/useDebateEngine"
 import type { Message, VerdictResult } from "@/types"
@@ -277,6 +280,23 @@ describe("getConsensusMessages", () => {
     const result = getConsensusMessages([userMsg, failed, aiMsg, systemMsg, verdictMsg])
     expect(result.map((m) => m.sender)).toEqual(["user", "gemini", "verdict"])
   })
+
+  it("drops empty-reply copy even when the failed flag is missing", () => {
+    const emptyGemini: Message = {
+      ...aiMsg,
+      id: "gemini-empty",
+      content: "Gemini couldn't reply this round.",
+    }
+    const claudeMsg: Message = {
+      ...aiMsg,
+      id: "claude-1",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Start with a monolith.",
+    }
+    const result = getConsensusMessages([userMsg, claudeMsg, emptyGemini])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "claude-1"])
+  })
 })
 
 describe("getAIMessageCount", () => {
@@ -291,6 +311,48 @@ describe("getAIMessageCount", () => {
 
   it("returns 0 for no AI messages", () => {
     expect(getAIMessageCount([userMsg, systemMsg])).toBe(0)
+  })
+
+  it("does not count failed or empty-reply rows as votes", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "gemini-failed",
+      content: "Gemini couldn't reply this round.",
+      failed: true,
+    }
+    const emptyCopy: Message = {
+      ...aiMsg,
+      id: "gemini-empty",
+      content: "Gemini couldn't reply this round.",
+    }
+    const claudeMsg: Message = {
+      ...aiMsg,
+      id: "claude-1",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Start with a monolith.",
+    }
+    const gptMsg: Message = {
+      ...aiMsg,
+      id: "gpt-1",
+      sender: "gpt",
+      displayName: "GPT",
+      content: "Monolith for an MVP.",
+    }
+    expect(getAIMessageCount([userMsg, claudeMsg, gptMsg, failed])).toBe(2)
+    expect(getAIMessageCount([userMsg, claudeMsg, gptMsg, emptyCopy])).toBe(2)
+  })
+
+  it("does not count thinking placeholders", () => {
+    const pending: Message = { ...aiMsg, id: "gemini-pending", content: "" }
+    const claudeMsg: Message = {
+      ...aiMsg,
+      id: "claude-1",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Start with a monolith.",
+    }
+    expect(getAIMessageCount([userMsg, claudeMsg, pending])).toBe(1)
   })
 })
 
@@ -618,5 +680,108 @@ describe("messagesReadyForConsensus", () => {
     const result = messagesReadyForConsensus([userMsg, failed, aiMsg])
     expect(result.map((m) => m.id)).toEqual(["user-1", "gemini-1"])
     expect(getAIMessageCount(result)).toBe(1)
+  })
+
+  it("drops empty-reply bubbles so stop cannot treat them as yes-votes", () => {
+    const emptyGemini: Message = {
+      ...aiMsg,
+      id: "gemini-empty",
+      content: "Gemini couldn't reply this round.",
+    }
+    const claudeMsg: Message = {
+      ...aiMsg,
+      id: "claude-1",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Start with a monolith.",
+    }
+    const gptMsg: Message = {
+      ...aiMsg,
+      id: "gpt-1",
+      sender: "gpt",
+      displayName: "GPT",
+      content: "Ship a monolith.",
+    }
+    const result = messagesReadyForConsensus([userMsg, claudeMsg, gptMsg, emptyGemini])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "claude-1", "gpt-1"])
+    expect(getAIMessageCount(result)).toBe(2)
+  })
+})
+
+describe("isFailedPanelistRow", () => {
+  it("treats failed, empty, cancelled, timeout, and empty-reply copy as non-votes", () => {
+    expect(isFailedPanelistRow({ ...aiMsg, failed: true })).toBe(true)
+    expect(isFailedPanelistRow({ ...aiMsg, content: "" })).toBe(true)
+    expect(isFailedPanelistRow({ ...aiMsg, content: "Response cancelled." })).toBe(true)
+    expect(isFailedPanelistRow({ ...aiMsg, content: "Gemini timed out." })).toBe(true)
+    expect(isFailedPanelistRow({ ...aiMsg, content: "Gemini couldn't reply this round." })).toBe(
+      true
+    )
+    expect(
+      isFailedPanelistRow({ ...aiMsg, content: "Gemini가 이번 라운드에 답하지 못했어요." })
+    ).toBe(true)
+    expect(isFailedPanelistRow(aiMsg)).toBe(false)
+    expect(isFailedPanelistRow(userMsg)).toBe(false)
+  })
+})
+
+describe("providersWithReplies", () => {
+  it("drops panelists that empty-failed so later rounds do not re-prompt them as voters", () => {
+    const emptyGemini: Message = {
+      ...aiMsg,
+      id: "gemini-empty",
+      content: "Gemini couldn't reply this round.",
+      failed: true,
+    }
+    const claudeMsg: Message = {
+      ...aiMsg,
+      id: "claude-1",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Start with a monolith.",
+    }
+    const gptMsg: Message = {
+      ...aiMsg,
+      id: "gpt-1",
+      sender: "gpt",
+      displayName: "GPT",
+      content: "Ship a monolith.",
+    }
+    expect(
+      providersWithReplies(
+        [userMsg, claudeMsg, gptMsg, emptyGemini],
+        ["perplexity", "claude", "gpt", "gemini"]
+      )
+    ).toEqual(["claude", "gpt"])
+  })
+})
+
+describe("providerFailureCopy", () => {
+  it("does not swallow Vertex credential parse errors as emptyResponse", () => {
+    const copy = providerFailureCopy(
+      "Vertex credentials JSON is invalid or truncated. Put GOOGLE_APPLICATION_CREDENTIALS_JSON on one line or wrap the JSON in single quotes.",
+      "en",
+      "gemini"
+    )
+    expect(copy).not.toMatch(/couldn't reply this round/)
+    expect(copy).toMatch(/Gemini/)
+    expect(copy.toLowerCase()).toMatch(/credential/)
+    expect(copy).not.toMatch(/private_key/)
+  })
+
+  it("keeps the empty-reply fallback for ordinary stream failures", () => {
+    expect(providerFailureCopy("No response body", "en", "gemini")).toBe(
+      "Gemini couldn't reply this round."
+    )
+  })
+
+  it("maps raw JSON.parse credential failures the same way", () => {
+    const copy = providerFailureCopy(
+      "Expected property name or '}' in JSON at position 1",
+      "en",
+      "gemini"
+    )
+    expect(copy).not.toMatch(/couldn't reply this round/)
+    expect(copy.toLowerCase()).toMatch(/credential/)
   })
 })

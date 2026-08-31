@@ -7,6 +7,7 @@ import {
 } from "@/lib/providers/gemini"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 import { redactSecrets } from "@/lib/redact-secrets"
+import { loadGoogleApplicationCredentialsJson } from "@/lib/google-credentials"
 
 /**
  * Strip LLM OCR repetition loops where the model gets stuck on a token/phrase
@@ -28,10 +29,9 @@ function sanitizeOcrText(text: string): string {
 function getModel() {
   const { projectId, location } = getVertexConfig()
   const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-    opts.googleAuthOptions = {
-      credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
-    }
+  const credentials = loadGoogleApplicationCredentialsJson()
+  if (credentials) {
+    opts.googleAuthOptions = { credentials }
   }
   const vertexAI = new VertexAI(opts)
   // gemini-2.5-pro instead of -flash: document OCR is the "important

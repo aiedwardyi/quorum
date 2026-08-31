@@ -84,4 +84,10 @@ describe("getVerdictPrompt", () => {
     expect(prompt).not.toMatch(/If all models agreed, write "No significant dissent\."/)
     expect(prompt.toLowerCase()).toContain("steelman")
   })
+
+  it("tells the writer to count only models that actually replied", () => {
+    const prompt = getVerdictPrompt("en")
+    expect(prompt.toLowerCase()).toMatch(/actually (produced a )?repl/)
+    expect(prompt).toMatch(/never "4\/4"/i)
+  })
 })
