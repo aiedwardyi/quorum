@@ -736,6 +736,12 @@ describe("isFailedPanelistRow", () => {
     ).toBe(true)
     expect(isFailedPanelistRow(aiMsg)).toBe(false)
     expect(isFailedPanelistRow(userMsg)).toBe(false)
+    expect(
+      isFailedPanelistRow({
+        ...aiMsg,
+        content: "Retry the call. The upstream request timed out.",
+      })
+    ).toBe(false)
   })
 })
 

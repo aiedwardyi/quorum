@@ -58,6 +58,32 @@ describe("countParticipatingModels", () => {
     }
     expect(countParticipatingModels([user, claude, gpt, pending])).toBe(2)
   })
+
+  it("does not count a prior-turn reply from a model that failed this turn", () => {
+    const priorGemini: Message = {
+      id: "gemini-old",
+      sender: "gemini",
+      displayName: "Gemini",
+      content: "I answered an earlier question.",
+      timestamp: new Date(),
+    }
+    const followUp: Message = {
+      ...user,
+      id: "user-2",
+      content: "What about an MVP?",
+    }
+    const geminiFail: Message = {
+      id: "gemini-fail",
+      sender: "gemini",
+      displayName: "Gemini",
+      content: "Gemini couldn't reply this round.",
+      timestamp: new Date(),
+      failed: true,
+    }
+    expect(
+      countParticipatingModels([user, priorGemini, followUp, perplexity, claude, gpt, geminiFail])
+    ).toBe(3)
+  })
 })
 
 describe("clampVoteSplit", () => {

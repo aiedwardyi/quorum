@@ -402,6 +402,72 @@ describe("BYOK-required route guards", () => {
     expect(prompt).not.toContain("couldn't reply this round")
   })
 
+  it("does not count a prior-turn Gemini reply when Gemini empty-fails this turn", async () => {
+    delete process.env.REQUIRE_USER_API_KEYS
+    generateGeminiVerdictWithApiKeyMock.mockResolvedValue(
+      JSON.stringify({ ...validVerdict, voteSplit: "4/4 unanimous" })
+    )
+    const debate: Message[] = [
+      messages[0],
+      {
+        id: "gm-old",
+        sender: "gemini",
+        displayName: "Gemini",
+        content: "I answered the first question.",
+        timestamp: new Date(),
+      },
+      {
+        id: "u2",
+        sender: "user",
+        displayName: "You",
+        content: "What about an MVP?",
+        timestamp: new Date(),
+      },
+      {
+        id: "p1",
+        sender: "perplexity",
+        displayName: "Perplexity",
+        content: "Ship a monolith first.",
+        timestamp: new Date(),
+      },
+      {
+        id: "c1",
+        sender: "claude",
+        displayName: "Claude",
+        content: "Start with a monolith.",
+        timestamp: new Date(),
+      },
+      {
+        id: "g2",
+        sender: "gpt",
+        displayName: "GPT",
+        content: "A well-structured monolith is enough.",
+        timestamp: new Date(),
+      },
+      {
+        id: "gm-fail",
+        sender: "gemini",
+        displayName: "Gemini",
+        content: "Gemini couldn't reply this round.",
+        timestamp: new Date(),
+        failed: true,
+      },
+    ]
+
+    const response = await consensusPOST(
+      jsonRequest("/api/consensus", {
+        messages: debate,
+        locale: "en",
+        responseLength: "medium",
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ voteSplit: "3/3 unanimous" })
+    const prompt = generateGeminiVerdictWithApiKeyMock.mock.calls[0]?.[0]?.userPrompt as string
+    expect(prompt).toContain("3 model(s) produced a real reply")
+  })
+
   it("ocr proceeds with the saved Gemini key when BYOK is required", async () => {
     authMock.mockResolvedValue({ user: { id: "user-1" } })
     getUserProviderApiKeyMock.mockResolvedValue("user-gemini-key")

@@ -3,7 +3,7 @@ import type { Message, Provider } from "@/types"
 
 const EMPTY_REPLY_EN = /couldn't reply this round\.?$/i
 const EMPTY_REPLY_KO = /가 이번 라운드에 답하지 못했어요\.?$/
-const TIMED_OUT = / timed out\.?$/i
+const TIMEOUT_PLACEHOLDER = /^(Gemini|Perplexity|Claude|GPT) timed out\.$/
 const CANCELLED = /^Response cancelled\.?$/i
 const CONFIG_START = /couldn't start:/i
 const CONFIG_START_KO = /시작하지 못했어요/
@@ -18,17 +18,29 @@ export function isFailedPanelistRow(message: Message): boolean {
   return (
     EMPTY_REPLY_EN.test(content) ||
     EMPTY_REPLY_KO.test(content) ||
-    TIMED_OUT.test(content) ||
+    TIMEOUT_PLACEHOLDER.test(content) ||
     CANCELLED.test(content) ||
     CONFIG_START.test(content) ||
     CONFIG_START_KO.test(content)
   )
 }
 
-/** Distinct providers that produced a real reply. */
+/** AI rows after the latest user message (this turn), or the full list if none. */
+export function messagesAfterLatestUser(messages: Message[]): Message[] {
+  let lastUser = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].sender === "user") {
+      lastUser = i
+      break
+    }
+  }
+  return lastUser === -1 ? messages : messages.slice(lastUser + 1)
+}
+
+/** Distinct providers that produced a real reply this turn. */
 export function countParticipatingModels(messages: Message[]): number {
   const senders = new Set<string>()
-  for (const message of messages) {
+  for (const message of messagesAfterLatestUser(messages)) {
     if (message.sender === "user" || message.sender === "system" || message.sender === "verdict") {
       continue
     }
@@ -40,15 +52,11 @@ export function countParticipatingModels(messages: Message[]): number {
 
 /** Keep panel order, drop anyone who empty-failed this user turn. */
 export function providersWithReplies(messages: Message[], panel: Provider[]): Provider[] {
-  let lastUser = -1
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].sender === "user") {
-      lastUser = i
-      break
-    }
-  }
-  const thisTurn = lastUser === -1 ? messages : messages.slice(lastUser + 1)
-  const replied = new Set(thisTurn.filter((m) => !isFailedPanelistRow(m)).map((m) => m.sender))
+  const replied = new Set(
+    messagesAfterLatestUser(messages)
+      .filter((m) => !isFailedPanelistRow(m))
+      .map((m) => m.sender)
+  )
   return panel.filter((provider) => replied.has(provider))
 }
 
