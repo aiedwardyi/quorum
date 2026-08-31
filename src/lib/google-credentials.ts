@@ -98,6 +98,7 @@ export function resolveGoogleApplicationCredentialsJson(
   try {
     return parseServiceAccountJson(trimmed)
   } catch (err) {
+    if (trimmed !== "{") throw err
     for (const file of fileContents) {
       const extracted = extractEnvValue(file, "GOOGLE_APPLICATION_CREDENTIALS_JSON")
       if (!extracted?.trim()) continue

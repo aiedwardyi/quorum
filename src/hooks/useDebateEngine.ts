@@ -652,7 +652,7 @@ export function useDebateEngine(config: {
       roundIndex: number,
       /** Original panel so Gemini stays the verdict writer even if it empty-failed as a panelist. */
       consensusModels: Provider[]
-    ): Promise<{ msgs: Message[]; done: boolean }> => {
+    ): Promise<{ msgs: Message[]; done: boolean; roundReplies: Message[] }> => {
       const blind = isBlindRound(roundIndex)
       const snapshot = blind
         ? messagesForBlindRound(currentMessages)
@@ -674,12 +674,16 @@ export function useDebateEngine(config: {
       }
 
       const msgs = [...currentMessages]
+      const roundReplies: Message[] = []
       for (const result of results) {
-        if (result) msgs.push(result)
+        if (result) {
+          msgs.push(result)
+          roundReplies.push(result)
+        }
       }
 
       if (stopRef.current || sessionIdRef.current !== sessionId) {
-        return { msgs, done: true }
+        return { msgs, done: true, roundReplies }
       }
 
       // After each intermediate round: fire-and-forget confidence update (does not block next round).
@@ -718,7 +722,7 @@ export function useDebateEngine(config: {
           })
       }
 
-      return { msgs, done: false }
+      return { msgs, done: false, roundReplies }
     },
     [callModel, locale, responseLength, onApiKeyRequired]
   )
@@ -790,10 +794,7 @@ export function useDebateEngine(config: {
           let panel = orderedModels
           for (let r = 0; r < rounds; r++) {
             if (stopRef.current || sessionIdRef.current !== thisSession) break
-            if (r > 0) {
-              panel = providersWithReplies(msgs, orderedModels)
-              if (panel.length < 2) break
-            }
+            if (r > 0 && panel.length < 2) break
             dispatch({ type: "SET_ROUND", round: r + 1 })
             // Last round skips the confidence call - the final summary card runs consensus once.
             const isLastRound = r === rounds - 1
@@ -806,6 +807,7 @@ export function useDebateEngine(config: {
               break
             }
             msgs = result.msgs
+            panel = providersWithReplies(result.roundReplies, orderedModels)
             if (result.done) {
               stoppedEarly = true
               break

@@ -67,6 +67,13 @@ describe("resolveGoogleApplicationCredentialsJson", () => {
     expect(resolved?.project_id).toBe("demo-project")
   })
 
+  it("does not replace other malformed env JSON with a dotenv file", () => {
+    const file = `GOOGLE_APPLICATION_CREDENTIALS_JSON=${MULTILINE_JSON}\n`
+    expect(() => resolveGoogleApplicationCredentialsJson("{not-json", [file])).toThrow(
+      VERTEX_CREDENTIALS_JSON_ERROR
+    )
+  })
+
   it("throws the config error when the value is truncated and files do not recover it", () => {
     expect(() => resolveGoogleApplicationCredentialsJson("{", [])).toThrow(
       VERTEX_CREDENTIALS_JSON_ERROR

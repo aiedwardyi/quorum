@@ -75,6 +75,10 @@ describe("clampVoteSplit", () => {
     expect(clampVoteSplit("2/3 models agree", 3)).toBe("2/3 models agree")
   })
 
+  it("raises an undercounted denominator to the real reply count", () => {
+    expect(clampVoteSplit("2/2 models agree", 3)).toBe("2/3 models agree")
+  })
+
   it("keeps a split numerator when only the denominator was inflated", () => {
     expect(clampVoteSplit("2/4 models agree", 3)).toBe("2/3 models agree")
   })

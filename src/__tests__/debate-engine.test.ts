@@ -796,6 +796,29 @@ describe("providersWithReplies", () => {
       )
     ).toEqual(["claude"])
   })
+
+  it("builds the next panel from this round's successes in orderedModels order", () => {
+    const roundReplies: Message[] = [
+      {
+        ...aiMsg,
+        id: "gpt-round",
+        sender: "gpt",
+        displayName: "GPT",
+        content: "Ship a monolith.",
+      },
+      {
+        ...aiMsg,
+        id: "claude-round",
+        sender: "claude",
+        displayName: "Claude",
+        content: "Start with a monolith.",
+      },
+    ]
+    expect(providersWithReplies(roundReplies, ["perplexity", "claude", "gpt", "gemini"])).toEqual([
+      "claude",
+      "gpt",
+    ])
+  })
 })
 
 describe("providerFailureCopy", () => {

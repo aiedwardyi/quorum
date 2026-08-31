@@ -53,8 +53,8 @@ export function providersWithReplies(messages: Message[], panel: Provider[]): Pr
 }
 
 /**
- * Rewrite LLM voteSplit so the denominator cannot exceed the number of
- * models that actually replied. "4/4 unanimous" with 3 replies becomes "3/3 unanimous".
+ * Rewrite LLM voteSplit so the denominator equals the number of models that
+ * actually replied. "4/4 unanimous" with 3 replies becomes "3/3 unanimous".
  */
 export function clampVoteSplit(voteSplit: string, repliedCount: number): string {
   if (!Number.isFinite(repliedCount) || repliedCount < 1) return voteSplit
@@ -63,7 +63,7 @@ export function clampVoteSplit(voteSplit: string, repliedCount: number): string 
   let num = Number(match[1])
   let den = Number(match[2])
   if (!Number.isFinite(num) || !Number.isFinite(den)) return voteSplit
-  if (den > repliedCount) den = repliedCount
+  den = repliedCount
   if (num > den) num = den
   if (num < 0) num = 0
   return `${voteSplit.slice(0, match.index)}${num}/${den}${voteSplit.slice(match.index + match[0].length)}`
