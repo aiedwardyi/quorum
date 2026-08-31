@@ -67,6 +67,8 @@ const byokCopy = {
       "The verdict is written by Gemini, so paste a Gemini key even if you only want other models on the panel.",
     save: "Save keys",
     saved: "Saved",
+    showKey: "Show key",
+    hideKey: "Hide key",
   },
   ko: {
     toggle: "내 API 키 사용",
@@ -76,6 +78,8 @@ const byokCopy = {
     geminiNote: "합의는 Gemini가 작성합니다. 다른 모델만 쓰더라도 Gemini 키를 넣어 주세요.",
     save: "키 저장",
     saved: "저장됨",
+    showKey: "키 보기",
+    hideKey: "키 숨기기",
   },
 }
 
@@ -421,6 +425,7 @@ function HomeKeyStrip({ locale }: { locale: Locale }) {
                   type={visible[provider] ? "text" : "password"}
                   value={keys[provider]}
                   onChange={(e) => setKeys((prev) => ({ ...prev, [provider]: e.target.value }))}
+                  aria-label={KEY_LABELS[provider][locale]}
                   placeholder={
                     configured[provider]
                       ? `${KEY_LABELS[provider][locale]} (${t.saved.toLowerCase()})`
@@ -432,7 +437,7 @@ function HomeKeyStrip({ locale }: { locale: Locale }) {
                   type="button"
                   onClick={() => setVisible((prev) => ({ ...prev, [provider]: !prev[provider] }))}
                   className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                  aria-label={visible[provider] ? "Hide key" : "Show key"}
+                  aria-label={visible[provider] ? t.hideKey : t.showKey}
                 >
                   {visible[provider] ? (
                     <EyeOff className="w-3.5 h-3.5" />
