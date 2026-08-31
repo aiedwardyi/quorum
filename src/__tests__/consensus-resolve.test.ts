@@ -43,6 +43,23 @@ describe("humanVerdictError", () => {
     expect(humanVerdictError(new Error("timed out"), "ko")).toMatch(/오래/)
   })
 
+  it("does not treat Vertex credentials JSON errors as a bad API key", () => {
+    expect(
+      humanVerdictError(
+        new Error(
+          "Vertex credentials JSON is invalid or truncated. Put GOOGLE_APPLICATION_CREDENTIALS_JSON on one line or wrap the JSON in single quotes."
+        )
+      )
+    ).toMatch(/credentials JSON/i)
+    expect(
+      humanVerdictError(
+        new Error(
+          "Vertex credentials JSON is invalid or truncated. Put GOOGLE_APPLICATION_CREDENTIALS_JSON on one line or wrap the JSON in single quotes."
+        )
+      )
+    ).not.toMatch(/current key/i)
+  })
+
   it("exports a clear missing-key message", () => {
     expect(NO_CONSENSUS_KEY_MESSAGE).toMatch(/API key/i)
   })

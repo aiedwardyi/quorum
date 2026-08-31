@@ -2,6 +2,7 @@
 import type { Locale, Provider } from "@/types"
 import { softResolveProviderApiKey, isValidAccessCode } from "@/lib/server-provider-keys"
 import { hasServerCreds } from "@/lib/host-credentials"
+import { VERTEX_CREDENTIALS_JSON_ERROR } from "@/lib/google-credentials"
 
 /** Full consensus chain. Structured models first; Perplexity always last (search-first JSON). */
 export const CONSENSUS_PROVIDERS: readonly Provider[] = ["gemini", "claude", "gpt", "perplexity"]
@@ -108,6 +109,11 @@ export function humanVerdictError(err: unknown, locale: Locale = "en"): string {
     return ko
       ? "AI가 잠시 한도에 걸렸어요. 몇 초 기다렸다가 다시 보내 주세요."
       : "The AI hit a temporary rate limit. Wait a few seconds and send again."
+  }
+  if (lower.includes("vertex credentials") || lower.includes("credentials json")) {
+    return ko
+      ? "Vertex 자격 증명 JSON이 잘못됐거나 잘렸습니다. GOOGLE_APPLICATION_CREDENTIALS_JSON을 한 줄로 쓰거나 작은따옴표로 감싸 주세요."
+      : VERTEX_CREDENTIALS_JSON_ERROR
   }
   if (
     lower.includes("403") ||

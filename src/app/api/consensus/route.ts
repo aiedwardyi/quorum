@@ -24,6 +24,8 @@ import {
   resolveConsensusCandidates,
   type ConsensusCandidate,
 } from "@/lib/consensus-resolve"
+import { clampVoteSplit, countParticipatingModels, isFailedPanelistRow } from "@/lib/vote-split"
+import { loadGoogleApplicationCredentialsJson } from "@/lib/google-credentials"
 
 /** Forces structurally valid JSON with our exact field names - flash was seen
  *  emitting markdown lists and renaming fields under prose instructions alone.
@@ -40,7 +42,7 @@ const VERDICT_RESPONSE_SCHEMA: ResponseSchema = {
     voteSplit: {
       type: SchemaType.STRING,
       description:
-        "Human-readable tally of how the AI participants voted, e.g. '4/4 unanimous' or '3/4 in favor'.",
+        "Human-readable tally of how the models that actually replied voted, e.g. '3/3 unanimous' or '2/3 in favor'. Denominator is the number of real replies, never missing or failed panelists.",
     },
     confidence: {
       type: SchemaType.NUMBER,
@@ -192,7 +194,7 @@ export async function POST(req: NextRequest) {
     }
 
     const discussionMessages = messages.filter(
-      (m) => m.sender !== "system" && m.sender !== "verdict"
+      (m) => m.sender !== "system" && m.sender !== "verdict" && !isFailedPanelistRow(m)
     )
 
     // User messages only - AI hallucinating Korean must not cascade the whole verdict into Korean.
@@ -210,6 +212,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const repliedCount = countParticipatingModels(discussionMessages)
     const thread = formatThread(discussionMessages)
 
     // Flash for first verdicts (~5s); Pro for continuations where it must reconcile without flip-flopping.
@@ -217,7 +220,7 @@ export async function POST(req: NextRequest) {
     const verdictModelName = useProModel ? "gemini-2.5-pro" : "gemini-2.5-flash"
     const verdictTier = useProModel ? "pro" : "flash"
     const verdictPrompt = getVerdictPrompt(effectiveLocale, responseLength)
-    const verdictUserPrompt = `Here is the discussion to analyze:\n\n${thread}${
+    const verdictUserPrompt = `Here is the discussion to analyze:\n\n${thread}\n\n${repliedCount} model(s) produced a real reply. voteSplit denominator MUST be ${repliedCount}. Do not count empty, failed, or missing panelists.${
       previousVerdicts.length > 0
         ? `\n\nPrevious verdict(s) from earlier rounds of this discussion:\n${previousVerdicts.map((v, i) => `- Round ${i + 1} verdict: ${JSON.stringify(v)}`).join("\n")}\n\nThe user continued the discussion after the above verdict(s). Analyze the NEW discussion carefully. Only change the recommendation if there is strong, specific new evidence. Do NOT flip-flop without justification.`
         : ""
@@ -339,10 +342,9 @@ export async function POST(req: NextRequest) {
 
           const { projectId, location } = getVertexConfig()
           const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
-          if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-            opts.googleAuthOptions = {
-              credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
-            }
+          const credentials = loadGoogleApplicationCredentialsJson()
+          if (credentials) {
+            opts.googleAuthOptions = { credentials }
           }
           const vertexAI = new VertexAI(opts)
           const model = vertexAI.getGenerativeModel({
@@ -438,6 +440,7 @@ export async function POST(req: NextRequest) {
         }
 
         const verdict = validateVerdictResult(parsed)
+        verdict.voteSplit = clampVoteSplit(verdict.voteSplit, repliedCount)
 
         const elapsed = Date.now() - startTime
         console.log(
