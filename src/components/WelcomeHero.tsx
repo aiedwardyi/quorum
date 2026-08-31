@@ -461,7 +461,6 @@ function HomeKeyStrip({ locale }: { locale: Locale }) {
   )
 }
 
-
 const demoCaption = {
   en: "A recorded debate. Doesn't spend a round.",
   ko: "실제 토론 녹화입니다. 라운드를 쓰지 않습니다.",
