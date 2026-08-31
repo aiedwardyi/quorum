@@ -33,6 +33,8 @@ export type Message = {
   content: string
   timestamp: Date
   verdictData?: VerdictResult
+  /** True when the bubble is a missing-key / cancel / error placeholder, not an answer. */
+  failed?: boolean
 }
 
 export type VerdictResult = {

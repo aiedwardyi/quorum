@@ -4,9 +4,15 @@ import type { CSSProperties } from "react"
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { useSession } from "next-auth/react"
-import { Provider, Locale } from "@/types"
+import { ChevronDown, Eye, EyeOff, KeyRound } from "lucide-react"
+import { Provider, Locale, USER_API_KEY_PROVIDERS } from "@/types"
 import { authEnabled } from "@/lib/deploy-config"
-import { isFirstRunKeyless } from "@/lib/client-api-keys"
+import {
+  getClientKey,
+  isFirstRunKeyless,
+  setClientKey,
+  shouldUseClientKeys,
+} from "@/lib/client-api-keys"
 
 const suggestions = {
   en: [
@@ -39,15 +45,41 @@ const freeDebateHint = {
 const translations = {
   en: {
     title: "Quorum",
-    subtitle: "Multi-AI group chat for consensus",
+    subtitle: "A decision assistant, not a group chat",
     description:
-      "Ask once and let the world's best AI models talk it out. Steer the conversation and watch them converge on the best answer.",
+      "Ask once. Four models answer on their own first, then argue if you add rounds. You get a recommendation, the vote split, and the strongest objection.",
   },
   ko: {
     title: "Quorum",
-    subtitle: "합의를 위한 멀티 AI 그룹 채팅",
+    subtitle: "그룹 채팅이 아니라 의사결정 도구",
     description:
-      "한 번만 질문하고 세계 최고의 AI 모델들이 토론하게 하세요. 대화를 주도하며 그들이 최선의 답변으로 수렴하는 과정을 지켜보세요.",
+      "한 번만 질문하세요. 네 모델이 먼저 각자 답하고, 라운드를 늘리면 반박합니다. 추천과 표 갈림, 가장 강한 반론을 받습니다.",
+  },
+}
+
+const byokCopy = {
+  en: {
+    toggle: "Use your own keys",
+    hide: "Hide keys",
+    storage:
+      "Keys stay in this browser's localStorage. They are sent to the server only to call that provider, and are not saved there.",
+    geminiNote:
+      "The verdict is written by Gemini, so paste a Gemini key even if you only want other models on the panel.",
+    save: "Save keys",
+    saved: "Saved",
+    showKey: "Show key",
+    hideKey: "Hide key",
+  },
+  ko: {
+    toggle: "내 API 키 사용",
+    hide: "키 숨기기",
+    storage:
+      "키는 이 브라우저 localStorage에 저장됩니다. 해당 모델을 호출할 때만 서버로 보내며, 서버에는 저장되지 않습니다.",
+    geminiNote: "합의는 Gemini가 작성합니다. 다른 모델만 쓰더라도 Gemini 키를 넣어 주세요.",
+    save: "키 저장",
+    saved: "저장됨",
+    showKey: "키 보기",
+    hideKey: "키 숨기기",
   },
 }
 
@@ -311,6 +343,123 @@ const cardIcons = [
 ]
 
 const ALL_MODELS: Provider[] = ["perplexity", "claude", "gemini", "gpt"]
+const KEY_LABELS: Record<Provider, { en: string; ko: string }> = {
+  gemini: { en: "Gemini API key", ko: "Gemini API 키" },
+  perplexity: { en: "Perplexity API key", ko: "Perplexity API 키" },
+  claude: { en: "Claude API key", ko: "Claude API 키" },
+  gpt: { en: "GPT API key", ko: "GPT API 키" },
+}
+
+function HomeKeyStrip({ locale }: { locale: Locale }) {
+  const { status } = useSession()
+  const anonymous = shouldUseClientKeys(authEnabled(), status)
+  const t = byokCopy[locale]
+  const [open, setOpen] = useState(false)
+  const [keys, setKeys] = useState<Record<Provider, string>>({
+    gemini: "",
+    perplexity: "",
+    claude: "",
+    gpt: "",
+  })
+  const [configured, setConfigured] = useState<Record<Provider, boolean>>(() => {
+    if (typeof window === "undefined") {
+      return { gemini: false, perplexity: false, claude: false, gpt: false }
+    }
+    return {
+      gemini: Boolean(getClientKey("gemini")),
+      perplexity: Boolean(getClientKey("perplexity")),
+      claude: Boolean(getClientKey("claude")),
+      gpt: Boolean(getClientKey("gpt")),
+    }
+  })
+  const [visible, setVisible] = useState<Partial<Record<Provider, boolean>>>({})
+  const [saved, setSaved] = useState(false)
+
+  if (!anonymous) return null
+
+  const handleSave = () => {
+    for (const provider of USER_API_KEY_PROVIDERS) {
+      const value = keys[provider].trim()
+      if (value) setClientKey(provider, value)
+    }
+    const nextConfigured = { ...configured }
+    for (const provider of USER_API_KEY_PROVIDERS) {
+      nextConfigured[provider] = Boolean(getClientKey(provider))
+    }
+    setConfigured(nextConfigured)
+    setKeys({ gemini: "", perplexity: "", claude: "", gpt: "" })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="w-full max-w-lg mx-auto text-left">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white/60 dark:bg-zinc-900/40 px-4 py-2.5 text-[13px] font-medium text-zinc-600 dark:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+      >
+        <span className="inline-flex items-center gap-2">
+          <KeyRound className="w-3.5 h-3.5 text-zinc-400" />
+          {open ? t.hide : t.toggle}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="mt-2 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 bg-white/80 dark:bg-zinc-900/60 p-4 space-y-3">
+          <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            {t.storage}
+          </p>
+          <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            {t.geminiNote}
+          </p>
+          <div className="space-y-2">
+            {USER_API_KEY_PROVIDERS.map((provider) => (
+              <div
+                key={provider}
+                className="flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-2"
+              >
+                <input
+                  type={visible[provider] ? "text" : "password"}
+                  value={keys[provider]}
+                  onChange={(e) => setKeys((prev) => ({ ...prev, [provider]: e.target.value }))}
+                  aria-label={KEY_LABELS[provider][locale]}
+                  placeholder={
+                    configured[provider]
+                      ? `${KEY_LABELS[provider][locale]} (${t.saved.toLowerCase()})`
+                      : KEY_LABELS[provider][locale]
+                  }
+                  className="flex-1 bg-transparent border-none p-0 text-[13px] text-zinc-800 dark:text-zinc-100 focus:outline-none placeholder:text-zinc-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setVisible((prev) => ({ ...prev, [provider]: !prev[provider] }))}
+                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                  aria-label={visible[provider] ? t.hideKey : t.showKey}
+                >
+                  {visible[provider] ? (
+                    <EyeOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Eye className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="w-full rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[12px] font-medium py-2 hover:opacity-90 transition-opacity"
+          >
+            {saved ? t.saved : t.save}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function WelcomeHero({
   locale,
@@ -414,6 +563,8 @@ export default function WelcomeHero({
             </span>
           </motion.div>
         )}
+
+        <HomeKeyStrip locale={locale} />
 
         {/* -- Model badges -- */}
         <motion.div

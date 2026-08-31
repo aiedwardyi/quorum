@@ -4,8 +4,14 @@ import {
   createMessageId,
   createSystemMessage,
   getApiMessages,
+  getConsensusMessages,
   getAIMessageCount,
   resolveProviderContent,
+  isEmptyProviderReply,
+  messagesForBlindRound,
+  consensusKeyProviders,
+  isBlindRound,
+  messagesReadyForConsensus,
 } from "@/hooks/useDebateEngine"
 import type { State } from "@/hooks/useDebateEngine"
 import type { Message, VerdictResult } from "@/types"
@@ -18,7 +24,7 @@ const makeState = (overrides: Partial<State> = {}): State => ({
   verdict: null,
   isDebating: false,
   currentRound: 0,
-  typingModel: null,
+  typingModels: [],
   showSummary: false,
   threadId: null,
   ...overrides,
@@ -98,11 +104,11 @@ describe("reducer", () => {
   })
 
   it("SHOW_SUMMARY sets flags correctly", () => {
-    const state = makeState({ isDebating: true, typingModel: "gemini" })
+    const state = makeState({ isDebating: true, typingModels: ["gemini"] })
     const next = reducer(state, { type: "SHOW_SUMMARY" })
     expect(next.showSummary).toBe(true)
     expect(next.isDebating).toBe(false)
-    expect(next.typingModel).toBeNull()
+    expect(next.typingModels).toEqual([])
   })
 
   it("TOGGLE_MODEL adds model", () => {
@@ -168,6 +174,18 @@ describe("reducer", () => {
     expect(next.messages[2].content).toBe("")
   })
 
+  it("UPDATE_MESSAGE can mark a provider row as failed", () => {
+    const state = makeState({ messages: [userMsg, { ...aiMsg, content: "" }] })
+    const next = reducer(state, {
+      type: "UPDATE_MESSAGE",
+      id: aiMsg.id,
+      content: "Response cancelled.",
+      failed: true,
+    })
+    expect(next.messages[1].content).toBe("Response cancelled.")
+    expect(next.messages[1].failed).toBe(true)
+  })
+
   it("RESET returns initial state with current models", () => {
     const state = makeState({
       messages: [userMsg, aiMsg],
@@ -231,6 +249,34 @@ describe("getApiMessages", () => {
   it("returns empty array for empty input", () => {
     expect(getApiMessages([])).toEqual([])
   })
+
+  it("drops failed provider rows so error bubbles are not sent as answers", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "claude-failed",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Add your Claude API key in Settings to start debating.",
+      failed: true,
+    }
+    const result = getApiMessages([userMsg, failed, aiMsg])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "gemini-1"])
+  })
+})
+
+describe("getConsensusMessages", () => {
+  it("keeps verdicts but drops failed provider rows", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "claude-failed",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Response cancelled.",
+      failed: true,
+    }
+    const result = getConsensusMessages([userMsg, failed, aiMsg, systemMsg, verdictMsg])
+    expect(result.map((m) => m.sender)).toEqual(["user", "gemini", "verdict"])
+  })
 })
 
 describe("getAIMessageCount", () => {
@@ -250,25 +296,37 @@ describe("getAIMessageCount", () => {
 
 /* ---- Additional reducer action tests ---- */
 
-describe("reducer - SET_TYPING", () => {
-  it("sets typingModel to a provider", () => {
-    const state = makeState()
-    const next = reducer(state, { type: "SET_TYPING", model: "gemini" })
-    expect(next.typingModel).toBe("gemini")
+describe("reducer - typing models", () => {
+  it("TYPING_START adds a provider without dropping others", () => {
+    const state = makeState({ typingModels: ["gemini"] })
+    const next = reducer(state, { type: "TYPING_START", model: "claude" })
+    expect(next.typingModels).toEqual(["gemini", "claude"])
   })
 
-  it("sets typingModel to null", () => {
-    const state = makeState({ typingModel: "claude" })
-    const next = reducer(state, { type: "SET_TYPING", model: null })
-    expect(next.typingModel).toBeNull()
+  it("TYPING_START is idempotent for the same provider", () => {
+    const state = makeState({ typingModels: ["gemini"] })
+    const next = reducer(state, { type: "TYPING_START", model: "gemini" })
+    expect(next.typingModels).toEqual(["gemini"])
+  })
+
+  it("TYPING_STOP removes only that provider", () => {
+    const state = makeState({ typingModels: ["gemini", "claude", "gpt"] })
+    const next = reducer(state, { type: "TYPING_STOP", model: "claude" })
+    expect(next.typingModels).toEqual(["gemini", "gpt"])
+  })
+
+  it("TYPING_CLEAR empties the set", () => {
+    const state = makeState({ typingModels: ["claude"] })
+    const next = reducer(state, { type: "TYPING_CLEAR" })
+    expect(next.typingModels).toEqual([])
   })
 
   it("does not mutate other state fields", () => {
     const state = makeState({ isDebating: true, currentRound: 2 })
-    const next = reducer(state, { type: "SET_TYPING", model: "gpt" })
+    const next = reducer(state, { type: "TYPING_START", model: "gpt" })
     expect(next.isDebating).toBe(true)
     expect(next.currentRound).toBe(2)
-    expect(next.typingModel).toBe("gpt")
+    expect(next.typingModels).toEqual(["gpt"])
   })
 })
 
@@ -350,7 +408,7 @@ describe("reducer - SET_THREAD_ID", () => {
 
 describe("reducer - HYDRATE_THREAD", () => {
   it("hydrates messages and verdict", () => {
-    const state = makeState({ isDebating: true, currentRound: 3, typingModel: "gemini" })
+    const state = makeState({ isDebating: true, currentRound: 3, typingModels: ["gemini"] })
     const msgs = [userMsg, aiMsg]
     const next = reducer(state, {
       type: "HYDRATE_THREAD",
@@ -363,7 +421,7 @@ describe("reducer - HYDRATE_THREAD", () => {
     expect(next.showSummary).toBe(true)
     expect(next.isDebating).toBe(false)
     expect(next.currentRound).toBe(0)
-    expect(next.typingModel).toBeNull()
+    expect(next.typingModels).toEqual([])
   })
 
   it("hydrates with null verdict and no summary", () => {
@@ -436,5 +494,129 @@ describe("resolveProviderContent", () => {
   it("does not call fallback when content has any real text", () => {
     const result = resolveProviderContent("Yes.", false, "en", "gemini")
     expect(result).toBe("Yes.")
+  })
+})
+
+describe("isEmptyProviderReply", () => {
+  it("is true when the server flags an empty stream", () => {
+    expect(isEmptyProviderReply("ignored leftover", true)).toBe(true)
+  })
+
+  it("is true when cleaned content is empty", () => {
+    expect(isEmptyProviderReply("   \n", false)).toBe(true)
+    expect(isEmptyProviderReply("[1][2][3]", false)).toBe(true)
+  })
+
+  it("is false for a usable answer", () => {
+    expect(isEmptyProviderReply("Option A is better.", false)).toBe(false)
+  })
+})
+
+describe("messagesForBlindRound", () => {
+  it("keeps history through the latest user message and drops sibling answers", () => {
+    const claudeMsg: Message = { ...aiMsg, id: "claude-1", sender: "claude", displayName: "Claude" }
+    const followUp: Message = {
+      ...userMsg,
+      id: "user-2",
+      content: "What about option C?",
+    }
+    const gptSibling: Message = {
+      ...aiMsg,
+      id: "gpt-2",
+      sender: "gpt",
+      displayName: "GPT",
+      content: "I see merit in both.",
+    }
+    const result = messagesForBlindRound([
+      userMsg,
+      aiMsg,
+      claudeMsg,
+      followUp,
+      gptSibling,
+      systemMsg,
+    ])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "gemini-1", "claude-1", "user-2"])
+  })
+
+  it("returns only the user question when there are no prior takes", () => {
+    expect(messagesForBlindRound([userMsg]).map((m) => m.sender)).toEqual(["user"])
+  })
+
+  it("strips system and verdict messages", () => {
+    const result = messagesForBlindRound([userMsg, systemMsg, aiMsg, verdictMsg])
+    expect(result.map((m) => m.sender)).toEqual(["user"])
+  })
+
+  it("drops failed provider rows from the blind snapshot", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "claude-failed",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Add your Claude API key in Settings to start debating.",
+      failed: true,
+    }
+    const followUp: Message = {
+      ...userMsg,
+      id: "user-2",
+      content: "What about option C?",
+    }
+    const result = messagesForBlindRound([userMsg, failed, followUp])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "user-2"])
+  })
+})
+
+describe("isBlindRound", () => {
+  it("treats the first wave as blind and later waves as argument passes", () => {
+    expect(isBlindRound(0)).toBe(true)
+    expect(isBlindRound(1)).toBe(false)
+    expect(isBlindRound(4)).toBe(false)
+  })
+})
+
+describe("consensusKeyProviders", () => {
+  it("always includes gemini even when the panel is OpenAI-only", () => {
+    expect(consensusKeyProviders(["gpt"])).toEqual(["gpt", "gemini"])
+  })
+
+  it("does not duplicate gemini when the panel already has it", () => {
+    expect(consensusKeyProviders(["perplexity", "gemini"])).toEqual(["perplexity", "gemini"])
+  })
+
+  it("falls back to every user-key provider when no panel is given", () => {
+    expect(consensusKeyProviders()).toEqual(["gemini", "perplexity", "claude", "gpt"])
+  })
+})
+
+describe("messagesReadyForConsensus", () => {
+  it("drops empty AI placeholders so an early stop cannot verdict on blanks", () => {
+    const pending: Message = {
+      ...aiMsg,
+      id: "claude-pending",
+      sender: "claude",
+      displayName: "Claude",
+      content: "",
+    }
+    const result = messagesReadyForConsensus([userMsg, pending, aiMsg])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "gemini-1"])
+  })
+
+  it("keeps completed AI replies, users, and verdicts", () => {
+    const result = messagesReadyForConsensus([userMsg, aiMsg, systemMsg, verdictMsg])
+    expect(result.map((m) => m.sender)).toEqual(["user", "gemini", "system", "verdict"])
+  })
+
+  it("drops failed provider rows so stop cannot verdict on error text", () => {
+    const failed: Message = {
+      ...aiMsg,
+      id: "claude-failed",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Add your Claude API key in Settings to start debating.",
+      failed: true,
+    }
+    const result = messagesReadyForConsensus([userMsg, failed, aiMsg])
+    expect(result.map((m) => m.id)).toEqual(["user-1", "gemini-1"])
+    expect(getAIMessageCount(result)).toBe(1)
   })
 })

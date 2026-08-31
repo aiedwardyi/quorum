@@ -116,12 +116,12 @@ export function createSystemMessage(content: string, locale: Locale): Message {
 }
 
 export function getApiMessages(messages: Message[]): Message[] {
-  return messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
+  return messages.filter((m) => m.sender !== "system" && m.sender !== "verdict" && !m.failed)
 }
 
 /** Like getApiMessages but keeps verdict messages for consensus context */
 export function getConsensusMessages(messages: Message[]): Message[] {
-  return messages.filter((m) => m.sender !== "system")
+  return messages.filter((m) => m.sender !== "system" && !m.failed)
 }
 
 /** Shared consensus request. Anonymous: only keys for models in this debate (not every saved key). */
@@ -135,10 +135,8 @@ function fetchConsensus(
   const userApiKeys: Partial<Record<Provider, string>> = {}
   if (isAnonymous) {
     // Scope to active debate models so inactive BYOK keys never leave the browser.
-    const keyProviders =
-      preferredProviders && preferredProviders.length > 0
-        ? preferredProviders
-        : USER_API_KEY_PROVIDERS
+    // Always include the verdict writer's key even when that model is off the panel.
+    const keyProviders = consensusKeyProviders(preferredProviders)
     for (const p of keyProviders) {
       const k = getClientKey(p)
       if (k) userApiKeys[p] = k
@@ -178,24 +176,74 @@ export function getAIMessageCount(messages: Message[]): number {
   ).length
 }
 
+/** First wave is parallel and blind. Extra rounds are argument passes that see prior takes. */
+export function isBlindRound(roundIndex: number): boolean {
+  return roundIndex === 0
+}
+
+/** Conversation for a blind wave: history through the latest user message, no sibling answers. */
+export function messagesForBlindRound(messages: Message[]): Message[] {
+  const api = getApiMessages(messages)
+  let lastUser = -1
+  for (let i = api.length - 1; i >= 0; i--) {
+    if (api[i].sender === "user") {
+      lastUser = i
+      break
+    }
+  }
+  if (lastUser === -1) return api
+  return api.slice(0, lastUser + 1)
+}
+
+/** Consensus always needs the verdict writer. Attach that key even if it is off the panel. */
+export function consensusKeyProviders(preferred?: Provider[]): Provider[] {
+  if (!preferred?.length) return [...USER_API_KEY_PROVIDERS]
+  if (preferred.includes("gemini")) return preferred
+  return [...preferred, "gemini"]
+}
+
+/** Drop empty AI placeholders and failed rows so stop cannot treat them as answers. */
+export function messagesReadyForConsensus(messages: Message[]): Message[] {
+  return messages.filter(
+    (m) =>
+      m.sender === "user" ||
+      m.sender === "system" ||
+      m.sender === "verdict" ||
+      (Boolean(m.content.trim()) && !m.failed)
+  )
+}
+
+export function seedPendingMessages(models: Provider[]): Message[] {
+  return models.map((model) => ({
+    id: createMessageId(model),
+    sender: model,
+    displayName: DISPLAY_NAMES[model],
+    content: "",
+    timestamp: new Date(),
+  }))
+}
+
 /** Replaces an empty stream result with a localized fallback.
  *  cleanResponse already trims, so empty here means nothing meaningful to show. */
+export function isEmptyProviderReply(rawContent: string, providerEmpty: boolean): boolean {
+  return providerEmpty || !cleanResponse(rawContent)
+}
+
 export function resolveProviderContent(
   rawContent: string,
   providerEmpty: boolean,
   locale: Locale,
   provider: Provider
 ): string {
-  const cleaned = cleanResponse(rawContent)
-  if (providerEmpty || !cleaned) {
+  if (isEmptyProviderReply(rawContent, providerEmpty)) {
     return SYSTEM_MESSAGES.emptyResponse(locale, provider)
   }
-  return cleaned
+  return cleanResponse(rawContent)
 }
 
 /* ---- State ---- */
 
-// Gemini last: sees all three other models first, which helps it reason on consensus prompts.
+// Default panel order is visual only. Round 1 is parallel, so ordering no longer gates first-token latency.
 const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
 
 export type State = {
@@ -204,14 +252,16 @@ export type State = {
   verdict: VerdictResult | null
   isDebating: boolean
   currentRound: number
-  typingModel: Provider | null
+  typingModels: Provider[]
   showSummary: boolean
   threadId: string | null
 }
 
 export type Action =
   | { type: "ADD_MESSAGE"; message: Message }
-  | { type: "SET_TYPING"; model: Provider | null }
+  | { type: "TYPING_START"; model: Provider }
+  | { type: "TYPING_STOP"; model: Provider }
+  | { type: "TYPING_CLEAR" }
   | { type: "SET_DEBATING"; value: boolean }
   | { type: "SET_VERDICT"; result: VerdictResult }
   | { type: "SET_ROUND"; round: number }
@@ -220,7 +270,7 @@ export type Action =
   | { type: "TOGGLE_MODEL"; model: Provider }
   | { type: "SET_MODELS"; models: Provider[] }
   | { type: "SET_THREAD_ID"; id: string | null }
-  | { type: "UPDATE_MESSAGE"; id: string; content: string }
+  | { type: "UPDATE_MESSAGE"; id: string; content: string; failed?: boolean }
   | {
       type: "HYDRATE_THREAD"
       messages: Message[]
@@ -236,7 +286,7 @@ function makeInitialState(models: Provider[]): State {
     verdict: null,
     isDebating: false,
     currentRound: 0,
-    typingModel: null,
+    typingModels: [],
     showSummary: false,
     threadId: null,
   }
@@ -250,12 +300,23 @@ export function reducer(state: State, action: Action): State {
       return {
         ...state,
         messages: state.messages.map((m) =>
-          m.id === action.id ? { ...m, content: action.content } : m
+          m.id === action.id
+            ? {
+                ...m,
+                content: action.content,
+                ...(action.failed !== undefined ? { failed: action.failed } : {}),
+              }
+            : m
         ),
       }
     }
-    case "SET_TYPING":
-      return { ...state, typingModel: action.model }
+    case "TYPING_START":
+      if (state.typingModels.includes(action.model)) return state
+      return { ...state, typingModels: [...state.typingModels, action.model] }
+    case "TYPING_STOP":
+      return { ...state, typingModels: state.typingModels.filter((m) => m !== action.model) }
+    case "TYPING_CLEAR":
+      return { ...state, typingModels: [] }
     case "SET_DEBATING":
       return { ...state, isDebating: action.value }
     case "SET_VERDICT":
@@ -263,7 +324,7 @@ export function reducer(state: State, action: Action): State {
     case "SET_ROUND":
       return { ...state, currentRound: action.round }
     case "SHOW_SUMMARY":
-      return { ...state, showSummary: true, isDebating: false, typingModel: null }
+      return { ...state, showSummary: true, isDebating: false, typingModels: [] }
     case "CONTINUE_THREAD":
       // Keep verdict in state (old verdicts live in messages stream).
       // Only clear showSummary so user can type, and reset round counter.
@@ -291,7 +352,7 @@ export function reducer(state: State, action: Action): State {
         showSummary: action.showSummary,
         isDebating: false,
         currentRound: 0,
-        typingModel: null,
+        typingModels: [],
       }
     case "RESET":
       return makeInitialState(state.activeModels)
@@ -316,7 +377,7 @@ export function useDebateEngine(config: {
   // Refs for async coordination
   const stopRef = useRef(false)
   const stoppingRef = useRef(false)
-  const abortRef = useRef<AbortController | null>(null)
+  const abortControllersRef = useRef<Set<AbortController>>(new Set())
   const sessionIdRef = useRef(0)
   // Guards against a slow mid-debate confidence update clobbering the final verdict.
   const finalVerdictLandedRef = useRef(false)
@@ -341,34 +402,54 @@ export function useDebateEngine(config: {
     isAnonymousRef.current = isAnonymous
   }, [isAnonymous])
 
+  const abortAll = useCallback(() => {
+    for (const controller of abortControllersRef.current) {
+      if (!controller.signal.aborted) controller.abort()
+    }
+    abortControllersRef.current.clear()
+  }, [])
+
   /* ---- callModel ---- */
 
   const callModel = useCallback(
     async (
       provider: Provider,
       allMessages: Message[],
-      sessionId: number
+      sessionId: number,
+      placeholder?: Message,
+      phase: "opening" | "rebuttal" = "opening"
     ): Promise<Message | null> => {
-      logDebate("callModel:start", { provider, sessionId, messageCount: allMessages.length })
-      dispatch({ type: "SET_TYPING", model: provider })
+      logDebate("callModel:start", { provider, sessionId, messageCount: allMessages.length, phase })
+      dispatch({ type: "TYPING_START", model: provider })
 
-      const placeholderId = createMessageId(provider)
-      const placeholder: Message = {
+      const placeholderId = placeholder?.id ?? createMessageId(provider)
+      if (!placeholder) {
+        const created: Message = {
+          id: placeholderId,
+          sender: provider,
+          displayName: DISPLAY_NAMES[provider],
+          content: "",
+          timestamp: new Date(),
+        }
+        dispatch({ type: "ADD_MESSAGE", message: created })
+      }
+      const placeholderMessage: Message = placeholder ?? {
         id: placeholderId,
         sender: provider,
         displayName: DISPLAY_NAMES[provider],
         content: "",
         timestamp: new Date(),
       }
-      dispatch({ type: "ADD_MESSAGE", message: placeholder })
 
       const controller = new AbortController()
-      abortRef.current = controller
+      abortControllersRef.current.add(controller)
       const updatePlaceholder = (content: string) =>
         dispatch({ type: "UPDATE_MESSAGE", id: placeholderId, content })
+      const failPlaceholder = (content: string) =>
+        dispatch({ type: "UPDATE_MESSAGE", id: placeholderId, content, failed: true })
       const clearTypingIfCurrentSession = () => {
         if (sessionIdRef.current === sessionId) {
-          dispatch({ type: "SET_TYPING", model: null })
+          dispatch({ type: "TYPING_STOP", model: provider })
         }
       }
 
@@ -388,6 +469,7 @@ export function useDebateEngine(config: {
             provider,
             locale,
             responseLength,
+            phase,
             ...(userApiKey ? { userApiKey } : {}),
             ...(accessCode ? { accessCode } : {}),
           }),
@@ -399,7 +481,7 @@ export function useDebateEngine(config: {
           // Release the unused stream so we don't keep the upstream connection
           // open after a newer session has taken over.
           if (!controller.signal.aborted) controller.abort()
-          updatePlaceholder("Response cancelled.")
+          failPlaceholder("Response cancelled.")
           return null
         }
 
@@ -407,8 +489,7 @@ export function useDebateEngine(config: {
           const blocked = await parse402FromResponse(res)
           if (blocked?.kind === "host_budget_exceeded") {
             // Daily host budget wall, not a key problem - the key toast would mislead.
-            updatePlaceholder(getBudgetExceededMessage(!isAnonymousRef.current, locale))
-            stopRef.current = true
+            failPlaceholder(getBudgetExceededMessage(!isAnonymousRef.current, locale))
             clearTypingIfCurrentSession()
             return null
           }
@@ -416,7 +497,7 @@ export function useDebateEngine(config: {
           onApiKeyRequired?.(missingProvider)
           // A keyless first-run visitor gets a generic welcome; the panel's
           // lead provider (perplexity) is arbitrary, so don't single it out.
-          updatePlaceholder(
+          failPlaceholder(
             getApiKeyPromptMessage(
               missingProvider,
               isFirstRunKeyless(isAnonymousRef.current),
@@ -427,7 +508,6 @@ export function useDebateEngine(config: {
               }
             )
           )
-          stopRef.current = true
           clearTypingIfCurrentSession()
           return null
         }
@@ -482,23 +562,24 @@ export function useDebateEngine(config: {
 
         // If loop exited due to stop/session change, don't overwrite newer state
         if (cancelled) {
-          if (!fullContent) {
-            updatePlaceholder("Response cancelled.")
+          if (isEmptyProviderReply(fullContent, false)) {
+            failPlaceholder("Response cancelled.")
           }
           clearTypingIfCurrentSession()
           return null
         }
 
-        const cleaned = resolveProviderContent(
-          finalContent ?? fullContent,
-          providerEmpty,
-          locale,
-          provider
-        )
+        const rawContent = finalContent ?? fullContent
+        const cleaned = resolveProviderContent(rawContent, providerEmpty, locale, provider)
+        if (isEmptyProviderReply(rawContent, providerEmpty)) {
+          failPlaceholder(cleaned)
+          clearTypingIfCurrentSession()
+          return null
+        }
         logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
         updatePlaceholder(cleaned)
         clearTypingIfCurrentSession()
-        return { ...placeholder, content: cleaned }
+        return { ...placeholderMessage, content: cleaned }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           clearTypingIfCurrentSession()
@@ -507,20 +588,21 @@ export function useDebateEngine(config: {
             sessionIdRef.current === sessionId && !stopRef.current && !stoppingRef.current
           const msg = wasTimeout ? `${DISPLAY_NAMES[provider]} timed out.` : "Response cancelled."
           logDebate("callModel:abort", { provider, wasTimeout })
-          updatePlaceholder(msg)
+          failPlaceholder(msg)
           return null
         }
         // Covers transport errors and the route's {error} channel. Raw upstream errors are unactionable in a bubble - show a short fallback and keep detail in logDebate.
         const errorMsg = err instanceof Error ? err.message : "Unknown error"
         logDebate("callModel:error", { provider, error: errorMsg })
         clearTypingIfCurrentSession()
-        updatePlaceholder(SYSTEM_MESSAGES.emptyResponse(locale, provider))
+        failPlaceholder(SYSTEM_MESSAGES.emptyResponse(locale, provider))
         return null
       } finally {
         clearTimeout(timeoutId)
+        abortControllersRef.current.delete(controller)
       }
     },
-    [locale, responseLength, onApiKeyRequired]
+    [locale, responseLength, onApiKeyRequired, abortAll]
   )
 
   /* ---- runRound ---- */
@@ -531,20 +613,32 @@ export function useDebateEngine(config: {
       activeModels: Provider[],
       sessionId: number,
       /** Intermediate rounds only - last round's final card owns the consensus call. */
-      updateConfidence: boolean
+      updateConfidence: boolean,
+      roundIndex: number
     ): Promise<{ msgs: Message[]; done: boolean }> => {
-      let msgs = [...currentMessages]
+      const blind = isBlindRound(roundIndex)
+      const snapshot = blind
+        ? messagesForBlindRound(currentMessages)
+        : getApiMessages(currentMessages)
+      const phase = blind ? "opening" : "rebuttal"
+      const pending = seedPendingMessages(activeModels)
+      for (const placeholder of pending) {
+        dispatch({ type: "ADD_MESSAGE", message: placeholder })
+      }
 
-      for (const model of activeModels) {
-        if (stopRef.current || sessionIdRef.current !== sessionId) break
-        const result = await callModel(model, msgs, sessionId)
-        if (result) {
-          msgs = [...msgs, result]
-          // Stream closes before smooth display catches up; wait so the next bubble doesn't snap the previous one.
-          if (!stopRef.current && sessionIdRef.current === sessionId) {
-            await waitForDrain(result.id)
-          }
-        }
+      const results = await Promise.all(
+        pending.map((placeholder, index) =>
+          callModel(activeModels[index], snapshot, sessionId, placeholder, phase)
+        )
+      )
+
+      if (!stopRef.current && sessionIdRef.current === sessionId) {
+        await Promise.all(pending.map((placeholder) => waitForDrain(placeholder.id)))
+      }
+
+      const msgs = [...currentMessages]
+      for (const result of results) {
+        if (result) msgs.push(result)
       }
 
       if (stopRef.current || sessionIdRef.current !== sessionId) {
@@ -603,12 +697,13 @@ export function useDebateEngine(config: {
         })
 
         // Abort any in-flight request from the previous session
-        abortRef.current?.abort()
+        abortAll()
+        dispatch({ type: "TYPING_CLEAR" })
 
         // Reset all coordination refs
         stopRef.current = false
         stoppingRef.current = false
-        abortRef.current = null
+        abortControllersRef.current.clear()
         finalVerdictLandedRef.current = false
 
         // Clear any lingering "Analyzing discussion..." dividers from a
@@ -654,7 +749,7 @@ export function useDebateEngine(config: {
             dispatch({ type: "SET_ROUND", round: r + 1 })
             // Last round skips the confidence call - the final summary card runs consensus once.
             const isLastRound = r === rounds - 1
-            const result = await runRound(msgs, orderedModels, thisSession, !isLastRound)
+            const result = await runRound(msgs, orderedModels, thisSession, !isLastRound, r)
             // Post-await guard: bail before pushing a divider for a round that won't run.
             if (sessionIdRef.current !== thisSession) break
             if (stopRef.current || stoppingRef.current) {
@@ -782,10 +877,10 @@ export function useDebateEngine(config: {
           error: err instanceof Error ? err.message : String(err),
         })
         dispatch({ type: "SET_DEBATING", value: false })
-        dispatch({ type: "SET_TYPING", model: null })
+        dispatch({ type: "TYPING_CLEAR" })
       }
     },
-    [state.showSummary, callModel, runRound, locale, responseLength, onApiKeyRequired]
+    [state.showSummary, callModel, runRound, locale, responseLength, onApiKeyRequired, abortAll]
   )
 
   // Keep ref in sync for auto-send on mount
@@ -809,8 +904,8 @@ export function useDebateEngine(config: {
     logDebate("debate:stop", { session: sessionIdRef.current })
     stoppingRef.current = true
     stopRef.current = true
-    abortRef.current?.abort()
-    dispatch({ type: "SET_TYPING", model: null })
+    abortAll()
+    dispatch({ type: "TYPING_CLEAR" })
     dispatch({ type: "SET_DEBATING", value: false })
 
     // Capture session at stop time - if a new debate starts before
@@ -818,7 +913,7 @@ export function useDebateEngine(config: {
     const stoppedSession = sessionIdRef.current
 
     // Fetch consensus on what we have so far
-    const currentMessages = messagesRef.current
+    const currentMessages = messagesReadyForConsensus(messagesRef.current)
     const aiCount = getAIMessageCount(currentMessages)
     if (aiCount >= 2) {
       // Reuse existing "Analyzing..." divider if the normal flow already created one
@@ -910,17 +1005,17 @@ export function useDebateEngine(config: {
           })
         })
     }
-  }, [locale, responseLength, onApiKeyRequired, state.activeModels])
+  }, [locale, responseLength, onApiKeyRequired, state.activeModels, abortAll])
 
   /* ---- handleReset ---- */
 
   const handleReset = useCallback(() => {
     stopRef.current = true
     stoppingRef.current = true
-    abortRef.current?.abort()
+    abortAll()
     sessionIdRef.current++
     dispatch({ type: "RESET" })
-  }, [])
+  }, [abortAll])
 
   return {
     state,

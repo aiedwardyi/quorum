@@ -37,7 +37,7 @@ Quorum:        "Recommended answer: Start with a monolith for the MVP.
                move toward services earlier.
 ```
 
-Each model sees what the others said, debates across rounds, and then Quorum returns a decisive recommendation rather than a neutral recap.
+Each model's first take is independent. Extra rounds can see those takes, then Quorum returns a decisive recommendation rather than a neutral recap.
 
 ---
 

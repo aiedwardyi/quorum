@@ -19,7 +19,7 @@ import { getApiKeyPromptMessage } from "@/lib/api-key-errors"
 import { shouldUseClientKeys, isSessionResolving, isFirstRunKeyless } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
 
-// Keep in sync with DEFAULT_MODELS in useDebateEngine.ts. Gemini last is a legacy TTFT ordering kept until rotation timing is re-validated.
+// Keep in sync with DEFAULT_MODELS in useDebateEngine.ts.
 const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
 
 export default function ChatPage() {
@@ -593,7 +593,7 @@ function ChatPageContent() {
         ) : (
           <ChatThread
             messages={state.messages}
-            typingModel={state.typingModel}
+            typingModels={state.typingModels}
             isDebating={state.isDebating}
             locale={locale}
             responseLength={responseLength}
@@ -613,8 +613,8 @@ function ChatPageContent() {
       </button>
 
       {/* Bottom bar: consensus rail + input */}
-      <div className="w-full shrink-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)] to-transparent pt-2 z-10">
-        {(state.isDebating || state.typingModel !== null || state.verdict !== null) && (
+      <div className="w-full shrink-0 bg-background pt-2 z-10">
+        {(state.isDebating || state.typingModels.length > 0 || state.verdict !== null) && (
           <ConsensusMeter
             score={state.verdict?.confidence ?? null}
             result={state.showSummary ? state.verdict : null}
