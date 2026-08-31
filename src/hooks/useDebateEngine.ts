@@ -225,17 +225,20 @@ export function seedPendingMessages(models: Provider[]): Message[] {
 
 /** Replaces an empty stream result with a localized fallback.
  *  cleanResponse already trims, so empty here means nothing meaningful to show. */
+export function isEmptyProviderReply(rawContent: string, providerEmpty: boolean): boolean {
+  return providerEmpty || !cleanResponse(rawContent)
+}
+
 export function resolveProviderContent(
   rawContent: string,
   providerEmpty: boolean,
   locale: Locale,
   provider: Provider
 ): string {
-  const cleaned = cleanResponse(rawContent)
-  if (providerEmpty || !cleaned) {
+  if (isEmptyProviderReply(rawContent, providerEmpty)) {
     return SYSTEM_MESSAGES.emptyResponse(locale, provider)
   }
-  return cleaned
+  return cleanResponse(rawContent)
 }
 
 /* ---- State ---- */
@@ -566,12 +569,13 @@ export function useDebateEngine(config: {
           return null
         }
 
-        const cleaned = resolveProviderContent(
-          finalContent ?? fullContent,
-          providerEmpty,
-          locale,
-          provider
-        )
+        const rawContent = finalContent ?? fullContent
+        const cleaned = resolveProviderContent(rawContent, providerEmpty, locale, provider)
+        if (isEmptyProviderReply(rawContent, providerEmpty)) {
+          failPlaceholder(cleaned)
+          clearTypingIfCurrentSession()
+          return null
+        }
         logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
         updatePlaceholder(cleaned)
         clearTypingIfCurrentSession()

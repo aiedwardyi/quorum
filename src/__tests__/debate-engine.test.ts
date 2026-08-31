@@ -6,6 +6,7 @@ import {
   getApiMessages,
   getAIMessageCount,
   resolveProviderContent,
+  isEmptyProviderReply,
   messagesForBlindRound,
   consensusKeyProviders,
   isBlindRound,
@@ -464,6 +465,21 @@ describe("resolveProviderContent", () => {
   it("does not call fallback when content has any real text", () => {
     const result = resolveProviderContent("Yes.", false, "en", "gemini")
     expect(result).toBe("Yes.")
+  })
+})
+
+describe("isEmptyProviderReply", () => {
+  it("is true when the server flags an empty stream", () => {
+    expect(isEmptyProviderReply("ignored leftover", true)).toBe(true)
+  })
+
+  it("is true when cleaned content is empty", () => {
+    expect(isEmptyProviderReply("   \n", false)).toBe(true)
+    expect(isEmptyProviderReply("[1][2][3]", false)).toBe(true)
+  })
+
+  it("is false for a usable answer", () => {
+    expect(isEmptyProviderReply("Option A is better.", false)).toBe(false)
   })
 })
 
