@@ -6,6 +6,7 @@ const EMPTY_REPLY_KO = /가 이번 라운드에 답하지 못했어요\.?$/
 const TIMED_OUT = / timed out\.?$/i
 const CANCELLED = /^Response cancelled\.?$/i
 const CONFIG_START = /couldn't start:/i
+const CONFIG_START_KO = /시작하지 못했어요/
 
 export function isFailedPanelistRow(message: Message): boolean {
   if (message.sender === "user" || message.sender === "system" || message.sender === "verdict") {
@@ -19,7 +20,8 @@ export function isFailedPanelistRow(message: Message): boolean {
     EMPTY_REPLY_KO.test(content) ||
     TIMED_OUT.test(content) ||
     CANCELLED.test(content) ||
-    CONFIG_START.test(content)
+    CONFIG_START.test(content) ||
+    CONFIG_START_KO.test(content)
   )
 }
 
@@ -36,9 +38,17 @@ export function countParticipatingModels(messages: Message[]): number {
   return senders.size
 }
 
-/** Keep panel order, drop anyone who empty-failed or never answered. */
+/** Keep panel order, drop anyone who empty-failed this user turn. */
 export function providersWithReplies(messages: Message[], panel: Provider[]): Provider[] {
-  const replied = new Set(messages.filter((m) => !isFailedPanelistRow(m)).map((m) => m.sender))
+  let lastUser = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].sender === "user") {
+      lastUser = i
+      break
+    }
+  }
+  const thisTurn = lastUser === -1 ? messages : messages.slice(lastUser + 1)
+  const replied = new Set(thisTurn.filter((m) => !isFailedPanelistRow(m)).map((m) => m.sender))
   return panel.filter((provider) => replied.has(provider))
 }
 

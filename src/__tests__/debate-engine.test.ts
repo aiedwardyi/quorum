@@ -720,6 +720,20 @@ describe("isFailedPanelistRow", () => {
     expect(
       isFailedPanelistRow({ ...aiMsg, content: "Gemini가 이번 라운드에 답하지 못했어요." })
     ).toBe(true)
+    expect(
+      isFailedPanelistRow({
+        ...aiMsg,
+        content:
+          "Gemini couldn't start: Vertex credentials JSON is invalid or truncated. Put GOOGLE_APPLICATION_CREDENTIALS_JSON on one line, or wrap the JSON in single quotes.",
+      })
+    ).toBe(true)
+    expect(
+      isFailedPanelistRow({
+        ...aiMsg,
+        content:
+          "Gemini를 시작하지 못했어요. Vertex 자격 증명 JSON이 잘못됐거나 잘렸습니다. .env.local의 GOOGLE_APPLICATION_CREDENTIALS_JSON을 한 줄로 쓰거나 작은따옴표로 감싸 주세요.",
+      })
+    ).toBe(true)
     expect(isFailedPanelistRow(aiMsg)).toBe(false)
     expect(isFailedPanelistRow(userMsg)).toBe(false)
   })
@@ -753,6 +767,34 @@ describe("providersWithReplies", () => {
         ["perplexity", "claude", "gpt", "gemini"]
       )
     ).toEqual(["claude", "gpt"])
+  })
+
+  it("only counts replies after the latest user message", () => {
+    const priorGemini: Message = {
+      ...aiMsg,
+      id: "gemini-old",
+      content: "I answered an earlier question.",
+    }
+    const followUp: Message = { ...userMsg, id: "user-2", content: "What about an MVP?" }
+    const emptyGemini: Message = {
+      ...aiMsg,
+      id: "gemini-empty",
+      content: "Gemini couldn't reply this round.",
+      failed: true,
+    }
+    const claudeMsg: Message = {
+      ...aiMsg,
+      id: "claude-1",
+      sender: "claude",
+      displayName: "Claude",
+      content: "Start with a monolith.",
+    }
+    expect(
+      providersWithReplies(
+        [userMsg, priorGemini, followUp, claudeMsg, emptyGemini],
+        ["claude", "gpt", "gemini"]
+      )
+    ).toEqual(["claude"])
   })
 })
 

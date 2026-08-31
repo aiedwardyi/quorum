@@ -75,6 +75,10 @@ describe("clampVoteSplit", () => {
     expect(clampVoteSplit("2/3 models agree", 3)).toBe("2/3 models agree")
   })
 
+  it("keeps a split numerator when only the denominator was inflated", () => {
+    expect(clampVoteSplit("2/4 models agree", 3)).toBe("2/3 models agree")
+  })
+
   it("does not treat a failed Gemini row as a yes-vote in the fraction", () => {
     const split = clampVoteSplit("4/4 unanimous", 3)
     expect(split).not.toMatch(/4\/4/)
