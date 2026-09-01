@@ -15,7 +15,7 @@ Ask once. Four models answer on their own first, then argue if you add rounds. Y
 [![Claude](https://img.shields.io/badge/Claude-Anthropic-F97316?logo=anthropic&logoColor=white)](https://anthropic.com/)
 [![GPT](https://img.shields.io/badge/GPT-OpenAI-10B981?logo=openai&logoColor=white)](https://openai.com/)
 
-https://github.com/user-attachments/assets/867d4590-a62e-4f41-97db-658f6d86c23f
+https://github.com/user-attachments/assets/28976deb-e527-44ec-b281-858a53c25793
 
 ---
 
