@@ -10,7 +10,7 @@ Ask once. Four models answer on their own first, then argue if you add rounds. Y
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-4285F4?logo=google&logoColor=white)](https://cloud.google.com/vertex-ai)
+[![Gemini](https://img.shields.io/badge/Gemini-3.8_Flash-4285F4?logo=google&logoColor=white)](https://cloud.google.com/vertex-ai)
 [![Perplexity](https://img.shields.io/badge/Perplexity-Sonar_Pro-14B8A6)](https://docs.perplexity.ai/)
 [![Claude](https://img.shields.io/badge/Claude-Anthropic-F97316?logo=anthropic&logoColor=white)](https://anthropic.com/)
 [![GPT](https://img.shields.io/badge/GPT-OpenAI-10B981?logo=openai&logoColor=white)](https://openai.com/)
@@ -149,7 +149,7 @@ http://localhost:3000/api/auth/callback/google
 Gemini has two server-side auth paths (only relevant when serving your own keys):
 
 - Google AI Studio API key: set `GEMINI_API_KEY`.
-- Vertex AI ADC: leave `GEMINI_API_KEY` empty, set `VERTEX_PROJECT_ID` and `VERTEX_LOCATION`, then `gcloud auth application-default login`.
+- Vertex AI ADC: leave `GEMINI_API_KEY` empty, set `VERTEX_PROJECT_ID` and `VERTEX_LOCATION`, then `gcloud auth application-default login`. Gemini 3.8 is served from the global endpoint, so Gemini calls ignore `VERTEX_LOCATION`.
 
 Then migrate the database and run:
 
@@ -184,16 +184,16 @@ With `NEXT_PUBLIC_AUTH_ENABLED=true` and `REQUIRE_USER_API_KEYS=true`, each new 
 
 ## Tech Stack
 
-| Layer     | Technology                                                                                                      |
-| --------- | --------------------------------------------------------------------------------------------------------------- |
-| Framework | Next.js 16, React 19, TypeScript 5                                                                              |
-| Styling   | Tailwind CSS 4, shadcn/ui, Framer Motion                                                                        |
-| AI Models | Gemini 2.5 Flash/Pro (Google AI Studio or Vertex AI), Perplexity Sonar Pro, Claude (Anthropic), GPT-4o (OpenAI) |
-| Database  | PostgreSQL on Neon, Prisma 7                                                                                    |
-| Auth      | NextAuth v5 + Google OAuth                                                                                      |
-| Streaming | Server-Sent Events (SSE)                                                                                        |
-| i18n      | English / Korean                                                                                                |
-| Themes    | Light, Solar, Dark, Tokyo, Rosé, Gruvbox, Mocha, Nord                                                           |
+| Layer     | Technology                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------------ |
+| Framework | Next.js 16, React 19, TypeScript 5                                                               |
+| Styling   | Tailwind CSS 4, shadcn/ui, Framer Motion                                                         |
+| AI Models | Gemini 3.8 Flash (Google AI Studio or Vertex AI), Perplexity Sonar Pro, Claude Haiku 5.5, GPT-4o |
+| Database  | PostgreSQL on Neon, Prisma 7                                                                     |
+| Auth      | NextAuth v5 + Google OAuth                                                                       |
+| Streaming | Server-Sent Events (SSE)                                                                         |
+| i18n      | English / Korean                                                                                 |
+| Themes    | Light, Solar, Dark, Tokyo, Rosé, Gruvbox, Mocha, Nord                                            |
 
 ## Roadmap
 
