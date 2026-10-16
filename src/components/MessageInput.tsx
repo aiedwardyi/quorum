@@ -6,6 +6,7 @@ import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-reac
 import { cn } from "@/lib/utils"
 import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
 import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
+import { shouldSendOnKey } from "@/lib/send-key"
 
 const translations = {
   en: {
@@ -79,7 +80,7 @@ export default function MessageInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>([])
   const t = translations[locale]
-  const sendHint = "Ctrl/⌘+Enter"
+  const sendHint = "Enter"
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -132,7 +133,9 @@ export default function MessageInput({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    if (
+      shouldSendOnKey({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing })
+    ) {
       e.preventDefault()
       handleSend()
     }
