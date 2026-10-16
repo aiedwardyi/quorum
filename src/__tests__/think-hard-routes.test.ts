@@ -101,6 +101,22 @@ describe("chat route think hard", () => {
     expect(resolveKeyMock.mock.calls[0][4]).toEqual({ thinkHard: true })
   })
 
+  it("tells panelists not to guess exact terms in both modes and phases", async () => {
+    const line =
+      "Never invent facts, names, drug names, codes, or criteria. If you're not sure of an exact name, number, or code, say so instead of guessing."
+    for (const thinkHard of [false, true]) {
+      for (const phase of ["opening", "rebuttal"]) {
+        streamClaudeMock.mockClear()
+        await events(
+          await chatPOST(post("/api/chat", { messages, provider: "claude", thinkHard, phase }))
+        )
+        const prompt = streamClaudeMock.mock.calls[0][0] as string
+        expect(prompt).toContain(line)
+        expect(prompt).toContain("Do NOT include citations")
+      }
+    }
+  })
+
   it("ignores a model name or a non-boolean flag from the client", async () => {
     await events(
       await chatPOST(
