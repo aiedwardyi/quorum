@@ -47,7 +47,9 @@ export async function* streamClaude(
   try {
     const stream = await client.messages.create(
       {
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-5-5",
+        thinking: { type: "disabled" },
+        output_config: { effort: "low" },
         max_tokens: maxTokens,
         system: systemPrompt,
         messages: [{ role: "user", content: buildUserContent(messages) }],
@@ -90,7 +92,9 @@ export async function generateClaudeVerdict({
   try {
     const msg = await client.messages.create(
       {
-        model: "claude-sonnet-4-6",
+        model: "claude-haiku-5-5",
+        thinking: { type: "disabled" },
+        output_config: { effort: "low" },
         max_tokens: 4096,
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
