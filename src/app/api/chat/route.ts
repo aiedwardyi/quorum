@@ -241,6 +241,7 @@ If you disagree with another model, say so directly and explain why.
 If you changed your mind based on new points, say that too.
 ${lengthLine}
 ${formattingBlock}
+Never invent facts, names, drug names, codes, or criteria. If you're not sure of an exact name, number, or code, say so instead of guessing.
 Do NOT include citations, references, footnotes, URLs, or source numbers like [1][2] in your response.
 Do NOT add a "References" or "Refs" section. Just give your opinion directly.
 ${getUrlCapabilityInstruction(provider)} However, when the user's message includes document text (between "--- File:" markers), that content HAS ALREADY BEEN EXTRACTED and is part of the message - read and analyze it directly.

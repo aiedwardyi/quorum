@@ -14,6 +14,7 @@ vi.mock("@/lib/providers/perplexity", () => ({
   streamPerplexity: vi.fn(),
   generatePerplexityVerdict: vi.fn(),
 }))
+vi.mock("@/lib/prisma", () => ({ prisma: {} }))
 vi.mock("@/lib/server-provider-keys", () => ({
   resolveUserProviderApiKey: resolveKeyMock,
   isValidAccessCode: () => false,
@@ -32,6 +33,7 @@ vi.mock("@/lib/providers/gemini", async (importOriginal) => ({
 
 import { POST as chatPOST } from "@/app/api/chat/route"
 import { POST as consensusPOST } from "@/app/api/consensus/route"
+import { POST as searchPOST } from "@/app/api/search/route"
 import { NextRequest } from "next/server"
 
 const messages: Message[] = [
@@ -99,6 +101,22 @@ describe("chat route think hard", () => {
     expect(args[3]).toBe(2048 + 8192)
     expect(args[5]).toBe(true)
     expect(resolveKeyMock.mock.calls[0][4]).toEqual({ thinkHard: true })
+  })
+
+  it("tells panelists not to guess exact terms in both modes and phases", async () => {
+    const line =
+      "Never invent facts, names, drug names, codes, or criteria. If you're not sure of an exact name, number, or code, say so instead of guessing."
+    for (const thinkHard of [false, true]) {
+      for (const phase of ["opening", "rebuttal"]) {
+        streamClaudeMock.mockClear()
+        await events(
+          await chatPOST(post("/api/chat", { messages, provider: "claude", thinkHard, phase }))
+        )
+        const prompt = streamClaudeMock.mock.calls[0][0] as string
+        expect(prompt).toContain(line)
+        expect(prompt).toContain("Do NOT include citations")
+      }
+    }
   })
 
   it("ignores a model name or a non-boolean flag from the client", async () => {
@@ -176,5 +194,112 @@ describe("consensus route think hard", () => {
     const call = generateGeminiVerdictMock.mock.calls[0][0]
     expect(call.modelName).toBe("gemini-3.8-flash")
     expect(call.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "LOW" })
+  })
+})
+
+describe("consensus route web sources", () => {
+  const sources = [
+    {
+      title: "T".repeat(300),
+      url: "https://example.gov/e11",
+      snippet: "E11.65 with hyperglycemia",
+    },
+    { title: "bad", url: "javascript:alert(1)", snippet: "x" },
+  ]
+
+  beforeEach(() => {
+    generateGeminiVerdictMock.mockReset().mockResolvedValue(JSON.stringify(validVerdict))
+  })
+
+  it("fast mode ignores sources: same prompts as a request without them", async () => {
+    await consensusPOST(post("/api/consensus", { messages }))
+    await consensusPOST(post("/api/consensus", { messages, sources }))
+    const [plain, withSources] = generateGeminiVerdictMock.mock.calls.map((c) => c[0])
+    expect(withSources.userPrompt).toBe(plain.userPrompt)
+    expect(withSources.systemPrompt).toBe(plain.systemPrompt)
+    expect(plain.userPrompt).not.toContain("Web sources")
+  })
+
+  it("think hard adds the capped sources block and keeps the schema", async () => {
+    const res = await consensusPOST(post("/api/consensus", { messages, thinkHard: true, sources }))
+    expect(res.status).toBe(200)
+    const call = generateGeminiVerdictMock.mock.calls[0][0]
+    expect(call.userPrompt).toContain("Web sources (may be incomplete or off-topic)")
+    expect(call.userPrompt).toContain("https://example.gov/e11")
+    expect(call.userPrompt).toContain(`${"T".repeat(200)} (`)
+    expect(call.userPrompt).not.toContain("T".repeat(201))
+    expect(call.userPrompt).not.toContain("javascript:")
+    expect(call.userPrompt).toContain("minorityView")
+    expect(call.generationConfig.responseSchema.required).toContain("recommendedAnswer")
+  })
+
+  it("think hard without sources sends no block", async () => {
+    await consensusPOST(post("/api/consensus", { messages, thinkHard: true }))
+    expect(generateGeminiVerdictMock.mock.calls[0][0].userPrompt).not.toContain("Web sources")
+  })
+})
+
+describe("search route", () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    resolveKeyMock.mockReset().mockResolvedValue({ userApiKey: "user-pplx-key" })
+    fetchMock.mockReset()
+    vi.stubGlobal("fetch", fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("gates like chat for Perplexity with the search estimate", async () => {
+    await searchPOST(post("/api/search", { query: "q", accessCode: "c", userApiKey: "k" }))
+    expect(resolveKeyMock).toHaveBeenCalledWith("perplexity", "search", "k", "c", { cents: 1 })
+  })
+
+  it("returns whatever the gate rejects with and never calls upstream", async () => {
+    resolveKeyMock.mockResolvedValue({
+      blockedResponse: Response.json({ error: "no_key", provider: "perplexity" }, { status: 402 }),
+    })
+    const res = await searchPOST(post("/api/search", { query: "q" }))
+    expect(res.status).toBe(402)
+    expect(await res.json()).toEqual({ error: "no_key", provider: "perplexity" })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("rejects a missing or oversize query", async () => {
+    expect((await searchPOST(post("/api/search", {}))).status).toBe(400)
+    expect((await searchPOST(post("/api/search", { query: "a".repeat(401) }))).status).toBe(400)
+    expect(resolveKeyMock).not.toHaveBeenCalled()
+  })
+
+  it("returns capped http(s) sources from Perplexity", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        id: "x",
+        results: [
+          { title: "A", url: "https://a.com", snippet: "S".repeat(900), date: null },
+          { title: "B", url: "file:///etc/passwd", snippet: "" },
+        ],
+      })
+    )
+    const res = await searchPOST(post("/api/search", { query: "semaglutide PA" }))
+    const { sources } = await res.json()
+    expect(sources).toEqual([{ title: "A", url: "https://a.com/", snippet: "S".repeat(500) }])
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe("https://api.perplexity.ai/search")
+    expect(init.headers.Authorization).toBe("Bearer user-pplx-key")
+    expect(JSON.parse(init.body)).toMatchObject({ query: "semaglutide PA", max_results: 5 })
+  })
+
+  it("any upstream failure is 200 with no sources", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    fetchMock.mockResolvedValueOnce(new Response("down", { status: 503 }))
+    fetchMock.mockRejectedValueOnce(new DOMException("timed out", "TimeoutError"))
+    for (let i = 0; i < 2; i++) {
+      const res = await searchPOST(post("/api/search", { query: "q" }))
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ sources: [] })
+    }
   })
 })

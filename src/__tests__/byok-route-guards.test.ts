@@ -35,6 +35,7 @@ vi.mock("@/lib/host-spend", () => ({
   tryReserveHostSpend: tryReserveHostSpendMock,
   releaseHostSpend: releaseHostSpendMock,
   estimateHostCallCents: () => 1,
+  SEARCH_ESTIMATE_CENTS: 1,
   getDailyBudgetCents: () => 2500,
 }))
 vi.mock("@/lib/host-credentials", () => ({
@@ -92,6 +93,7 @@ vi.mock("@google-cloud/vertexai", () => ({
 import { POST as chatPOST } from "@/app/api/chat/route"
 import { POST as consensusPOST } from "@/app/api/consensus/route"
 import { POST as ocrPOST } from "@/app/api/ocr/route"
+import { POST as searchPOST } from "@/app/api/search/route"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 
 const messages: Message[] = [
@@ -180,6 +182,33 @@ describe("BYOK-required route guards", () => {
     expect(response.status).toBe(402)
     await expect(response.json()).resolves.toEqual({ error: "no_key", provider: "gpt" })
     expect(streamGPTMock).not.toHaveBeenCalled()
+  })
+
+  it("search rejects exactly what chat rejects for Perplexity", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const scenarios: (() => void)[] = [
+      () => {},
+      () => {
+        authMock.mockResolvedValue({ user: { id: "user-1" } })
+        getUserProviderApiKeyMock.mockRejectedValue(new Error("db down"))
+      },
+      () => {
+        authMock.mockResolvedValue({ user: { id: "user-1" } })
+        canUseFreeServerAccessMock.mockResolvedValue(true)
+        tryReserveHostSpendMock.mockResolvedValue({ ok: false, day: "2026-07-15", cents: 1 })
+      },
+    ]
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    for (const setup of scenarios) {
+      setup()
+      const chat = await chatPOST(jsonRequest("/api/chat", { messages, provider: "perplexity" }))
+      const search = await searchPOST(jsonRequest("/api/search", { query: "q" }) as never)
+      expect(chat.status).toBeGreaterThanOrEqual(400)
+      expect(search.status).toBe(chat.status)
+      expect(await search.json()).toEqual(await chat.json())
+    }
+    expect(fetchSpy).not.toHaveBeenCalled()
+    fetchSpy.mockRestore()
   })
 
   it("chat returns key_lookup_failed when the saved key lookup fails", async () => {

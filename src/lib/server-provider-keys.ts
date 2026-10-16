@@ -32,6 +32,8 @@ export type ResolveKeyOptions = {
   /** Multiplier for host-spend estimates (e.g. OCR page count). */
   units?: number
   thinkHard?: boolean
+  /** Overrides the per-call estimate (e.g. web search). */
+  cents?: number
 }
 
 /** Soft resolve for multi-provider fallback - never returns a 402 Response. */
@@ -138,7 +140,7 @@ export async function resolveUserProviderApiKey(
   options?: ResolveKeyOptions
 ): Promise<{ userApiKey?: string; blockedResponse?: NextResponse }> {
   const units = options?.units ?? 1
-  const cents = estimateHostCallCents(provider, units, options?.thinkHard)
+  const cents = options?.cents ?? estimateHostCallCents(provider, units, options?.thinkHard)
 
   // Eligibility only - never burn free before budget is reserved.
   const soft = await softResolveProviderApiKey(provider, logLabel, requestKey, accessCode, {

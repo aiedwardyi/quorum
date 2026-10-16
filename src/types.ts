@@ -39,6 +39,12 @@ export type Message = {
   quickFallback?: boolean
 }
 
+export type WebSource = {
+  title: string
+  url: string
+  snippet: string
+}
+
 export type VerdictResult = {
   recommendedAnswer: string
   voteSplit: string
