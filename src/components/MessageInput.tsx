@@ -2,11 +2,12 @@
 
 import React, { useState, useRef, useEffect } from "react"
 import { Provider, Locale } from "@/types"
-import { Send, Square, Paperclip, X, FileText, File, Loader2 } from "lucide-react"
+import { Send, Square, Paperclip, X, FileText, File, Loader2, Brain } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { parseFile, SUPPORTED_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
 import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
 import { shouldSendOnKey } from "@/lib/send-key"
+import { THINK_HARD_COPY } from "@/lib/think-hard"
 
 const translations = {
   en: {
@@ -60,6 +61,8 @@ export default function MessageInput({
   onApiKeyRequired,
   isAnonymous,
   sessionLoading,
+  thinkHard,
+  onToggleThinkHard,
 }: {
   onSend: (text: string, target: Provider | "all") => void
   onStop: () => void
@@ -70,6 +73,8 @@ export default function MessageInput({
   onApiKeyRequired?: (provider: Provider) => void
   isAnonymous: boolean
   sessionLoading: boolean
+  thinkHard: boolean
+  onToggleThinkHard: () => void
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -80,6 +85,7 @@ export default function MessageInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>([])
   const t = translations[locale]
+  const thinkHardCopy = THINK_HARD_COPY[locale]
   const sendHint = "Enter"
 
   useEffect(() => {
@@ -399,6 +405,25 @@ export default function MessageInput({
                 className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
               >
                 <Paperclip className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleThinkHard()
+                }}
+                aria-pressed={thinkHard}
+                aria-label={`${thinkHardCopy.label}: ${thinkHardCopy.hint}`}
+                title={thinkHardCopy.hint}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors active:scale-95",
+                  thinkHard
+                    ? "bg-zinc-900 dark:bg-zinc-100 border-zinc-900 dark:border-zinc-100 text-white dark:text-zinc-900"
+                    : "border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:border-zinc-400 dark:hover:border-zinc-500"
+                )}
+              >
+                <Brain className="w-3.5 h-3.5" />
+                {thinkHardCopy.label}
               </button>
             </div>
 

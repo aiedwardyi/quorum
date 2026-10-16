@@ -15,6 +15,11 @@ import {
 import { getClientKey, getAccessCode, isFirstRunKeyless } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
 import { isFailedPanelistRow, providersWithReplies } from "@/lib/vote-split"
+import {
+  THINK_HARD_FIRST_TEXT_MS,
+  THINK_HARD_STREAM_CAP_MS,
+  withFastFallback,
+} from "@/lib/think-hard"
 
 export { isFailedPanelistRow, providersWithReplies }
 
@@ -22,6 +27,8 @@ export { isFailedPanelistRow, providersWithReplies }
 
 // 60s covers long-mode responses; Flash cut TTFT but the headroom stays as a cold-call guard.
 const MODEL_TIMEOUT_MS = 60_000
+
+const THINK_HARD_FAILED = "think_hard_failed"
 
 /* ---- Logging ---- */
 
@@ -139,7 +146,8 @@ function fetchConsensus(
   locale: Locale,
   responseLength: ResponseLength,
   isAnonymous: boolean,
-  preferredProviders?: Provider[]
+  preferredProviders?: Provider[],
+  thinkHard = false
 ): Promise<Response> {
   const userApiKeys: Partial<Record<Provider, string>> = {}
   if (isAnonymous) {
@@ -159,11 +167,28 @@ function fetchConsensus(
       messages,
       locale,
       responseLength,
+      ...(thinkHard ? { thinkHard: true } : {}),
       ...(preferredProviders?.length ? { preferredProviders } : {}),
       ...(Object.keys(userApiKeys).length ? { userApiKeys } : {}),
       ...(accessCode ? { accessCode } : {}),
     }),
   })
+}
+
+/** Think-hard verdict; any failure retries once in fast mode so she never sees a think-hard error. */
+export function fetchConsensusWithFallback(
+  messages: Message[],
+  locale: Locale,
+  responseLength: ResponseLength,
+  isAnonymous: boolean,
+  preferredProviders: Provider[] | undefined,
+  thinkHard: boolean
+): Promise<{ result: Response; fellBack: boolean }> {
+  return withFastFallback(
+    thinkHard,
+    (th) => fetchConsensus(messages, locale, responseLength, isAnonymous, preferredProviders, th),
+    (res) => !res.ok
+  )
 }
 
 /** Prefer the server's plain-language message; fall back by status. */
@@ -236,6 +261,66 @@ export function seedPendingMessages(models: Provider[]): Message[] {
   }))
 }
 
+/** Reads /api/chat SSE. finalContent stays null when the stream ends without a done event (cut). */
+export async function readChatStream(
+  body: ReadableStream<Uint8Array>,
+  onContent: (content: string) => void,
+  shouldCancel: () => boolean,
+  onParseError?: (raw: string) => void
+): Promise<{
+  fullContent: string
+  finalContent: string | null
+  cancelled: boolean
+  providerEmpty: boolean
+}> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let fullContent = ""
+  let finalContent: string | null = null
+  let cancelled = false
+  let providerEmpty = false
+
+  while (true) {
+    if (shouldCancel()) {
+      cancelled = true
+      await reader.cancel()
+      break
+    }
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split("\n")
+    buffer = lines.pop() ?? ""
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith("data:")) continue
+      let data: Record<string, unknown>
+      try {
+        data = JSON.parse(trimmed.slice(5).trim())
+      } catch {
+        onParseError?.(trimmed.slice(0, 100))
+        continue
+      }
+      if (data.error) throw new Error(String(data.error))
+      if (data.done) {
+        finalContent = typeof data.content === "string" ? data.content : fullContent
+        if (data.empty === true) providerEmpty = true
+      }
+      if (data.chunk) {
+        // Sanitize on the accumulated content so chunk boundaries
+        // that split `#` and `# Heading` across two chunks still
+        // get caught on the combined string. Idempotent.
+        fullContent = sanitizeHeadings(fullContent + data.chunk)
+        onContent(fullContent)
+      }
+    }
+  }
+  return { fullContent, finalContent, cancelled, providerEmpty }
+}
+
 /** Replaces an empty stream result with a localized fallback.
  *  cleanResponse already trims, so empty here means nothing meaningful to show. */
 export function isEmptyProviderReply(rawContent: string, providerEmpty: boolean): boolean {
@@ -305,7 +390,13 @@ export type Action =
   | { type: "TOGGLE_MODEL"; model: Provider }
   | { type: "SET_MODELS"; models: Provider[] }
   | { type: "SET_THREAD_ID"; id: string | null }
-  | { type: "UPDATE_MESSAGE"; id: string; content: string; failed?: boolean }
+  | {
+      type: "UPDATE_MESSAGE"
+      id: string
+      content: string
+      failed?: boolean
+      quickFallback?: boolean
+    }
   | {
       type: "HYDRATE_THREAD"
       messages: Message[]
@@ -340,6 +431,9 @@ export function reducer(state: State, action: Action): State {
                 ...m,
                 content: action.content,
                 ...(action.failed !== undefined ? { failed: action.failed } : {}),
+                ...(action.quickFallback !== undefined
+                  ? { quickFallback: action.quickFallback }
+                  : {}),
               }
             : m
         ),
@@ -403,9 +497,10 @@ export function useDebateEngine(config: {
   responseLength: ResponseLength
   maxRounds: number
   isAnonymous: boolean
+  thinkHard: boolean
   onApiKeyRequired?: (provider: Provider) => void
 }) {
-  const { locale, responseLength, maxRounds, isAnonymous, onApiKeyRequired } = config
+  const { locale, responseLength, maxRounds, isAnonymous, thinkHard, onApiKeyRequired } = config
 
   const [state, dispatch] = useReducer(reducer, makeInitialState(DEFAULT_MODELS))
 
@@ -420,6 +515,8 @@ export function useDebateEngine(config: {
   const maxRoundsRef = useRef(maxRounds)
   // Read the freshest anonymous state inside async fetch closures.
   const isAnonymousRef = useRef(isAnonymous)
+  // Read per request so a toggle mid-thread applies to the next call.
+  const thinkHardRef = useRef(thinkHard)
   const handleSendRef = useRef<
     (text: string, target: Provider | "all", models: Provider[]) => void
   >(() => {})
@@ -436,6 +533,10 @@ export function useDebateEngine(config: {
   useEffect(() => {
     isAnonymousRef.current = isAnonymous
   }, [isAnonymous])
+
+  useEffect(() => {
+    thinkHardRef.current = thinkHard
+  }, [thinkHard])
 
   const abortAll = useCallback(() => {
     for (const controller of abortControllersRef.current) {
@@ -476,8 +577,6 @@ export function useDebateEngine(config: {
         timestamp: new Date(),
       }
 
-      const controller = new AbortController()
-      abortControllersRef.current.add(controller)
       const updatePlaceholder = (content: string) =>
         dispatch({ type: "UPDATE_MESSAGE", id: placeholderId, content })
       const failPlaceholder = (content: string) =>
@@ -488,154 +587,170 @@ export function useDebateEngine(config: {
         }
       }
 
-      // Timeout guard - aborts after MODEL_TIMEOUT_MS
-      const timeoutId = setTimeout(() => {
-        if (!controller.signal.aborted) controller.abort()
-      }, MODEL_TIMEOUT_MS)
-
-      try {
-        const userApiKey = isAnonymousRef.current ? getClientKey(provider) : ""
-        const accessCode = getAccessCode()
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: getApiMessages(allMessages),
-            provider,
-            locale,
-            responseLength,
-            phase,
-            ...(userApiKey ? { userApiKey } : {}),
-            ...(accessCode ? { accessCode } : {}),
-          }),
-          signal: controller.signal,
-        })
-
-        // Session guard - bail if a newer debate started
-        if (sessionIdRef.current !== sessionId) {
-          // Release the unused stream so we don't keep the upstream connection
-          // open after a newer session has taken over.
+      // Think-hard failures return THINK_HARD_FAILED so the seat can be retried in fast mode.
+      const attempt = async (
+        thinkHard: boolean
+      ): Promise<Message | null | typeof THINK_HARD_FAILED> => {
+        const controller = new AbortController()
+        abortControllersRef.current.add(controller)
+        const abort = () => {
           if (!controller.signal.aborted) controller.abort()
-          failPlaceholder("Response cancelled.")
-          return null
         }
+        let timeoutId = setTimeout(
+          abort,
+          thinkHard ? THINK_HARD_FIRST_TEXT_MS + 5_000 : MODEL_TIMEOUT_MS
+        )
 
-        if (res.status === 402) {
-          const blocked = await parse402FromResponse(res)
-          if (blocked?.kind === "host_budget_exceeded") {
-            // Daily host budget wall, not a key problem - the key toast would mislead.
-            failPlaceholder(getBudgetExceededMessage(!isAnonymousRef.current, locale))
+        try {
+          const userApiKey = isAnonymousRef.current ? getClientKey(provider) : ""
+          const accessCode = getAccessCode()
+          const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: getApiMessages(allMessages),
+              provider,
+              locale,
+              responseLength,
+              phase,
+              ...(thinkHard ? { thinkHard: true } : {}),
+              ...(userApiKey ? { userApiKey } : {}),
+              ...(accessCode ? { accessCode } : {}),
+            }),
+            signal: controller.signal,
+          })
+
+          // Session guard - bail if a newer debate started
+          if (sessionIdRef.current !== sessionId) {
+            // Release the unused stream so we don't keep the upstream connection
+            // open after a newer session has taken over.
+            if (!controller.signal.aborted) controller.abort()
+            failPlaceholder("Response cancelled.")
+            return null
+          }
+
+          if (res.status === 402) {
+            if (thinkHard) return THINK_HARD_FAILED
+            const blocked = await parse402FromResponse(res)
+            if (blocked?.kind === "host_budget_exceeded") {
+              // Daily host budget wall, not a key problem - the key toast would mislead.
+              failPlaceholder(getBudgetExceededMessage(!isAnonymousRef.current, locale))
+              clearTypingIfCurrentSession()
+              return null
+            }
+            const missingProvider = blocked?.provider ?? provider
+            onApiKeyRequired?.(missingProvider)
+            // A keyless first-run visitor gets a generic welcome; the panel's
+            // lead provider (perplexity) is arbitrary, so don't single it out.
+            failPlaceholder(
+              getApiKeyPromptMessage(
+                missingProvider,
+                isFirstRunKeyless(isAnonymousRef.current),
+                locale,
+                {
+                  signedIn: !isAnonymousRef.current,
+                  authOn: authEnabled(),
+                }
+              )
+            )
             clearTypingIfCurrentSession()
             return null
           }
-          const missingProvider = blocked?.provider ?? provider
-          onApiKeyRequired?.(missingProvider)
-          // A keyless first-run visitor gets a generic welcome; the panel's
-          // lead provider (perplexity) is arbitrary, so don't single it out.
-          failPlaceholder(
-            getApiKeyPromptMessage(
-              missingProvider,
-              isFirstRunKeyless(isAnonymousRef.current),
-              locale,
-              {
-                signedIn: !isAnonymousRef.current,
-                authOn: authEnabled(),
+          if (!res.ok) throw new Error(`API error: ${res.status}`)
+          if (!res.body) throw new Error("No response body")
+
+          let firstText = true
+          const { fullContent, finalContent, cancelled, providerEmpty } = await readChatStream(
+            res.body,
+            (content) => {
+              if (thinkHard && firstText) {
+                firstText = false
+                // First text landed in time; let the answer finish under the stream cap.
+                clearTimeout(timeoutId)
+                timeoutId = setTimeout(abort, THINK_HARD_STREAM_CAP_MS + 5_000)
               }
-            )
+              updatePlaceholder(content)
+            },
+            () => stopRef.current || sessionIdRef.current !== sessionId,
+            (raw) => logDebate("callModel:parse-error", { provider, raw })
           )
-          clearTypingIfCurrentSession()
-          return null
-        }
-        if (!res.ok) throw new Error(`API error: ${res.status}`)
-        const reader = res.body?.getReader()
-        if (!reader) throw new Error("No response body")
 
-        const decoder = new TextDecoder()
-        let buffer = ""
-        let fullContent = ""
-        let finalContent: string | null = null
-        let cancelled = false
-        let providerEmpty = false
-
-        while (true) {
-          if (stopRef.current || sessionIdRef.current !== sessionId) {
-            cancelled = true
-            await reader.cancel()
-            break
-          }
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split("\n")
-          buffer = lines.pop() ?? ""
-
-          for (const line of lines) {
-            const trimmed = line.trim()
-            if (!trimmed.startsWith("data:")) continue
-            let data: Record<string, unknown>
-            try {
-              data = JSON.parse(trimmed.slice(5).trim())
-            } catch {
-              logDebate("callModel:parse-error", { provider, raw: trimmed.slice(0, 100) })
-              continue
+          // If loop exited due to stop/session change, don't overwrite newer state
+          if (cancelled) {
+            if (isEmptyProviderReply(fullContent, false)) {
+              failPlaceholder("Response cancelled.")
             }
-            if (data.error) throw new Error(String(data.error))
-            if (data.done) {
-              finalContent = typeof data.content === "string" ? data.content : fullContent
-              if (data.empty === true) providerEmpty = true
-            }
-            if (data.chunk) {
-              // Sanitize on the accumulated content so chunk boundaries
-              // that split `#` and `# Heading` across two chunks still
-              // get caught on the combined string. Idempotent.
-              fullContent = sanitizeHeadings(fullContent + data.chunk)
-              updatePlaceholder(fullContent)
-            }
+            clearTypingIfCurrentSession()
+            return null
           }
-        }
 
-        // If loop exited due to stop/session change, don't overwrite newer state
-        if (cancelled) {
-          if (isEmptyProviderReply(fullContent, false)) {
-            failPlaceholder("Response cancelled.")
+          // No done event means the stream was cut mid-answer.
+          if (thinkHard && finalContent === null) return THINK_HARD_FAILED
+
+          const rawContent = finalContent ?? fullContent
+          const cleaned = resolveProviderContent(rawContent, providerEmpty, locale, provider)
+          if (isEmptyProviderReply(rawContent, providerEmpty)) {
+            if (thinkHard) return THINK_HARD_FAILED
+            failPlaceholder(cleaned)
+            clearTypingIfCurrentSession()
+            return null
           }
+          logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
+          updatePlaceholder(cleaned)
           clearTypingIfCurrentSession()
-          return null
-        }
-
-        const rawContent = finalContent ?? fullContent
-        const cleaned = resolveProviderContent(rawContent, providerEmpty, locale, provider)
-        if (isEmptyProviderReply(rawContent, providerEmpty)) {
-          failPlaceholder(cleaned)
+          return { ...placeholderMessage, content: cleaned }
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            // Distinguish timeout from user-initiated stop
+            const wasTimeout =
+              sessionIdRef.current === sessionId && !stopRef.current && !stoppingRef.current
+            if (wasTimeout && thinkHard) return THINK_HARD_FAILED
+            clearTypingIfCurrentSession()
+            const msg = wasTimeout ? `${DISPLAY_NAMES[provider]} timed out.` : "Response cancelled."
+            logDebate("callModel:abort", { provider, wasTimeout })
+            failPlaceholder(msg)
+            return null
+          }
+          // Covers transport errors and the route's {error} channel. Raw upstream errors are unactionable in a bubble - show a short fallback and keep detail in logDebate.
+          const errorMsg = err instanceof Error ? err.message : "Unknown error"
+          logDebate("callModel:error", { provider, error: errorMsg, thinkHard })
+          if (thinkHard) return THINK_HARD_FAILED
           clearTypingIfCurrentSession()
+          failPlaceholder(providerFailureCopy(errorMsg, locale, provider))
           return null
+        } finally {
+          clearTimeout(timeoutId)
+          abortControllersRef.current.delete(controller)
         }
-        logDebate("callModel:done", { provider, wordCount: cleaned.split(/\s+/).length })
-        updatePlaceholder(cleaned)
-        clearTypingIfCurrentSession()
-        return { ...placeholderMessage, content: cleaned }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          clearTypingIfCurrentSession()
-          // Distinguish timeout from user-initiated stop
-          const wasTimeout =
-            sessionIdRef.current === sessionId && !stopRef.current && !stoppingRef.current
-          const msg = wasTimeout ? `${DISPLAY_NAMES[provider]} timed out.` : "Response cancelled."
-          logDebate("callModel:abort", { provider, wasTimeout })
-          failPlaceholder(msg)
-          return null
-        }
-        // Covers transport errors and the route's {error} channel. Raw upstream errors are unactionable in a bubble - show a short fallback and keep detail in logDebate.
-        const errorMsg = err instanceof Error ? err.message : "Unknown error"
-        logDebate("callModel:error", { provider, error: errorMsg })
-        clearTypingIfCurrentSession()
-        failPlaceholder(providerFailureCopy(errorMsg, locale, provider))
-        return null
-      } finally {
-        clearTimeout(timeoutId)
-        abortControllersRef.current.delete(controller)
       }
+
+      const thinkHard = thinkHardRef.current
+      const { result, fellBack } = await withFastFallback(
+        thinkHard,
+        async (th) => {
+          if (thinkHard && !th) {
+            logDebate("callModel:fast-fallback", { provider })
+            if (stopRef.current || sessionIdRef.current !== sessionId) {
+              clearTypingIfCurrentSession()
+              failPlaceholder("Response cancelled.")
+              return null
+            }
+            // A partial think-hard answer is replaced, never appended to.
+            updatePlaceholder("")
+          }
+          return attempt(th)
+        },
+        (r) => r === THINK_HARD_FAILED
+      )
+      if (!result || result === THINK_HARD_FAILED) return null
+      if (!fellBack) return result
+      dispatch({
+        type: "UPDATE_MESSAGE",
+        id: placeholderId,
+        content: result.content,
+        quickFallback: true,
+      })
+      return { ...result, quickFallback: true }
     },
     [locale, responseLength, onApiKeyRequired, abortAll]
   )
@@ -689,14 +804,15 @@ export function useDebateEngine(config: {
       // After each intermediate round: fire-and-forget confidence update (does not block next round).
       if (updateConfidence && getAIMessageCount(msgs) >= 2 && activeModels.length >= 2) {
         const consensusMsgs = getConsensusMessages(messagesReadyForConsensus(msgs))
-        fetchConsensus(
+        fetchConsensusWithFallback(
           consensusMsgs,
           locale,
           responseLength,
           isAnonymousRef.current,
-          consensusModels
+          consensusModels,
+          thinkHardRef.current
         )
-          .then(async (res) => {
+          .then(async ({ result: res }) => {
             if (sessionIdRef.current !== sessionId || stopRef.current) return
             if (res.status === 402) {
               // Budget wall stays silent here - the chat calls surface it.
@@ -838,12 +954,13 @@ export function useDebateEngine(config: {
               msgs = [...msgs, analyzingMsg]
 
               try {
-                const res = await fetchConsensus(
+                const { result: res, fellBack } = await fetchConsensusWithFallback(
                   getConsensusMessages(ready),
                   locale,
                   responseLength,
                   isAnonymousRef.current,
-                  orderedModels
+                  orderedModels,
+                  thinkHardRef.current
                 )
 
                 // Guard: if user stopped during fetch, let handleStop own the verdict
@@ -897,6 +1014,7 @@ export function useDebateEngine(config: {
                       content: result.recommendedAnswer,
                       timestamp: new Date(),
                       verdictData: result,
+                      ...(fellBack ? { quickFallback: true } : {}),
                     }
                     finalVerdictLandedRef.current = true
                     dispatch({ type: "ADD_MESSAGE", message: verdictMsg })
@@ -977,14 +1095,17 @@ export function useDebateEngine(config: {
         dispatch({ type: "ADD_MESSAGE", message: analyzingMsg })
       }
 
-      fetchConsensus(
+      let fellBack = false
+      fetchConsensusWithFallback(
         getConsensusMessages(currentMessages),
         locale,
         responseLength,
         isAnonymousRef.current,
-        state.activeModels
+        state.activeModels,
+        thinkHardRef.current
       )
-        .then(async (res) => {
+        .then(async ({ result: res, fellBack: quick }) => {
+          fellBack = quick
           if (res.status === 402) {
             if (sessionIdRef.current !== stoppedSession) return null
             const blocked = await parse402FromResponse(res)
@@ -1039,6 +1160,7 @@ export function useDebateEngine(config: {
             content: result.recommendedAnswer,
             timestamp: new Date(),
             verdictData: result,
+            ...(fellBack ? { quickFallback: true } : {}),
           }
           finalVerdictLandedRef.current = true
           dispatch({ type: "ADD_MESSAGE", message: verdictMsg })

@@ -13,6 +13,15 @@ const ESTIMATE_CENTS: Record<Provider, number> = {
   perplexity: 6,
 }
 
+// Think hard per call at 20k input + 3k output (thinking included), 2027 Vertex rates,
+// Perplexity's high-context request fee. Real rounds measured well under this.
+const THINK_HARD_ESTIMATE_CENTS: Record<Provider, number> = {
+  gemini: 6,
+  claude: 15,
+  gpt: 8,
+  perplexity: 8,
+}
+
 export function getDailyBudgetCents(): number {
   const raw = process.env.HOST_KEY_DAILY_BUDGET_USD?.trim()
   if (raw === undefined || raw === "") return DEFAULT_BUDGET_USD * 100
@@ -21,9 +30,9 @@ export function getDailyBudgetCents(): number {
   return Math.round(usd * 100)
 }
 
-export function estimateHostCallCents(provider: Provider, units = 1): number {
+export function estimateHostCallCents(provider: Provider, units = 1, thinkHard = false): number {
   const n = Number.isFinite(units) ? Math.max(1, Math.floor(units)) : 1
-  return ESTIMATE_CENTS[provider] * n
+  return (thinkHard ? THINK_HARD_ESTIMATE_CENTS : ESTIMATE_CENTS)[provider] * n
 }
 
 export function utcSpendDay(now = new Date()): string {

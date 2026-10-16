@@ -61,11 +61,13 @@ export default function SummaryCard({
   onNewDiscussion,
   locale,
   inline = false,
+  note,
 }: {
   result: VerdictResult
   onNewDiscussion?: () => void
   locale: Locale
   inline?: boolean
+  note?: string
 }) {
   const t = translations[locale]
   const [copied, setCopied] = useState(false)
@@ -320,6 +322,12 @@ export default function SummaryCard({
               <span className="font-semibold">{t.oppositeCase}:</span> {result.oppositeCase}
             </p>
           </div>
+        )}
+
+        {note && (
+          <p className="text-[11px] text-center" style={{ color: "var(--summary-muted-text)" }}>
+            {note}
+          </p>
         )}
 
         {/* Action buttons */}

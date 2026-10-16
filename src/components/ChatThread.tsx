@@ -12,6 +12,7 @@ export default function ChatThread({
   isDebating,
   locale,
   responseLength,
+  thinkHard = false,
   onSendMessage,
   onNewDiscussion,
 }: {
@@ -20,6 +21,7 @@ export default function ChatThread({
   isDebating?: boolean
   locale: Locale
   responseLength?: ResponseLength
+  thinkHard?: boolean
   onSendMessage: (text: string) => void
   onNewDiscussion?: () => void
 }) {
@@ -230,6 +232,7 @@ export default function ChatThread({
             forceCompleteForAnalysis={analyzingInProgress && !typingMessageIds.has(msg.id)}
             locale={locale}
             responseLength={responseLength}
+            thinkHard={thinkHard}
             onNewDiscussion={onNewDiscussion}
           />
         ))}

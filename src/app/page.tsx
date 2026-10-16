@@ -18,6 +18,7 @@ import { useThreadPersistence } from "@/hooks/useThreadPersistence"
 import { getApiKeyPromptMessage } from "@/lib/api-key-errors"
 import { shouldUseClientKeys, isSessionResolving, isFirstRunKeyless } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
+import { THINK_HARD_STORAGE_KEY, parseStoredThinkHard } from "@/lib/think-hard"
 
 // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts.
 const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
@@ -35,6 +36,7 @@ function ChatPageContent() {
   const [locale, setLocale] = useState<Locale>("en")
   const [responseLength, setResponseLength] = useState<ResponseLength>("medium")
   const [maxRounds, setMaxRounds] = useState(1)
+  const [thinkHard, setThinkHard] = useState(false)
   const [theme, setTheme] = useState<Theme>("tokyonight")
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isLoadingThread, setIsLoadingThread] = useState(false)
@@ -55,6 +57,7 @@ function ChatPageContent() {
     responseLength,
     maxRounds,
     isAnonymous,
+    thinkHard,
     onApiKeyRequired: handleApiKeyRequired,
   })
   const handleDirectSend = useCallback(
@@ -202,6 +205,8 @@ function ChatPageContent() {
     if (savedLength === "short" || savedLength === "medium" || savedLength === "long") {
       setResponseLength(savedLength)
     }
+
+    setThinkHard(parseStoredThinkHard(localStorage.getItem(THINK_HARD_STORAGE_KEY)))
 
     const savedRounds = localStorage.getItem("quorum_rounds")
     if (savedRounds) {
@@ -597,6 +602,7 @@ function ChatPageContent() {
             isDebating={state.isDebating}
             locale={locale}
             responseLength={responseLength}
+            thinkHard={thinkHard}
             onSendMessage={(text) => handleDirectSend(text, "all")}
             onNewDiscussion={handleNewDebate}
           />
@@ -631,6 +637,11 @@ function ChatPageContent() {
           onApiKeyRequired={handleApiKeyRequired}
           isAnonymous={isAnonymous}
           sessionLoading={sessionLoading}
+          thinkHard={thinkHard}
+          onToggleThinkHard={() => {
+            setThinkHard(!thinkHard)
+            localStorage.setItem(THINK_HARD_STORAGE_KEY, String(!thinkHard))
+          }}
         />
       </div>
 

@@ -10,6 +10,7 @@ import remarkGfm from "remark-gfm"
 import { useSmoothStream } from "@/hooks/useSmoothStream"
 import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
 import { stripHeadingMarkersForPlainText, trimUnclosedTrailingMarkdown } from "@/lib/clean-response"
+import { THINK_HARD_COPY } from "@/lib/think-hard"
 import VerdictSkeleton from "@/components/VerdictSkeleton"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => (
@@ -165,6 +166,7 @@ export default function ChatBubble({
   forceCompleteForAnalysis,
   locale = "en",
   responseLength = "short",
+  thinkHard = false,
   onNewDiscussion,
 }: {
   message: Message
@@ -177,6 +179,7 @@ export default function ChatBubble({
   forceCompleteForAnalysis?: boolean
   locale?: Locale
   responseLength?: ResponseLength
+  thinkHard?: boolean
   onNewDiscussion?: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -392,6 +395,7 @@ export default function ChatBubble({
           locale={locale}
           inline
           onNewDiscussion={onNewDiscussion}
+          note={message.quickFallback ? THINK_HARD_COPY[locale].fellBack : undefined}
         />
       </div>
     )
@@ -495,7 +499,7 @@ export default function ChatBubble({
             <span
               className={cn("text-xs font-medium", modelColors[message.sender] ?? "text-zinc-500")}
             >
-              {thinkingText[locale]}
+              {thinkHard ? THINK_HARD_COPY[locale].thinking : thinkingText[locale]}
             </span>
           </div>
         ) : (
@@ -575,6 +579,11 @@ export default function ChatBubble({
               </button>
             )}
           </div>
+        )}
+        {message.quickFallback && !isEmpty && (
+          <p className="mt-1 px-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+            {THINK_HARD_COPY[locale].fellBack}
+          </p>
         )}
         {(showCopyButton || (isAI && expanded && isOverflowing && responseLength !== "short")) && (
           // Unified actions row below the bubble. Show less (when

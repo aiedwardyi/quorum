@@ -11,9 +11,11 @@ import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt } from "@/lib/verdict-prompt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import {
+  GEMINI_LIGHT_THINKING,
   GEMINI_MODEL,
   GEMINI_NO_THINKING,
   createVertexAI,
+  geminiAnswerText,
   generateGeminiVerdictWithApiKey,
   getConfiguredGeminiApiKey,
 } from "@/lib/providers/gemini"
@@ -29,6 +31,7 @@ import {
   type ConsensusCandidate,
 } from "@/lib/consensus-resolve"
 import { clampVoteSplit, countParticipatingModels, isFailedPanelistRow } from "@/lib/vote-split"
+import { THINK_HARD_VERDICT_MS } from "@/lib/think-hard"
 
 /** Forces structurally valid JSON with our exact field names - flash was seen
  *  emitting markdown lists and renaming fields under prose instructions alone.
@@ -191,6 +194,7 @@ export async function POST(req: NextRequest) {
       rawResponseLength === "long"
         ? rawResponseLength
         : "medium"
+    const thinkHard = body.thinkHard === true
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: "messages array is required" }, { status: 400 })
@@ -230,7 +234,7 @@ export async function POST(req: NextRequest) {
     const verdictGenerationConfig = {
       responseMimeType: "application/json",
       responseSchema: VERDICT_RESPONSE_SCHEMA,
-      ...GEMINI_NO_THINKING,
+      ...(thinkHard ? GEMINI_LIGHT_THINKING : GEMINI_NO_THINKING),
     }
 
     const requestAccessCode = typeof body.accessCode === "string" ? body.accessCode : undefined
@@ -266,6 +270,10 @@ export async function POST(req: NextRequest) {
         : responseLength === "short"
           ? 30_000
           : 45_000
+    // Think hard shares one deadline across fallback providers and the JSON-repair retry.
+    const thinkHardDeadline = startTime + THINK_HARD_VERDICT_MS
+    const timeoutFor = () =>
+      thinkHard ? Math.max(0, thinkHardDeadline - Date.now()) : VERDICT_TIMEOUT_MS
 
     const generateRaw = async (
       candidate: ConsensusCandidate,
@@ -280,7 +288,11 @@ export async function POST(req: NextRequest) {
               await import("@/lib/host-spend")
             const { authEnabled, requireUserKeys } = await import("@/lib/deploy-config")
             const { isValidAccessCode } = await import("@/lib/server-provider-keys")
-            const cents = estimateHostCallCents(candidate.provider)
+            const cents = estimateHostCallCents(
+              candidate.provider,
+              1,
+              thinkHard && candidate.provider === "gemini"
+            )
             const reserved = await tryReserveHostSpend(cents)
             if (!reserved.ok) throw new Error("host_budget_exceeded")
             if (requireUserKeys() && !isValidAccessCode(requestAccessCode) && authEnabled()) {
@@ -371,7 +383,7 @@ export async function POST(req: NextRequest) {
             ],
             generationConfig: verdictGenerationConfig,
           })
-          return result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+          return geminiAnswerText(result.response.candidates?.[0]?.content?.parts)
         },
         timeoutMs,
         "Verdict generation"
@@ -383,11 +395,11 @@ export async function POST(req: NextRequest) {
     for (const candidate of candidates) {
       const source = candidate.apiKey ? "user-key" : "server"
       console.log(
-        `[verdict] Trying provider=${candidate.provider} tier=${verdictTier} source=${source} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
+        `[verdict] Trying provider=${candidate.provider} tier=${verdictTier} thinkHard=${thinkHard} source=${source} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
       )
 
       try {
-        const raw = await generateRaw(candidate, verdictUserPrompt, VERDICT_TIMEOUT_MS)
+        const raw = await generateRaw(candidate, verdictUserPrompt, timeoutFor())
 
         const generateElapsed = Date.now() - startTime
         console.log(
@@ -418,7 +430,7 @@ export async function POST(req: NextRequest) {
           const retryRaw = await generateRaw(
             candidate,
             `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}`,
-            VERDICT_TIMEOUT_MS
+            timeoutFor()
           )
           const retryCleaned = extractJson(retryRaw)
           try {

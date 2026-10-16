@@ -35,21 +35,35 @@ export function buildUserContent(messages: Message[]): Anthropic.TextBlockParam[
   return blocks
 }
 
+// Opus 5.5 can't turn thinking off; low effort keeps it light.
+export function claudeModelParams(thinkHard: boolean) {
+  return thinkHard
+    ? {
+        model: "claude-opus-5-5",
+        thinking: { type: "adaptive" as const },
+        output_config: { effort: "low" as const },
+      }
+    : {
+        model: "claude-haiku-5-5",
+        thinking: { type: "disabled" as const },
+        output_config: { effort: "low" as const },
+      }
+}
+
 export async function* streamClaude(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
   maxTokens = 1024,
-  userApiKey?: string
+  userApiKey?: string,
+  thinkHard = false
 ): AsyncGenerator<string> {
   const client = getClient(userApiKey)
 
   try {
     const stream = await client.messages.create(
       {
-        model: "claude-haiku-5-5",
-        thinking: { type: "disabled" },
-        output_config: { effort: "low" },
+        ...claudeModelParams(thinkHard),
         max_tokens: maxTokens,
         system: systemPrompt,
         messages: [{ role: "user", content: buildUserContent(messages) }],

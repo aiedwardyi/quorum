@@ -1,6 +1,7 @@
 /** Perplexity streaming provider. */
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
+import { createThinkStripper } from "@/lib/strip-think"
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions"
 
@@ -35,13 +36,14 @@ export async function* streamPerplexity(
   messages: Message[],
   signal?: AbortSignal,
   maxTokens = 1024,
-  userApiKey?: string
+  userApiKey?: string,
+  thinkHard = false
 ): AsyncGenerator<string> {
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
     headers: getHeaders(userApiKey),
     body: JSON.stringify({
-      model: "sonar-pro",
+      model: thinkHard ? "sonar-reasoning-pro" : "sonar-pro",
       max_tokens: maxTokens,
       messages: buildMessages(systemPrompt, messages),
       stream: true,
@@ -58,6 +60,7 @@ export async function* streamPerplexity(
   if (!reader) throw new Error("No response body from Perplexity")
 
   const decoder = new TextDecoder()
+  const stripper = createThinkStripper()
   let buffer = ""
 
   while (true) {
@@ -73,19 +76,26 @@ export async function* streamPerplexity(
       if (!trimmed.startsWith("data:")) continue
 
       const data = trimmed.slice(5).trim()
-      if (data === "[DONE]") return
+      if (data === "[DONE]") {
+        const rest = stripper.flush()
+        if (rest) yield rest
+        return
+      }
 
       try {
         const parsed = JSON.parse(data)
         const content = parsed.choices?.[0]?.delta?.content
-        if (content) {
-          yield content
+        const visible = content ? stripper.push(content) : ""
+        if (visible) {
+          yield visible
         }
       } catch {
         // Skip malformed chunks
       }
     }
   }
+  const rest = stripper.flush()
+  if (rest) yield rest
 }
 
 /** Non-streaming JSON verdict for /api/consensus (last-resort fallback). */

@@ -23,6 +23,22 @@ export function getConfiguredGeminiApiKey(): string | undefined {
 export const GEMINI_MODEL = "gemini-3.8-flash"
 // 3.x thinks by default (10s+ TTFT); budget 0 keeps first-token latency ~2s.
 export const GEMINI_NO_THINKING = { thinkingConfig: { thinkingBudget: 0 } }
+// Lowest non-zero level; MINIMAL is rejected on 3.8.
+export const GEMINI_LIGHT_THINKING = { thinkingConfig: { thinkingLevel: "LOW" } }
+
+export function geminiThinking(thinkHard: boolean) {
+  return thinkHard ? GEMINI_LIGHT_THINKING : GEMINI_NO_THINKING
+}
+
+/** Answer text only; thought parts never reach the user. */
+export function geminiAnswerText(
+  parts: { text?: string; thought?: boolean }[] | undefined
+): string {
+  return (parts ?? [])
+    .filter((p) => !p.thought)
+    .map((p) => p.text ?? "")
+    .join("")
+}
 
 // 3.8 is only served from the global endpoint.
 export function createVertexAI() {
@@ -158,7 +174,7 @@ export async function generateGoogleAiContentWithApiKey({
   }
 
   const data = await response.json()
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+  return geminiAnswerText(data.candidates?.[0]?.content?.parts)
 }
 
 async function readGoogleAiError(response: Response): Promise<string> {
@@ -249,7 +265,8 @@ async function* runGeminiStream(
   systemPrompt: string,
   messages: Message[],
   signal: AbortSignal | undefined,
-  maxTokens: number
+  maxTokens: number,
+  thinkHard: boolean
 ): AsyncGenerator<string> {
   const model = getModel()
   const contents = buildContents(messages)
@@ -257,11 +274,11 @@ async function* runGeminiStream(
   const result = await model.generateContentStream({
     systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
     contents,
-    generationConfig: { maxOutputTokens: maxTokens, ...GEMINI_NO_THINKING },
+    generationConfig: { maxOutputTokens: maxTokens, ...geminiThinking(thinkHard) },
   })
 
   for await (const chunk of withTimeout(result.stream, STREAM_CHUNK_TIMEOUT_MS, signal)) {
-    const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text
+    const text = geminiAnswerText(chunk.candidates?.[0]?.content?.parts)
     if (text) {
       yield text
     }
@@ -277,23 +294,24 @@ export async function* streamGemini(
   messages: Message[],
   signal?: AbortSignal,
   maxTokens = 1024,
-  userApiKey?: string
+  userApiKey?: string,
+  thinkHard = false
 ): AsyncGenerator<string> {
   const apiKey = userApiKey || getConfiguredGeminiApiKey()
   if (apiKey) {
-    yield* streamGeminiWithApiKey(systemPrompt, messages, signal, maxTokens, apiKey)
+    yield* streamGeminiWithApiKey(systemPrompt, messages, signal, maxTokens, apiKey, thinkHard)
     return
   }
 
   let yielded = false
-  for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens)) {
+  for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens, thinkHard)) {
     yielded = true
     yield text
   }
   if (yielded || signal?.aborted) return
 
   // First attempt yielded nothing - retry once
-  for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens)) {
+  for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens, thinkHard)) {
     yield text
   }
 }
@@ -303,7 +321,8 @@ async function* streamGeminiWithApiKey(
   messages: Message[],
   signal: AbortSignal | undefined,
   maxTokens: number,
-  apiKey: string
+  apiKey: string,
+  thinkHard: boolean
 ): AsyncGenerator<string> {
   const response = await fetch(googleAiUrl(GEMINI_MODEL, "streamGenerateContent", apiKey), {
     method: "POST",
@@ -311,7 +330,7 @@ async function* streamGeminiWithApiKey(
     body: JSON.stringify(
       buildGoogleAiBody(systemPrompt, buildUserPrompt(messages), {
         maxOutputTokens: maxTokens,
-        ...GEMINI_NO_THINKING,
+        ...geminiThinking(thinkHard),
       })
     ),
     signal,
@@ -341,7 +360,7 @@ async function* streamGeminiWithApiKey(
 
       try {
         const parsed = JSON.parse(trimmed.slice(5).trim())
-        const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text
+        const text = geminiAnswerText(parsed.candidates?.[0]?.content?.parts)
         if (text) {
           yield text
         }

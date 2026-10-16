@@ -35,6 +35,8 @@ export type Message = {
   verdictData?: VerdictResult
   /** True when the bubble is a missing-key / cancel / error placeholder, not an answer. */
   failed?: boolean
+  /** Think hard failed, so this is the fast-mode answer. */
+  quickFallback?: boolean
 }
 
 export type VerdictResult = {

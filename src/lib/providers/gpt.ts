@@ -15,12 +15,24 @@ function buildThread(messages: Message[]): string {
   return messages.map((m) => `[${m.displayName}]: ${m.content}`).join("\n\n")
 }
 
+// Sol rejects reasoning_effort none/minimal; low is its floor.
+export function gptModelParams(thinkHard: boolean, maxTokens: number) {
+  return thinkHard
+    ? {
+        model: "gpt-6.1-sol",
+        reasoning_effort: "low" as const,
+        max_completion_tokens: maxTokens,
+      }
+    : { model: "gpt-4o", max_tokens: maxTokens }
+}
+
 export async function* streamGPT(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
   maxTokens = 1024,
-  userApiKey?: string
+  userApiKey?: string,
+  thinkHard = false
 ): AsyncGenerator<string> {
   const client = getClient(userApiKey)
   const thread = buildThread(messages)
@@ -28,8 +40,7 @@ export async function* streamGPT(
   try {
     const stream = await client.chat.completions.create(
       {
-        model: "gpt-4o",
-        max_tokens: maxTokens,
+        ...gptModelParams(thinkHard, maxTokens),
         messages: [
           { role: "system", content: systemPrompt },
           {

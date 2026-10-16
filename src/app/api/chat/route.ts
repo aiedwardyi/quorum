@@ -6,6 +6,7 @@ import { isPredominantlyKorean } from "@/lib/detect-language"
 import { getUrlCapabilityInstruction } from "@/lib/url-access"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
+import { THINK_HARD_EXTRA_TOKENS, withThinkHardDeadlines } from "@/lib/think-hard"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
 const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
@@ -285,6 +286,8 @@ export async function POST(request: Request) {
         ? responseLength
         : "medium"
     const validatedPhase: DebatePhase = phase === "rebuttal" ? "rebuttal" : "opening"
+    // Models come from this flag server-side; the client never names one.
+    const thinkHard = body.thinkHard === true
 
     if (!messages || !Array.isArray(messages) || !provider) {
       return new Response(JSON.stringify({ error: "Missing messages or provider" }), {
@@ -312,14 +315,16 @@ export async function POST(request: Request) {
       forceKorean,
       validatedPhase
     )
-    const maxTokens = getMaxTokens(validatedResponseLength)
+    const maxTokens =
+      getMaxTokens(validatedResponseLength) + (thinkHard ? THINK_HARD_EXTRA_TOKENS : 0)
     const requestApiKey = typeof body.userApiKey === "string" ? body.userApiKey : undefined
     const requestAccessCode = typeof body.accessCode === "string" ? body.accessCode : undefined
     const { userApiKey, blockedResponse } = await resolveUserProviderApiKey(
       provider,
       `chat/${provider}`,
       requestApiKey,
-      requestAccessCode
+      requestAccessCode,
+      { thinkHard }
     )
     if (blockedResponse) return blockedResponse
     // Hard server-side clamp behind the prompt instruction; Gemini especially overruns.
@@ -364,13 +369,17 @@ export async function POST(request: Request) {
         }
 
         try {
-          for await (const chunk of streamFn(
+          const providerStream = streamFn(
             systemPrompt,
             inputMessages,
             providerSignal,
             maxTokens,
-            userApiKey
-          )) {
+            userApiKey,
+            thinkHard
+          )
+          for await (const chunk of thinkHard
+            ? withThinkHardDeadlines(providerStream)
+            : providerStream) {
             if (request.signal?.aborted) break
             const nextContent = fullContent + chunk
             const limited = clampToWordLimit(nextContent, wordLimit)
@@ -418,6 +427,7 @@ export async function POST(request: Request) {
             return
           }
           // Provider failures go through the error channel, never bubble content - raw upstream errors used to leak verbatim into the chat. Client shows the friendly fallback; detail stays in the server log.
+          abortProvider()
           const msg = error instanceof Error ? error.message : "Unknown error"
           const sanitized = redactSecrets(msg)
           console.error(`[chat/${provider}] stream failed:`, sanitized)
