@@ -57,6 +57,11 @@ vi.mock("@/lib/providers/perplexity", () => ({
   generatePerplexityVerdict: generatePerplexityVerdictMock,
 }))
 vi.mock("@/lib/providers/gemini", () => ({
+  GEMINI_MODEL: "gemini-3.8-flash",
+  GEMINI_NO_THINKING: { thinkingConfig: { thinkingBudget: 0 } },
+  createVertexAI: vi.fn(() => ({
+    getGenerativeModel: vi.fn(() => ({ generateContent: vi.fn() })),
+  })),
   getConfiguredGeminiApiKey: vi.fn(() => "server-gemini-key"),
   generateGeminiVerdictWithApiKey: generateGeminiVerdictWithApiKeyMock,
   generateGoogleAiContentWithApiKey: generateGoogleAiContentWithApiKeyMock,

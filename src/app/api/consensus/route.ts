@@ -2,17 +2,21 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { Message, Locale, ResponseLength, Provider } from "@/types"
 import {
-  VertexAI,
   HarmCategory,
   HarmBlockThreshold,
   SchemaType,
   type ResponseSchema,
 } from "@google-cloud/vertexai"
-import { getVertexConfig } from "@/lib/vertex-config"
 import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt } from "@/lib/verdict-prompt"
 import { isPredominantlyKorean } from "@/lib/detect-language"
-import { generateGeminiVerdictWithApiKey, getConfiguredGeminiApiKey } from "@/lib/providers/gemini"
+import {
+  GEMINI_MODEL,
+  GEMINI_NO_THINKING,
+  createVertexAI,
+  generateGeminiVerdictWithApiKey,
+  getConfiguredGeminiApiKey,
+} from "@/lib/providers/gemini"
 import { generateClaudeVerdict } from "@/lib/providers/claude"
 import { generateGptVerdict } from "@/lib/providers/gpt"
 import { generatePerplexityVerdict } from "@/lib/providers/perplexity"
@@ -25,7 +29,6 @@ import {
   type ConsensusCandidate,
 } from "@/lib/consensus-resolve"
 import { clampVoteSplit, countParticipatingModels, isFailedPanelistRow } from "@/lib/vote-split"
-import { loadGoogleApplicationCredentialsJson } from "@/lib/google-credentials"
 
 /** Forces structurally valid JSON with our exact field names - flash was seen
  *  emitting markdown lists and renaming fields under prose instructions alone.
@@ -215,10 +218,9 @@ export async function POST(req: NextRequest) {
     const repliedCount = countParticipatingModels(discussionMessages)
     const thread = formatThread(discussionMessages)
 
-    // Flash for first verdicts (~5s); Pro for continuations where it must reconcile without flip-flopping.
     const useProModel = previousVerdicts.length > 0
-    const verdictModelName = useProModel ? "gemini-2.5-pro" : "gemini-2.5-flash"
-    const verdictTier = useProModel ? "pro" : "flash"
+    const verdictModelName = GEMINI_MODEL
+    const verdictTier = useProModel ? "continuation" : "first"
     const verdictPrompt = getVerdictPrompt(effectiveLocale, responseLength)
     const verdictUserPrompt = `Here is the discussion to analyze:\n\n${thread}\n\n${repliedCount} model(s) produced a real reply. voteSplit denominator MUST be ${repliedCount}. Do not count empty, failed, or missing panelists.${
       previousVerdicts.length > 0
@@ -228,6 +230,7 @@ export async function POST(req: NextRequest) {
     const verdictGenerationConfig = {
       responseMimeType: "application/json",
       responseSchema: VERDICT_RESPONSE_SCHEMA,
+      ...GEMINI_NO_THINKING,
     }
 
     const requestAccessCode = typeof body.accessCode === "string" ? body.accessCode : undefined
@@ -340,13 +343,7 @@ export async function POST(req: NextRequest) {
 
           if (signal.aborted) throw new Error("Verdict generation timed out")
 
-          const { projectId, location } = getVertexConfig()
-          const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
-          const credentials = loadGoogleApplicationCredentialsJson()
-          if (credentials) {
-            opts.googleAuthOptions = { credentials }
-          }
-          const vertexAI = new VertexAI(opts)
+          const vertexAI = createVertexAI()
           const model = vertexAI.getGenerativeModel({
             model: verdictModelName,
             safetySettings: [

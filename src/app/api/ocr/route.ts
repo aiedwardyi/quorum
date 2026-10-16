@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { VertexAI } from "@google-cloud/vertexai"
-import { getVertexConfig } from "@/lib/vertex-config"
 import {
+  GEMINI_MODEL,
+  GEMINI_NO_THINKING,
+  createVertexAI,
   generateGoogleAiContentWithApiKey,
   getConfiguredGeminiApiKey,
 } from "@/lib/providers/gemini"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 import { redactSecrets } from "@/lib/redact-secrets"
-import { loadGoogleApplicationCredentialsJson } from "@/lib/google-credentials"
 
 /**
  * Strip LLM OCR repetition loops where the model gets stuck on a token/phrase
@@ -27,21 +27,7 @@ function sanitizeOcrText(text: string): string {
 }
 
 function getModel() {
-  const { projectId, location } = getVertexConfig()
-  const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
-  const credentials = loadGoogleApplicationCredentialsJson()
-  if (credentials) {
-    opts.googleAuthOptions = { credentials }
-  }
-  const vertexAI = new VertexAI(opts)
-  // gemini-2.5-pro instead of -flash: document OCR is the "important
-  // documents" path where accuracy matters more than latency. Flash
-  // garbles dense Korean legal headers and mixed Hanja/Hangul overlays;
-  // Pro's larger context and stronger vision grounding recovers those
-  // cleanly. Users pay for the precision, and OCR already runs in the
-  // background with a progress indicator so the extra latency is
-  // invisible in practice.
-  return vertexAI.getGenerativeModel({ model: "gemini-2.5-pro" })
+  return createVertexAI().getGenerativeModel({ model: GEMINI_MODEL })
 }
 
 const OCR_PROMPT = `You are an OCR engine. Extract EVERY character of text from these document page images verbatim, including text rendered as part of posters, price tables, schedules, charts, signs, and any other visual elements.
@@ -102,11 +88,12 @@ export async function POST(req: NextRequest) {
     const rawText = apiKey
       ? await generateGoogleAiContentWithApiKey({
           apiKey,
-          modelName: "gemini-2.5-pro",
+          modelName: GEMINI_MODEL,
           contents: [{ role: "user", parts: [{ text: OCR_PROMPT }, ...parts] }],
           generationConfig: {
             temperature: 0,
             maxOutputTokens: 8192,
+            ...GEMINI_NO_THINKING,
           },
         })
       : await (() => {
@@ -122,6 +109,7 @@ export async function POST(req: NextRequest) {
               generationConfig: {
                 temperature: 0,
                 maxOutputTokens: 8192,
+                ...GEMINI_NO_THINKING,
               },
             })
             .then((result) =>

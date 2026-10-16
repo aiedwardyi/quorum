@@ -1,4 +1,4 @@
-/** TTFT benchmark for model candidates. Usage: npx tsx scripts/model-speed.ts <claude|gpt|gemini> [runs] */
+/** TTFT benchmark for model candidates. Usage: npx tsx scripts/model-speed.ts <claude|gpt|gemini|verdict> [runs] */
 import { readFileSync } from "node:fs"
 import Anthropic from "@anthropic-ai/sdk"
 import OpenAI from "openai"
@@ -20,7 +20,7 @@ for (const file of [".env", ".env.local"]) {
   }
   for (const line of text.split(/\r?\n/)) {
     const m = /^([A-Z0-9_]+)=(.*)$/.exec(line)
-    if (m) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, "$2")
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, "$2")
   }
 }
 
@@ -50,6 +50,22 @@ const MESSAGES: Message[] = [
 ]
 
 const THREAD = `Here is the discussion so far:\n\n${MESSAGES.map((m) => `[${m.displayName}]: ${m.content}`).join("\n\n")}\n\nPlease respond to the discussion above.`
+
+const VERDICT_SYSTEM = `You synthesize a group discussion between AI models into a verdict. Return JSON: {"recommendation": string, "reasoning": string, "voteSplit": string, "dissent": string}. Be concise and specific.`
+
+const VERDICT_THREAD = `Here is the discussion to analyze:
+
+[You]: ${MESSAGES[0].content}
+
+[Claude]: Start with a modular monolith. One deploy, one database, and you can ship invoicing, billing and reporting without distributed-systems tax. Split out a service only when a team boundary or scaling hotspot forces it.
+
+[GPT]: Monolith first. Microservices add ops overhead a solo founder cannot afford. Revisit when you have more than one team, or when PDF generation or webhooks need independent scaling.
+
+[Perplexity]: Monolith. Most successful B2B SaaS began that way. Trigger points to change: multiple teams stepping on each other, wildly different scaling profiles, or compliance isolation for payment data.
+
+[Gemini]: Modular monolith with clear module boundaries so extraction is cheap later. Change the answer if payment-data compliance requires isolation or a hot path needs separate scaling.
+
+4 model(s) produced a real reply. voteSplit denominator MUST be 4.`
 
 type Sample = { ttft: number; total: number; thoughtTokens: number; chars: number }
 type Candidate = {
@@ -124,12 +140,18 @@ function gpt(model: string, extra: Record<string, unknown>): Candidate["run"] {
   }
 }
 
-function gemini(model: string, extra: Record<string, unknown>): Candidate["run"] {
+function gemini(
+  model: string,
+  extra: Record<string, unknown>,
+  global = false,
+  verdict = false
+): Candidate["run"] {
   return async (name, signal) => {
     const credentials = loadGoogleApplicationCredentialsJson()
     const vertex = new VertexAI({
       project: process.env.VERTEX_PROJECT_ID!,
-      location: process.env.VERTEX_LOCATION!,
+      location: global ? "global" : process.env.VERTEX_LOCATION!,
+      ...(global ? { apiEndpoint: "aiplatform.googleapis.com" } : {}),
       ...(credentials ? { googleAuthOptions: { credentials } } : {}),
     })
     const m = vertex.getGenerativeModel({ model })
@@ -137,9 +159,16 @@ function gemini(model: string, extra: Record<string, unknown>): Candidate["run"]
     let ttft = -1
     let chars = 0
     const result = await m.generateContentStream({
-      systemInstruction: { role: "system", parts: [{ text: system(name) }] },
-      contents: [{ role: "user", parts: [{ text: THREAD }] }],
-      generationConfig: { maxOutputTokens: MAX_TOKENS, ...extra } as never,
+      systemInstruction: {
+        role: "system",
+        parts: [{ text: verdict ? VERDICT_SYSTEM : system(name) }],
+      },
+      contents: [{ role: "user", parts: [{ text: verdict ? VERDICT_THREAD : THREAD }] }],
+      generationConfig: {
+        maxOutputTokens: MAX_TOKENS,
+        ...(verdict ? { responseMimeType: "application/json" } : {}),
+        ...extra,
+      } as never,
     })
     for await (const chunk of result.stream) {
       if (signal.aborted) throw new Error("timeout")
@@ -192,11 +221,31 @@ const SLOTS: Record<string, { name: string; candidates: Candidate[] }> = {
     candidates: [
       { label: "gemini-2.5-flash (current)", run: gemini("gemini-2.5-flash", {}) },
       {
-        label: "gemini-3.8-flash thinking minimal",
-        run: gemini("gemini-3.8-flash", { thinkingConfig: { thinkingLevel: "MINIMAL" } }),
+        label: "gemini-3.8-flash global budget 0",
+        run: gemini("gemini-3.8-flash", { thinkingConfig: { thinkingBudget: 0 } }, true),
+      },
+      {
+        label: "gemini-3.8-flash global level LOW",
+        run: gemini("gemini-3.8-flash", { thinkingConfig: { thinkingLevel: "LOW" } }, true),
       },
     ],
   },
+}
+
+SLOTS.verdict = {
+  name: "Gemini",
+  candidates: [
+    { label: "gemini-2.5-flash (first verdict)", run: gemini("gemini-2.5-flash", {}, false, true) },
+    { label: "gemini-2.5-pro (continuation)", run: gemini("gemini-2.5-pro", {}, false, true) },
+    {
+      label: "gemini-3.8-flash global budget 0",
+      run: gemini("gemini-3.8-flash", { thinkingConfig: { thinkingBudget: 0 } }, true, true),
+    },
+    {
+      label: "gemini-3.8-flash global level LOW",
+      run: gemini("gemini-3.8-flash", { thinkingConfig: { thinkingLevel: "LOW" } }, true, true),
+    },
+  ],
 }
 
 const median = (xs: number[]) => {

@@ -20,22 +20,29 @@ export function getConfiguredGeminiApiKey(): string | undefined {
   return apiKey
 }
 
-function getModel() {
-  const { projectId, location } = getVertexConfig()
-  const opts: ConstructorParameters<typeof VertexAI>[0] = { project: projectId, location }
+export const GEMINI_MODEL = "gemini-3.8-flash"
+// 3.x thinks by default (10s+ TTFT); budget 0 keeps first-token latency ~2s.
+export const GEMINI_NO_THINKING = { thinkingConfig: { thinkingBudget: 0 } }
+
+// 3.8 is only served from the global endpoint.
+export function createVertexAI() {
+  const { projectId } = getVertexConfig()
+  const opts: ConstructorParameters<typeof VertexAI>[0] = {
+    project: projectId,
+    location: "global",
+    apiEndpoint: "aiplatform.googleapis.com",
+  }
   const credentials = loadGoogleApplicationCredentialsJson()
   if (credentials) {
     opts.googleAuthOptions = { credentials }
   }
-  const vertexAI = new VertexAI(opts)
-  // gemini-2.5-flash for the chat path: Pro's 10-15s TTFT was the
-  // dominant contributor to users reporting the debate feels slow,
-  // and Flash cuts that by a large margin with only a modest quality
-  // dip on conversational turns. The consensus/verdict route keeps
-  // its own gemini-2.5-pro instance for the final synthesis, where
-  // reasoning quality matters more than latency.
+  return new VertexAI(opts)
+}
+
+function getModel() {
+  const vertexAI = createVertexAI()
   return vertexAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: GEMINI_MODEL,
     safetySettings: [
       {
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -250,7 +257,7 @@ async function* runGeminiStream(
   const result = await model.generateContentStream({
     systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
     contents,
-    generationConfig: { maxOutputTokens: maxTokens },
+    generationConfig: { maxOutputTokens: maxTokens, ...GEMINI_NO_THINKING },
   })
 
   for await (const chunk of withTimeout(result.stream, STREAM_CHUNK_TIMEOUT_MS, signal)) {
@@ -298,12 +305,13 @@ async function* streamGeminiWithApiKey(
   maxTokens: number,
   apiKey: string
 ): AsyncGenerator<string> {
-  const response = await fetch(googleAiUrl("gemini-2.5-flash", "streamGenerateContent", apiKey), {
+  const response = await fetch(googleAiUrl(GEMINI_MODEL, "streamGenerateContent", apiKey), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(
       buildGoogleAiBody(systemPrompt, buildUserPrompt(messages), {
         maxOutputTokens: maxTokens,
+        ...GEMINI_NO_THINKING,
       })
     ),
     signal,
