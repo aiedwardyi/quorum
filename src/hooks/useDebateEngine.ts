@@ -1,7 +1,7 @@
 "use client"
 
 import { useReducer, useCallback, useRef, useEffect } from "react"
-import type { Message, Provider, VerdictResult, Locale, ResponseLength } from "@/types"
+import type { Message, Provider, VerdictResult, Locale, ResponseLength, WebSource } from "@/types"
 import { USER_API_KEY_PROVIDERS } from "@/types"
 import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
 import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
@@ -20,6 +20,7 @@ import {
   THINK_HARD_STREAM_CAP_MS,
   withFastFallback,
 } from "@/lib/think-hard"
+import { sanitizeSources, searchQueryFor } from "@/lib/web-sources"
 
 export { isFailedPanelistRow, providersWithReplies }
 
@@ -29,6 +30,9 @@ export { isFailedPanelistRow, providersWithReplies }
 const MODEL_TIMEOUT_MS = 60_000
 
 const THINK_HARD_FAILED = "think_hard_failed"
+
+// The verdict waits at most this long past the panel for web sources.
+export const SEARCH_GRACE_MS = 2_000
 
 /* ---- Logging ---- */
 
@@ -147,7 +151,8 @@ function fetchConsensus(
   responseLength: ResponseLength,
   isAnonymous: boolean,
   preferredProviders?: Provider[],
-  thinkHard = false
+  thinkHard = false,
+  sources: WebSource[] = []
 ): Promise<Response> {
   const userApiKeys: Partial<Record<Provider, string>> = {}
   if (isAnonymous) {
@@ -168,6 +173,7 @@ function fetchConsensus(
       locale,
       responseLength,
       ...(thinkHard ? { thinkHard: true } : {}),
+      ...(thinkHard && sources.length ? { sources } : {}),
       ...(preferredProviders?.length ? { preferredProviders } : {}),
       ...(Object.keys(userApiKeys).length ? { userApiKeys } : {}),
       ...(accessCode ? { accessCode } : {}),
@@ -182,13 +188,72 @@ export function fetchConsensusWithFallback(
   responseLength: ResponseLength,
   isAnonymous: boolean,
   preferredProviders: Provider[] | undefined,
-  thinkHard: boolean
+  thinkHard: boolean,
+  sources: WebSource[] = []
 ): Promise<{ result: Response; fellBack: boolean }> {
   return withFastFallback(
     thinkHard,
-    (th) => fetchConsensus(messages, locale, responseLength, isAnonymous, preferredProviders, th),
+    (th) =>
+      fetchConsensus(
+        messages,
+        locale,
+        responseLength,
+        isAnonymous,
+        preferredProviders,
+        th,
+        th ? sources : []
+      ),
     (res) => !res.ok
   )
+}
+
+/** Think hard web search for the verdict; any failure is an empty list, never an error. */
+export async function fetchSources(query: string, isAnonymous: boolean): Promise<WebSource[]> {
+  try {
+    const userApiKey = isAnonymous ? getClientKey("perplexity") : ""
+    const accessCode = getAccessCode()
+    const res = await fetch("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query,
+        ...(userApiKey ? { userApiKey } : {}),
+        ...(accessCode ? { accessCode } : {}),
+      }),
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as { sources?: unknown }
+    return sanitizeSources(data.sources)
+  } catch {
+    return []
+  }
+}
+
+/** Starts the one search per question, think hard only; null when none should run. */
+export function startVerdictSearch(
+  text: string,
+  thinkHard: boolean,
+  panelSize: number,
+  isAnonymous: boolean
+): Promise<WebSource[]> | null {
+  const query = searchQueryFor(text)
+  if (!thinkHard || panelSize < 2 || !query) return null
+  return fetchSources(query, isAnonymous)
+}
+
+/** Resolves to the sources, or [] if they are not in within graceMs. */
+export function awaitSources(
+  pending: Promise<WebSource[]> | null,
+  graceMs = SEARCH_GRACE_MS
+): Promise<WebSource[]> {
+  if (!pending) return Promise.resolve([])
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    pending,
+    new Promise<WebSource[]>((resolve) => {
+      timer = setTimeout(() => resolve([]), graceMs)
+    }),
+  ]).finally(() => clearTimeout(timer))
 }
 
 /** Prefer the server's plain-language message; fall back by status. */
@@ -902,6 +967,13 @@ export function useDebateEngine(config: {
         const allMessages = [...messagesRef.current, userMsg]
 
         if (target === "all") {
+          // One search per question, beside the blind panel; the panel never sees it.
+          const pendingSources = startVerdictSearch(
+            text,
+            thinkHardRef.current,
+            orderedModels.length,
+            isAnonymousRef.current
+          )
           let msgs = allMessages
           // Read from ref to avoid stale closure when auto-sending on mount
           const rounds = orderedModels.length >= 2 ? maxRoundsRef.current : 1
@@ -954,13 +1026,15 @@ export function useDebateEngine(config: {
               msgs = [...msgs, analyzingMsg]
 
               try {
+                const sources = await awaitSources(pendingSources)
                 const { result: res, fellBack } = await fetchConsensusWithFallback(
                   getConsensusMessages(ready),
                   locale,
                   responseLength,
                   isAnonymousRef.current,
                   orderedModels,
-                  thinkHardRef.current
+                  thinkHardRef.current,
+                  sources
                 )
 
                 // Guard: if user stopped during fetch, let handleStop own the verdict

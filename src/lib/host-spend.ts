@@ -22,6 +22,9 @@ const THINK_HARD_ESTIMATE_CENTS: Record<Provider, number> = {
   perplexity: 8,
 }
 
+// Perplexity Search API: $5 per 1k requests, no token charge.
+export const SEARCH_ESTIMATE_CENTS = 1
+
 export function getDailyBudgetCents(): number {
   const raw = process.env.HOST_KEY_DAILY_BUDGET_USD?.trim()
   if (raw === undefined || raw === "") return DEFAULT_BUDGET_USD * 100

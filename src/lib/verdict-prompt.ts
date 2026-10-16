@@ -1,5 +1,16 @@
 /** System prompt for verdict/consensus generation, localized and length-tuned. */
-import type { Locale, ResponseLength } from "@/types"
+import type { Locale, ResponseLength, WebSource } from "@/types"
+
+/** Think hard only: appended to the verdict user prompt when a web search returned results. */
+export function getVerdictSourcesBlock(sources: WebSource[]): string {
+  if (sources.length === 0) return ""
+  const list = sources.map((s, i) => `${i + 1}. ${s.title} (${s.url})\n${s.snippet}`).join("\n\n")
+  return `\n\nWeb sources (may be incomplete or off-topic):\n${list}\n\nUsing these sources:
+- Check drug names, codes, criteria and terms in the panel's answers against the sources.
+- Do not repeat a detail that neither the sources nor the panel support.
+- When panelists disagree on such a detail, prefer the one the sources support and put the other in minorityView.
+- Do not add citation markers, URLs or source numbers to any field. The JSON structure is unchanged.`
+}
 
 export function getVerdictPrompt(
   locale: Locale,

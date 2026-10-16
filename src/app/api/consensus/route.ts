@@ -8,7 +8,8 @@ import {
   type ResponseSchema,
 } from "@google-cloud/vertexai"
 import { validateVerdictResult } from "@/lib/validate-verdict"
-import { getVerdictPrompt } from "@/lib/verdict-prompt"
+import { getVerdictPrompt, getVerdictSourcesBlock } from "@/lib/verdict-prompt"
+import { sanitizeSources } from "@/lib/web-sources"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import {
   GEMINI_LIGHT_THINKING,
@@ -230,7 +231,7 @@ export async function POST(req: NextRequest) {
       previousVerdicts.length > 0
         ? `\n\nPrevious verdict(s) from earlier rounds of this discussion:\n${previousVerdicts.map((v, i) => `- Round ${i + 1} verdict: ${JSON.stringify(v)}`).join("\n")}\n\nThe user continued the discussion after the above verdict(s). Analyze the NEW discussion carefully. Only change the recommendation if there is strong, specific new evidence. Do NOT flip-flop without justification.`
         : ""
-    }`
+    }${thinkHard ? getVerdictSourcesBlock(sanitizeSources(body.sources)) : ""}`
     const verdictGenerationConfig = {
       responseMimeType: "application/json",
       responseSchema: VERDICT_RESPONSE_SCHEMA,
