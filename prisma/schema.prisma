@@ -44,6 +44,14 @@ model HostCostDay {
   @@id([day, provider])
 }
 
+// One row per browser per UTC day: sha256(day + ":" + random browser id). No IP, no cookie.
+model DailyVisitor {
+  hash String @id
+  day  String
+
+  @@index([day])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
