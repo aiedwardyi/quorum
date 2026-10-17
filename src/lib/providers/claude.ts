@@ -2,6 +2,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
+import { streamUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
 
 function getClient(userApiKey?: string) {
   const apiKey = userApiKey || process.env.ANTHROPIC_API_KEY
@@ -50,29 +51,59 @@ export function claudeModelParams(thinkHard: boolean) {
       }
 }
 
+export function claudeUsage(model: string, u: Anthropic.Usage): ModelUsage {
+  return {
+    model,
+    inputTokens: u.input_tokens ?? 0,
+    outputTokens: u.output_tokens ?? 0,
+    cacheReadTokens: u.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: u.cache_creation_input_tokens ?? 0,
+  }
+}
+
 export async function* streamClaude(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
   maxTokens = 1024,
   userApiKey?: string,
-  thinkHard = false
+  thinkHard = false,
+  onUsage?: UsageSink
 ): AsyncGenerator<string> {
   const client = getClient(userApiKey)
+  const params = claudeModelParams(thinkHard)
+  const content = buildUserContent(messages)
+  const usage = streamUsage(
+    params.model,
+    systemPrompt + content.map((b) => b.text).join(""),
+    onUsage
+  )
 
   try {
     const stream = await client.messages.create(
       {
-        ...claudeModelParams(thinkHard),
+        ...params,
         max_tokens: maxTokens,
         system: systemPrompt,
-        messages: [{ role: "user", content: buildUserContent(messages) }],
+        messages: [{ role: "user", content }],
         stream: true,
       },
       { signal }
     )
+    usage.started()
 
     for await (const event of stream) {
+      if (event.type === "message_start") {
+        const { inputTokens, cacheReadTokens, cacheWriteTokens } = claudeUsage(
+          params.model,
+          event.message.usage
+        )
+        usage.exact({ inputTokens, cacheReadTokens, cacheWriteTokens })
+      } else if (event.type === "message_delta") {
+        usage.exact({ outputTokens: event.usage.output_tokens })
+      } else if (event.type === "content_block_delta" && event.delta.type === "thinking_delta") {
+        usage.text(event.delta.thinking)
+      }
       if (process.env.NODE_ENV === "development" && event.type === "message_start") {
         const u = event.message.usage
         console.log(
@@ -81,6 +112,7 @@ export async function* streamClaude(
         )
       }
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        usage.text(event.delta.text)
         yield event.delta.text
       }
     }
@@ -90,23 +122,27 @@ export async function* streamClaude(
   }
 }
 
+const CLAUDE_VERDICT_MODEL = "claude-haiku-5-5"
+
 /** Non-streaming JSON verdict for /api/consensus. */
 export async function generateClaudeVerdict({
   apiKey,
   systemPrompt,
   userPrompt,
   signal,
+  onUsage,
 }: {
   apiKey?: string
   systemPrompt: string
   userPrompt: string
   signal?: AbortSignal
+  onUsage?: UsageSink
 }): Promise<string> {
   const client = getClient(apiKey)
   try {
     const msg = await client.messages.create(
       {
-        model: "claude-haiku-5-5",
+        model: CLAUDE_VERDICT_MODEL,
         thinking: { type: "disabled" },
         output_config: { effort: "low" },
         max_tokens: 4096,
@@ -115,6 +151,7 @@ export async function generateClaudeVerdict({
       },
       { signal }
     )
+    onUsage?.(claudeUsage(CLAUDE_VERDICT_MODEL, msg.usage))
     const text = msg.content.find((b) => b.type === "text")
     return text && text.type === "text" ? text.text : ""
   } catch (error) {

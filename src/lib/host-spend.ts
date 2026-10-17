@@ -53,7 +53,7 @@ export type HostSpendReserveResult =
   | { ok: true; day: string; cents: number }
   | { ok: false; day: string; cents: number }
 
-function hasDatabase(): boolean {
+export function hasDatabase(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim())
 }
 

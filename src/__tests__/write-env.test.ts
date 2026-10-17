@@ -65,4 +65,25 @@ describe("write-env", () => {
       rmSync(tempDir, { recursive: true, force: true })
     }
   })
+
+  it("writes STATS_API_TOKEN when present in the build environment", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "quorum-write-env-"))
+    const scriptPath = join(process.cwd(), "scripts", "write-env.js")
+
+    try {
+      execFileSync(process.execPath, [scriptPath], {
+        cwd: tempDir,
+        env: {
+          ...process.env,
+          STATS_API_TOKEN: "fake-stats-token",
+        },
+      })
+
+      expect(readFileSync(join(tempDir, ".env"), "utf8")).toContain(
+        "STATS_API_TOKEN='fake-stats-token'"
+      )
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
 })

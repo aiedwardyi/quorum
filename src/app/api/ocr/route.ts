@@ -4,8 +4,10 @@ import {
   GEMINI_NO_THINKING,
   createVertexAI,
   generateGoogleAiContentWithApiKey,
+  geminiUsage,
   getConfiguredGeminiApiKey,
 } from "@/lib/providers/gemini"
+import { logHostUsage, type UsageSink } from "@/lib/host-cost"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 import { redactSecrets } from "@/lib/redact-secrets"
 
@@ -84,6 +86,9 @@ export async function POST(req: NextRequest) {
       },
     ])
 
+    const onUsage: UsageSink | undefined = userGeminiApiKey
+      ? undefined
+      : (usage) => logHostUsage("gemini", usage)
     const apiKey = userGeminiApiKey || getConfiguredGeminiApiKey()
     const rawText = apiKey
       ? await generateGoogleAiContentWithApiKey({
@@ -95,6 +100,7 @@ export async function POST(req: NextRequest) {
             maxOutputTokens: 8192,
             ...GEMINI_NO_THINKING,
           },
+          onUsage,
         })
       : await (() => {
           const model = getModel()
@@ -112,11 +118,13 @@ export async function POST(req: NextRequest) {
                 ...GEMINI_NO_THINKING,
               },
             })
-            .then((result) =>
-              (result.response.candidates?.[0]?.content?.parts ?? [])
+            .then((result) => {
+              const usage = geminiUsage(result.response.usageMetadata)
+              if (usage) onUsage?.(usage)
+              return (result.response.candidates?.[0]?.content?.parts ?? [])
                 .map((part) => part.text ?? "")
                 .join("")
-            )
+            })
         })()
     const text = sanitizeOcrText(rawText)
 

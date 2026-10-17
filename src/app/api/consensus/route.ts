@@ -17,6 +17,7 @@ import {
   GEMINI_NO_THINKING,
   createVertexAI,
   geminiAnswerText,
+  geminiUsage,
   generateGeminiVerdictWithApiKey,
   getConfiguredGeminiApiKey,
 } from "@/lib/providers/gemini"
@@ -33,6 +34,7 @@ import {
 } from "@/lib/consensus-resolve"
 import { clampVoteSplit, countParticipatingModels, isFailedPanelistRow } from "@/lib/vote-split"
 import { THINK_HARD_VERDICT_MS } from "@/lib/think-hard"
+import { logHostUsage, type UsageSink } from "@/lib/host-cost"
 
 /** Forces structurally valid JSON with our exact field names - flash was seen
  *  emitting markdown lists and renaming fields under prose instructions alone.
@@ -316,12 +318,16 @@ export async function POST(req: NextRequest) {
               }
             }
           }
+          const onUsage: UsageSink | undefined = candidate.apiKey
+            ? undefined
+            : (usage) => logHostUsage(candidate.provider, usage)
           if (candidate.provider === "claude") {
             return generateClaudeVerdict({
               apiKey: candidate.apiKey,
               systemPrompt: verdictPrompt,
               userPrompt,
               signal,
+              onUsage,
             })
           }
           if (candidate.provider === "gpt") {
@@ -330,6 +336,7 @@ export async function POST(req: NextRequest) {
               systemPrompt: verdictPrompt,
               userPrompt,
               signal,
+              onUsage,
             })
           }
           if (candidate.provider === "perplexity") {
@@ -338,6 +345,7 @@ export async function POST(req: NextRequest) {
               systemPrompt: verdictPrompt,
               userPrompt,
               signal,
+              onUsage,
             })
           }
 
@@ -351,6 +359,7 @@ export async function POST(req: NextRequest) {
               userPrompt,
               generationConfig: verdictGenerationConfig as unknown as Record<string, unknown>,
               signal,
+              onUsage,
             })
           }
 
@@ -384,6 +393,8 @@ export async function POST(req: NextRequest) {
             ],
             generationConfig: verdictGenerationConfig,
           })
+          const usage = geminiUsage(result.response.usageMetadata)
+          if (usage) onUsage?.(usage)
           return geminiAnswerText(result.response.candidates?.[0]?.content?.parts)
         },
         timeoutMs,

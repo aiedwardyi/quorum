@@ -2,6 +2,7 @@
 import OpenAI from "openai"
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
+import { streamUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
 
 function getClient(userApiKey?: string) {
   const apiKey = userApiKey || process.env.OPENAI_API_KEY
@@ -26,36 +27,52 @@ export function gptModelParams(thinkHard: boolean, maxTokens: number) {
     : { model: "gpt-4o", max_tokens: maxTokens }
 }
 
+export function gptUsage(model: string, u: OpenAI.CompletionUsage): ModelUsage {
+  const cached = u.prompt_tokens_details?.cached_tokens ?? 0
+  return {
+    model,
+    inputTokens: Math.max(0, u.prompt_tokens - cached),
+    outputTokens: u.completion_tokens,
+    cacheReadTokens: cached,
+  }
+}
+
 export async function* streamGPT(
   systemPrompt: string,
   messages: Message[],
   signal?: AbortSignal,
   maxTokens = 1024,
   userApiKey?: string,
-  thinkHard = false
+  thinkHard = false,
+  onUsage?: UsageSink
 ): AsyncGenerator<string> {
   const client = getClient(userApiKey)
   const thread = buildThread(messages)
+  const params = gptModelParams(thinkHard, maxTokens)
+  const userContent = `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`
+  const usage = streamUsage(params.model, systemPrompt + userContent, onUsage)
 
   try {
     const stream = await client.chat.completions.create(
       {
-        ...gptModelParams(thinkHard, maxTokens),
+        ...params,
         messages: [
           { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
-          },
+          { role: "user", content: userContent },
         ],
         stream: true,
+        // Usage arrives in a final chunk with no choices.
+        stream_options: { include_usage: true },
       },
       { signal }
     )
+    usage.started()
 
     for await (const chunk of stream) {
+      if (chunk.usage) usage.exact(gptUsage(params.model, chunk.usage))
       const content = chunk.choices?.[0]?.delta?.content
       if (content) {
+        usage.text(content)
         yield content
       }
     }
@@ -71,11 +88,13 @@ export async function generateGptVerdict({
   systemPrompt,
   userPrompt,
   signal,
+  onUsage,
 }: {
   apiKey?: string
   systemPrompt: string
   userPrompt: string
   signal?: AbortSignal
+  onUsage?: UsageSink
 }): Promise<string> {
   const client = getClient(apiKey)
   try {
@@ -91,6 +110,7 @@ export async function generateGptVerdict({
       },
       { signal }
     )
+    if (res.usage) onUsage?.(gptUsage("gpt-4o", res.usage))
     return res.choices[0]?.message?.content ?? ""
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error"
