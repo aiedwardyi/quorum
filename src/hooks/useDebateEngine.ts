@@ -382,6 +382,8 @@ export async function readChatStream(
         onContent(fullContent)
       }
     }
+    // The route keeps the body open for its cost write; don't cancel, that can end the write.
+    if (finalContent !== null) break
   }
   return { fullContent, finalContent, cancelled, providerEmpty }
 }
