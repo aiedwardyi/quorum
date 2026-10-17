@@ -2,6 +2,7 @@
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { createThinkStripper } from "@/lib/strip-think"
+import type { ModelUsage, UsageSink } from "@/lib/host-cost"
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions"
 
@@ -18,6 +19,27 @@ function buildMessages(systemPrompt: string, messages: Message[]) {
       content: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
     },
   ]
+}
+
+type PerplexityUsage = {
+  prompt_tokens?: number
+  completion_tokens?: number
+  cost?: { total_cost?: number }
+}
+
+export function perplexityUsage(
+  model: string,
+  u: PerplexityUsage | undefined
+): ModelUsage | undefined {
+  if (!u) return undefined
+  const total = u.cost?.total_cost
+  return {
+    model,
+    inputTokens: u.prompt_tokens ?? 0,
+    outputTokens: u.completion_tokens ?? 0,
+    // Stream chunks carry total_cost 0 until the final one.
+    ...(typeof total === "number" && total > 0 ? { costUsd: total } : {}),
+  }
 }
 
 function getHeaders(userApiKey?: string) {
@@ -37,13 +59,15 @@ export async function* streamPerplexity(
   signal?: AbortSignal,
   maxTokens = 1024,
   userApiKey?: string,
-  thinkHard = false
+  thinkHard = false,
+  onUsage?: UsageSink
 ): AsyncGenerator<string> {
+  const model = thinkHard ? "sonar-reasoning-pro" : "sonar-pro"
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
     headers: getHeaders(userApiKey),
     body: JSON.stringify({
-      model: thinkHard ? "sonar-reasoning-pro" : "sonar-pro",
+      model,
       max_tokens: maxTokens,
       messages: buildMessages(systemPrompt, messages),
       stream: true,
@@ -84,6 +108,8 @@ export async function* streamPerplexity(
 
       try {
         const parsed = JSON.parse(data)
+        const usage = perplexityUsage(model, parsed.usage)
+        if (usage) onUsage?.(usage)
         const content = parsed.choices?.[0]?.delta?.content
         const visible = content ? stripper.push(content) : ""
         if (visible) {
@@ -104,11 +130,13 @@ export async function generatePerplexityVerdict({
   systemPrompt,
   userPrompt,
   signal,
+  onUsage,
 }: {
   apiKey?: string
   systemPrompt: string
   userPrompt: string
   signal?: AbortSignal
+  onUsage?: UsageSink
 }): Promise<string> {
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
@@ -135,5 +163,7 @@ export async function generatePerplexityVerdict({
   }
 
   const data = await response.json()
+  const usage = perplexityUsage("sonar-pro", data.usage)
+  if (usage) onUsage?.(usage)
   return data.choices?.[0]?.message?.content ?? ""
 }

@@ -4,6 +4,7 @@ import type { Message } from "@/types"
 import { getVertexConfig } from "@/lib/vertex-config"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { loadGoogleApplicationCredentialsJson } from "@/lib/google-credentials"
+import type { ModelUsage, UsageSink } from "@/lib/host-cost"
 
 const GOOGLE_AI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -28,6 +29,33 @@ export const GEMINI_LIGHT_THINKING = { thinkingConfig: { thinkingLevel: "LOW" } 
 
 export function geminiThinking(thinkHard: boolean) {
   return thinkHard ? GEMINI_LIGHT_THINKING : GEMINI_NO_THINKING
+}
+
+type GeminiUsageMetadata = {
+  promptTokenCount?: number
+  candidatesTokenCount?: number
+  thoughtsTokenCount?: number
+  cachedContentTokenCount?: number
+}
+
+export function geminiUsage(meta: GeminiUsageMetadata | undefined): ModelUsage | undefined {
+  if (!meta) return undefined
+  const cached = meta.cachedContentTokenCount ?? 0
+  return {
+    model: GEMINI_MODEL,
+    inputTokens: Math.max(0, (meta.promptTokenCount ?? 0) - cached),
+    outputTokens: (meta.candidatesTokenCount ?? 0) + (meta.thoughtsTokenCount ?? 0),
+    cacheReadTokens: cached,
+  }
+}
+
+function addUsage(a: ModelUsage, b: ModelUsage): ModelUsage {
+  return {
+    model: b.model,
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheReadTokens: (a.cacheReadTokens ?? 0) + (b.cacheReadTokens ?? 0),
+  }
 }
 
 /** Answer text only; thought parts never reach the user. */
@@ -148,6 +176,7 @@ export async function generateGoogleAiContentWithApiKey({
   systemPrompt,
   generationConfig,
   signal,
+  onUsage,
 }: {
   apiKey: string
   modelName: string
@@ -155,6 +184,7 @@ export async function generateGoogleAiContentWithApiKey({
   systemPrompt?: string
   generationConfig?: Record<string, unknown>
   signal?: AbortSignal
+  onUsage?: UsageSink
 }): Promise<string> {
   const response = await fetch(googleAiUrl(modelName, "generateContent", apiKey), {
     method: "POST",
@@ -174,6 +204,8 @@ export async function generateGoogleAiContentWithApiKey({
   }
 
   const data = await response.json()
+  const usage = geminiUsage(data.usageMetadata)
+  if (usage) onUsage?.(usage)
   return geminiAnswerText(data.candidates?.[0]?.content?.parts)
 }
 
@@ -194,6 +226,7 @@ async function generateWithGoogleAiKey({
   userPrompt,
   generationConfig,
   signal,
+  onUsage,
 }: {
   apiKey: string
   modelName: string
@@ -201,6 +234,7 @@ async function generateWithGoogleAiKey({
   userPrompt: string
   generationConfig?: Record<string, unknown>
   signal?: AbortSignal
+  onUsage?: UsageSink
 }): Promise<string> {
   return generateGoogleAiContentWithApiKey({
     apiKey,
@@ -214,6 +248,7 @@ async function generateWithGoogleAiKey({
     ],
     generationConfig,
     signal,
+    onUsage,
   })
 }
 
@@ -224,6 +259,7 @@ export async function generateGeminiVerdictWithApiKey(args: {
   userPrompt: string
   generationConfig?: Record<string, unknown>
   signal?: AbortSignal
+  onUsage?: UsageSink
 }): Promise<string> {
   return generateWithGoogleAiKey(args)
 }
@@ -266,7 +302,8 @@ async function* runGeminiStream(
   messages: Message[],
   signal: AbortSignal | undefined,
   maxTokens: number,
-  thinkHard: boolean
+  thinkHard: boolean,
+  onUsage?: UsageSink
 ): AsyncGenerator<string> {
   const model = getModel()
   const contents = buildContents(messages)
@@ -278,6 +315,8 @@ async function* runGeminiStream(
   })
 
   for await (const chunk of withTimeout(result.stream, STREAM_CHUNK_TIMEOUT_MS, signal)) {
+    const usage = geminiUsage(chunk.usageMetadata)
+    if (usage) onUsage?.(usage)
     const text = geminiAnswerText(chunk.candidates?.[0]?.content?.parts)
     if (text) {
       yield text
@@ -295,23 +334,52 @@ export async function* streamGemini(
   signal?: AbortSignal,
   maxTokens = 1024,
   userApiKey?: string,
-  thinkHard = false
+  thinkHard = false,
+  onUsage?: UsageSink
 ): AsyncGenerator<string> {
   const apiKey = userApiKey || getConfiguredGeminiApiKey()
   if (apiKey) {
-    yield* streamGeminiWithApiKey(systemPrompt, messages, signal, maxTokens, apiKey, thinkHard)
+    yield* streamGeminiWithApiKey(
+      systemPrompt,
+      messages,
+      signal,
+      maxTokens,
+      apiKey,
+      thinkHard,
+      onUsage
+    )
     return
   }
 
   let yielded = false
-  for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens, thinkHard)) {
+  let firstUsage: ModelUsage | undefined
+  const firstSink: UsageSink = (u) => {
+    firstUsage = u
+    onUsage?.(u)
+  }
+  for await (const text of runGeminiStream(
+    systemPrompt,
+    messages,
+    signal,
+    maxTokens,
+    thinkHard,
+    firstSink
+  )) {
     yielded = true
     yield text
   }
   if (yielded || signal?.aborted) return
 
   // First attempt yielded nothing - retry once
-  for await (const text of runGeminiStream(systemPrompt, messages, signal, maxTokens, thinkHard)) {
+  const retrySink: UsageSink = (u) => onUsage?.(firstUsage ? addUsage(firstUsage, u) : u)
+  for await (const text of runGeminiStream(
+    systemPrompt,
+    messages,
+    signal,
+    maxTokens,
+    thinkHard,
+    retrySink
+  )) {
     yield text
   }
 }
@@ -322,7 +390,8 @@ async function* streamGeminiWithApiKey(
   signal: AbortSignal | undefined,
   maxTokens: number,
   apiKey: string,
-  thinkHard: boolean
+  thinkHard: boolean,
+  onUsage?: UsageSink
 ): AsyncGenerator<string> {
   const response = await fetch(googleAiUrl(GEMINI_MODEL, "streamGenerateContent", apiKey), {
     method: "POST",
@@ -360,6 +429,8 @@ async function* streamGeminiWithApiKey(
 
       try {
         const parsed = JSON.parse(trimmed.slice(5).trim())
+        const usage = geminiUsage(parsed.usageMetadata)
+        if (usage) onUsage?.(usage)
         const text = geminiAnswerText(parsed.candidates?.[0]?.content?.parts)
         if (text) {
           yield text

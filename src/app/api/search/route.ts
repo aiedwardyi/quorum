@@ -1,6 +1,7 @@
 /** Web search for the think hard verdict; gated like /api/chat for Perplexity. */
 import { NextRequest, NextResponse } from "next/server"
 import { SEARCH_ESTIMATE_CENTS } from "@/lib/host-spend"
+import { SEARCH_REQUEST_CENTS, logHostCost } from "@/lib/host-cost"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 import { MAX_SEARCH_QUERY, MAX_SOURCES, sanitizeSources } from "@/lib/web-sources"
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       throw new Error(`Perplexity search error (${res.status}): ${await res.text()}`)
     }
+    if (!userApiKey) logHostCost("search", SEARCH_REQUEST_CENTS)
     const data = (await res.json()) as { results?: unknown }
     return NextResponse.json({ sources: sanitizeSources(data.results) })
   } catch (error) {

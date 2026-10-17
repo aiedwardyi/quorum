@@ -131,7 +131,8 @@ describe("chat route think hard", () => {
       )
     )
     expect(streamClaudeMock.mock.calls[0][5]).toBe(false)
-    expect(streamClaudeMock.mock.calls[0]).toHaveLength(6)
+    expect(streamClaudeMock.mock.calls[0]).toHaveLength(7)
+    expect(typeof streamClaudeMock.mock.calls[0][6]).toBe("function")
   })
 
   async function runWithClock(advanceMs: number) {

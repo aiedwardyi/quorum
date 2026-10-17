@@ -6,6 +6,7 @@ import { isPredominantlyKorean } from "@/lib/detect-language"
 import { getUrlCapabilityInstruction } from "@/lib/url-access"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
+import { logHostUsage, type ModelUsage } from "@/lib/host-cost"
 import { THINK_HARD_EXTRA_TOKENS, withThinkHardDeadlines } from "@/lib/think-hard"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
@@ -335,6 +336,7 @@ export async function POST(request: Request) {
     let fullContent = ""
     // Polishing mutates text (marker strip, connector trim) - only run it on actually-truncated responses.
     let wasTruncated = false
+    let usage: ModelUsage | undefined
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -376,7 +378,10 @@ export async function POST(request: Request) {
             providerSignal,
             maxTokens,
             userApiKey,
-            thinkHard
+            thinkHard,
+            (u) => {
+              usage = u
+            }
           )
           for await (const chunk of thinkHard
             ? withThinkHardDeadlines(providerStream)
@@ -436,6 +441,7 @@ export async function POST(request: Request) {
           closeController()
         } finally {
           request.signal.removeEventListener("abort", forwardAbort)
+          if (!userApiKey) logHostUsage(provider, usage)
         }
       },
     })

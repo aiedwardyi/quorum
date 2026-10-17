@@ -33,6 +33,17 @@ model HostSpendDay {
   updatedAt DateTime @updatedAt
 }
 
+// UTC day rollup of real host-key cost per provider (BYOK excluded).
+model HostCostDay {
+  day       String
+  provider  String
+  cents     Float    @default(0)
+  calls     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([day, provider])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
