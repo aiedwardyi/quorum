@@ -90,29 +90,41 @@ export function usageCents(usage: ModelUsage, day = utcSpendDay()): number {
 
 export const SEARCH_REQUEST_CENTS = SEARCH_REQUEST_USD * 100
 
-/** Fire-and-forget: never awaited by a response, never throws. */
-export function logHostCost(provider: CostProvider, cents: number): void {
+export const COST_WRITE_CAP_MS = 2_000
+
+/** Never rejects. Amplify pauses a function once its response ends, so await it before then. */
+export async function logHostCost(provider: CostProvider, cents: number): Promise<void> {
   if (!hasDatabase()) return
-  void (async () => {
-    try {
-      const day = utcSpendDay()
-      const safe = Number.isFinite(cents) && cents > 0 ? cents : 0
-      await prisma.hostCostDay.upsert({
-        where: { day_provider: { day, provider } },
-        create: { day, provider, cents: safe, calls: 1 },
-        update: { cents: { increment: safe }, calls: { increment: 1 } },
-      })
-    } catch (error) {
-      console.error("[host-cost] log failed:", error instanceof Error ? error.message : error)
-    }
-  })()
+  try {
+    const day = utcSpendDay()
+    const safe = Number.isFinite(cents) && cents > 0 ? cents : 0
+    await prisma.hostCostDay.upsert({
+      where: { day_provider: { day, provider } },
+      create: { day, provider, cents: safe, calls: 1 },
+      update: { cents: { increment: safe }, calls: { increment: 1 } },
+    })
+  } catch (error) {
+    console.error("[host-cost] log failed:", error instanceof Error ? error.message : error)
+  }
 }
 
-export function logHostUsage(provider: Provider, usage: ModelUsage | undefined): void {
+export async function logHostUsage(
+  provider: Provider,
+  usage: ModelUsage | undefined
+): Promise<void> {
   if (!usage) return
   try {
-    logHostCost(provider, usageCents(usage))
+    await logHostCost(provider, usageCents(usage))
   } catch (error) {
     console.error("[host-cost] cost failed:", error instanceof Error ? error.message : error)
   }
+}
+
+/** Resolves when the write lands or after the cap, whichever is first. */
+export function capCostWrite(write: Promise<void>): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const cap = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, COST_WRITE_CAP_MS)
+  })
+  return Promise.race([write, cap]).finally(() => clearTimeout(timer))
 }

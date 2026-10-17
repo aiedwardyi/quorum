@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { UsageSink } from "@/lib/host-cost"
+import { COST_WRITE_CAP_MS, type UsageSink } from "@/lib/host-cost"
 import type { Message } from "@/types"
 
 const upsertMock = vi.hoisted(() => vi.fn())
@@ -45,6 +45,7 @@ import { POST as chatPOST } from "@/app/api/chat/route"
 import { POST as consensusPOST } from "@/app/api/consensus/route"
 import { POST as searchPOST } from "@/app/api/search/route"
 import { POST as ocrPOST } from "@/app/api/ocr/route"
+import { readChatStream } from "@/hooks/useDebateEngine"
 import { NextRequest } from "next/server"
 
 const messages: Message[] = [
@@ -83,6 +84,13 @@ async function doneEvent(res: Response): Promise<Record<string, unknown> | undef
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
+const slowWrite = (onWritten: () => void) => () =>
+  new Promise((resolve) =>
+    setTimeout(() => {
+      onWritten()
+      resolve({})
+    }, 20)
+  )
 const loggedProviders = () => upsertMock.mock.calls.map((c) => c[0].create.provider)
 
 describe("host cost logging in routes", () => {
@@ -122,6 +130,7 @@ describe("host cost logging in routes", () => {
       else process.env[k] = v
     }
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   it("chat on a host key logs the seat's cost after the stream", async () => {
@@ -130,6 +139,31 @@ describe("host cost logging in routes", () => {
     const { create } = upsertMock.mock.calls[0][0]
     expect(create.provider).toBe("claude")
     expect(create.cents).toBeCloseTo(((1000 * 0.1 + 200 * 0.5) / 1e6) * 100, 6)
+  })
+
+  it("chat closes the stream only after the cost write lands", async () => {
+    let written = false
+    upsertMock.mockImplementation(slowWrite(() => (written = true)))
+    await (await chatPOST(post("/api/chat", { messages, provider: "claude" }))).text()
+    expect(written).toBe(true)
+  })
+
+  it("a cost write that never lands still closes the stream at the cap", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    let started!: () => void
+    const writeStarted = new Promise<void>((r) => (started = r))
+    upsertMock.mockImplementation(() => {
+      started()
+      return new Promise(() => {})
+    })
+    const res = await chatPOST(post("/api/chat", { messages, provider: "claude" }))
+    let closed = false
+    const done = doneEvent(res).finally(() => (closed = true))
+    await writeStarted
+    await vi.advanceTimersByTimeAsync(COST_WRITE_CAP_MS - 1)
+    expect(closed).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect((await done)?.content).toBe("E11.65 means hyperglycemia.")
   })
 
   it("chat on a user key logs nothing", async () => {
@@ -182,9 +216,47 @@ describe("host cost logging in routes", () => {
     expect(upsertMock).toHaveBeenCalledTimes(1)
   })
 
+  it("search waits for its cost write before answering", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }))
+    )
+    let written = false
+    upsertMock.mockImplementation(slowWrite(() => (written = true)))
+    await searchPOST(post("/api/search", { query: "E11.65" }))
+    expect(written).toBe(true)
+  })
+
   it("ocr on a host key logs gemini", async () => {
     const res = await ocrPOST(post("/api/ocr", { images: ["aGVsbG8="] }))
     expect(res.status).toBe(200)
     await vi.waitFor(() => expect(loggedProviders()).toEqual(["gemini"]))
+  })
+})
+
+describe("client chat stream", () => {
+  it("returns on done while the body stays open", async () => {
+    const cancel = vi.fn()
+    const events = [{ chunk: "E11.65." }, { done: true, content: "E11.65." }]
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const sse = events
+          .map(
+            (e) => `data: ${JSON.stringify(e)}
+
+`
+          )
+          .join("")
+        controller.enqueue(new TextEncoder().encode(sse))
+      },
+      cancel,
+    })
+    const r = await readChatStream(
+      body,
+      () => {},
+      () => false
+    )
+    expect(r).toMatchObject({ finalContent: "E11.65.", cancelled: false })
+    expect(cancel).not.toHaveBeenCalled()
   })
 })

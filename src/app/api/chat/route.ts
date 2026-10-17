@@ -6,7 +6,7 @@ import { isPredominantlyKorean } from "@/lib/detect-language"
 import { getUrlCapabilityInstruction } from "@/lib/url-access"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
-import { logHostUsage, type ModelUsage } from "@/lib/host-cost"
+import { capCostWrite, logHostUsage, type ModelUsage } from "@/lib/host-cost"
 import { THINK_HARD_EXTRA_TOKENS, withThinkHardDeadlines } from "@/lib/think-hard"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
@@ -426,10 +426,8 @@ export async function POST(request: Request) {
               ...(isEmpty ? { empty: true } : {}),
             })
           }
-          closeController()
         } catch (error) {
           if (request.signal?.aborted || (providerAbortController.signal.aborted && wasTruncated)) {
-            closeController()
             return
           }
           // Provider failures go through the error channel, never bubble content - raw upstream errors used to leak verbatim into the chat. Client shows the friendly fallback; detail stays in the server log.
@@ -438,10 +436,11 @@ export async function POST(request: Request) {
           const sanitized = redactSecrets(msg)
           console.error(`[chat/${provider}] stream failed:`, sanitized)
           enqueueEvent({ error: sanitized })
-          closeController()
         } finally {
           request.signal.removeEventListener("abort", forwardAbort)
-          if (!userApiKey) logHostUsage(provider, usage)
+          // Close after the write: the client returns on done, and Amplify pauses once the body ends.
+          if (!userApiKey) await capCostWrite(logHostUsage(provider, usage))
+          closeController()
         }
       },
     })
