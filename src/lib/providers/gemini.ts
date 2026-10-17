@@ -4,7 +4,7 @@ import type { Message } from "@/types"
 import { getVertexConfig } from "@/lib/vertex-config"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { loadGoogleApplicationCredentialsJson } from "@/lib/google-credentials"
-import type { ModelUsage, UsageSink } from "@/lib/host-cost"
+import { streamUsage, type ExactUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
 
 const GOOGLE_AI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -38,14 +38,28 @@ type GeminiUsageMetadata = {
   cachedContentTokenCount?: number
 }
 
+// Vertex stream chunks carry no counts until the last one, so only reported fields are kept.
+function geminiExact(meta: GeminiUsageMetadata | undefined): ExactUsage {
+  const out: ExactUsage = {}
+  if (meta?.promptTokenCount !== undefined) {
+    const cached = meta.cachedContentTokenCount ?? 0
+    out.inputTokens = Math.max(0, meta.promptTokenCount - cached)
+    out.cacheReadTokens = cached
+  }
+  if (meta?.candidatesTokenCount !== undefined) {
+    out.outputTokens = meta.candidatesTokenCount + (meta.thoughtsTokenCount ?? 0)
+  }
+  return out
+}
+
 export function geminiUsage(meta: GeminiUsageMetadata | undefined): ModelUsage | undefined {
-  if (!meta) return undefined
-  const cached = meta.cachedContentTokenCount ?? 0
+  const exact = geminiExact(meta)
+  if (exact.inputTokens === undefined && exact.outputTokens === undefined) return undefined
   return {
     model: GEMINI_MODEL,
-    inputTokens: Math.max(0, (meta.promptTokenCount ?? 0) - cached),
-    outputTokens: (meta.candidatesTokenCount ?? 0) + (meta.thoughtsTokenCount ?? 0),
-    cacheReadTokens: cached,
+    inputTokens: exact.inputTokens ?? 0,
+    outputTokens: exact.outputTokens ?? 0,
+    cacheReadTokens: exact.cacheReadTokens ?? 0,
   }
 }
 
@@ -307,18 +321,20 @@ async function* runGeminiStream(
 ): AsyncGenerator<string> {
   const model = getModel()
   const contents = buildContents(messages)
+  const usage = streamUsage(GEMINI_MODEL, systemPrompt + buildUserPrompt(messages), onUsage)
 
   const result = await model.generateContentStream({
     systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
     contents,
     generationConfig: { maxOutputTokens: maxTokens, ...geminiThinking(thinkHard) },
   })
+  usage.started()
 
   for await (const chunk of withTimeout(result.stream, STREAM_CHUNK_TIMEOUT_MS, signal)) {
-    const usage = geminiUsage(chunk.usageMetadata)
-    if (usage) onUsage?.(usage)
+    usage.exact(geminiExact(chunk.usageMetadata))
     const text = geminiAnswerText(chunk.candidates?.[0]?.content?.parts)
     if (text) {
+      usage.text(text)
       yield text
     }
   }
@@ -393,11 +409,13 @@ async function* streamGeminiWithApiKey(
   thinkHard: boolean,
   onUsage?: UsageSink
 ): AsyncGenerator<string> {
+  const userPrompt = buildUserPrompt(messages)
+  const usage = streamUsage(GEMINI_MODEL, systemPrompt + userPrompt, onUsage)
   const response = await fetch(googleAiUrl(GEMINI_MODEL, "streamGenerateContent", apiKey), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(
-      buildGoogleAiBody(systemPrompt, buildUserPrompt(messages), {
+      buildGoogleAiBody(systemPrompt, userPrompt, {
         maxOutputTokens: maxTokens,
         ...geminiThinking(thinkHard),
       })
@@ -411,6 +429,7 @@ async function* streamGeminiWithApiKey(
 
   const reader = response.body?.getReader()
   if (!reader) throw new Error("No response body from Gemini")
+  usage.started()
 
   const decoder = new TextDecoder()
   let buffer = ""
@@ -429,10 +448,10 @@ async function* streamGeminiWithApiKey(
 
       try {
         const parsed = JSON.parse(trimmed.slice(5).trim())
-        const usage = geminiUsage(parsed.usageMetadata)
-        if (usage) onUsage?.(usage)
+        usage.exact(geminiExact(parsed.usageMetadata))
         const text = geminiAnswerText(parsed.candidates?.[0]?.content?.parts)
         if (text) {
+          usage.text(text)
           yield text
         }
       } catch {

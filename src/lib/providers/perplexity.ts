@@ -2,7 +2,7 @@
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { createThinkStripper } from "@/lib/strip-think"
-import type { ModelUsage, UsageSink } from "@/lib/host-cost"
+import { streamUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions"
 
@@ -63,13 +63,15 @@ export async function* streamPerplexity(
   onUsage?: UsageSink
 ): AsyncGenerator<string> {
   const model = thinkHard ? "sonar-reasoning-pro" : "sonar-pro"
+  const sent = buildMessages(systemPrompt, messages)
+  const usage = streamUsage(model, sent.map((m) => m.content).join(""), onUsage)
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
     headers: getHeaders(userApiKey),
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      messages: buildMessages(systemPrompt, messages),
+      messages: sent,
       stream: true,
     }),
     signal,
@@ -82,6 +84,7 @@ export async function* streamPerplexity(
 
   const reader = response.body?.getReader()
   if (!reader) throw new Error("No response body from Perplexity")
+  usage.started()
 
   const decoder = new TextDecoder()
   const stripper = createThinkStripper()
@@ -108,9 +111,11 @@ export async function* streamPerplexity(
 
       try {
         const parsed = JSON.parse(data)
-        const usage = perplexityUsage(model, parsed.usage)
-        if (usage) onUsage?.(usage)
+        const reported = perplexityUsage(model, parsed.usage)
+        if (reported) usage.exact(reported)
         const content = parsed.choices?.[0]?.delta?.content
+        // Raw content, so streamed <think> text counts too.
+        if (content) usage.text(content)
         const visible = content ? stripper.push(content) : ""
         if (visible) {
           yield visible

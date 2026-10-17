@@ -163,7 +163,7 @@ describe("gpt include_usage", () => {
     }
     expect(text).toBe("Hello there.")
     expect(createMock.mock.calls[0][0].stream_options).toEqual({ include_usage: true })
-    expect(onUsage).toHaveBeenCalledWith({
+    expect(onUsage).toHaveBeenLastCalledWith({
       model: "gpt-4o",
       inputTokens: 50,
       outputTokens: 3,

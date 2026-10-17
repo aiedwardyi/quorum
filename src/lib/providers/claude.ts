@@ -2,7 +2,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
-import type { ModelUsage, UsageSink } from "@/lib/host-cost"
+import { streamUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
 
 function getClient(userApiKey?: string) {
   const apiKey = userApiKey || process.env.ANTHROPIC_API_KEY
@@ -72,6 +72,12 @@ export async function* streamClaude(
 ): AsyncGenerator<string> {
   const client = getClient(userApiKey)
   const params = claudeModelParams(thinkHard)
+  const content = buildUserContent(messages)
+  const usage = streamUsage(
+    params.model,
+    systemPrompt + content.map((b) => b.text).join(""),
+    onUsage
+  )
 
   try {
     const stream = await client.messages.create(
@@ -79,20 +85,24 @@ export async function* streamClaude(
         ...params,
         max_tokens: maxTokens,
         system: systemPrompt,
-        messages: [{ role: "user", content: buildUserContent(messages) }],
+        messages: [{ role: "user", content }],
         stream: true,
       },
       { signal }
     )
+    usage.started()
 
-    let usage: ModelUsage | undefined
     for await (const event of stream) {
       if (event.type === "message_start") {
-        usage = claudeUsage(params.model, event.message.usage)
-        onUsage?.(usage)
-      } else if (event.type === "message_delta" && usage) {
-        usage = { ...usage, outputTokens: event.usage.output_tokens }
-        onUsage?.(usage)
+        const { inputTokens, cacheReadTokens, cacheWriteTokens } = claudeUsage(
+          params.model,
+          event.message.usage
+        )
+        usage.exact({ inputTokens, cacheReadTokens, cacheWriteTokens })
+      } else if (event.type === "message_delta") {
+        usage.exact({ outputTokens: event.usage.output_tokens })
+      } else if (event.type === "content_block_delta" && event.delta.type === "thinking_delta") {
+        usage.text(event.delta.thinking)
       }
       if (process.env.NODE_ENV === "development" && event.type === "message_start") {
         const u = event.message.usage
@@ -102,6 +112,7 @@ export async function* streamClaude(
         )
       }
       if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        usage.text(event.delta.text)
         yield event.delta.text
       }
     }

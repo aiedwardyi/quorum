@@ -2,7 +2,7 @@
 import OpenAI from "openai"
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
-import type { ModelUsage, UsageSink } from "@/lib/host-cost"
+import { streamUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
 
 function getClient(userApiKey?: string) {
   const apiKey = userApiKey || process.env.OPENAI_API_KEY
@@ -49,6 +49,8 @@ export async function* streamGPT(
   const client = getClient(userApiKey)
   const thread = buildThread(messages)
   const params = gptModelParams(thinkHard, maxTokens)
+  const userContent = `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`
+  const usage = streamUsage(params.model, systemPrompt + userContent, onUsage)
 
   try {
     const stream = await client.chat.completions.create(
@@ -56,10 +58,7 @@ export async function* streamGPT(
         ...params,
         messages: [
           { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
-          },
+          { role: "user", content: userContent },
         ],
         stream: true,
         // Usage arrives in a final chunk with no choices.
@@ -67,11 +66,13 @@ export async function* streamGPT(
       },
       { signal }
     )
+    usage.started()
 
     for await (const chunk of stream) {
-      if (chunk.usage) onUsage?.(gptUsage(params.model, chunk.usage))
+      if (chunk.usage) usage.exact(gptUsage(params.model, chunk.usage))
       const content = chunk.choices?.[0]?.delta?.content
       if (content) {
+        usage.text(content)
         yield content
       }
     }

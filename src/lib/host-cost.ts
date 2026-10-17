@@ -20,6 +20,53 @@ export type ModelUsage = {
 
 export type UsageSink = (usage: ModelUsage) => void
 
+export type ExactUsage = Partial<Omit<ModelUsage, "model">>
+
+function asciiCount(text: string): number {
+  let ascii = 0
+  for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) < 128) ascii++
+  return ascii
+}
+
+/** ASCII chars / 4 plus 1 per non-ASCII char, so Korean isn't undercounted 4x. */
+export function estimateTokens(text: string): number {
+  const ascii = asciiCount(text)
+  return Math.ceil(ascii / 4) + (text.length - ascii)
+}
+
+/** One streamed call's usage: exact provider numbers as they arrive, text estimates for the rest. */
+export function streamUsage(model: string, prompt: string, onUsage?: UsageSink) {
+  const exact: ExactUsage = {}
+  const promptTokens = estimateTokens(prompt)
+  let ascii = 0
+  let other = 0
+  const emit = () => {
+    // Estimate: a cut stream never sends final usage, so fill only what the provider hasn't reported.
+    onUsage?.({
+      model,
+      ...exact,
+      inputTokens: exact.inputTokens ?? promptTokens,
+      outputTokens: exact.outputTokens ?? Math.ceil(ascii / 4) + other,
+    })
+  }
+  return {
+    /** The provider accepted the request, so at least the input is billed. */
+    started: emit,
+    text(chunk: string) {
+      const a = asciiCount(chunk)
+      ascii += a
+      other += chunk.length - a
+      emit()
+    },
+    exact(usage: ExactUsage) {
+      for (const [key, value] of Object.entries(usage) as [keyof ExactUsage, number][]) {
+        if (typeof value === "number" && Number.isFinite(value)) exact[key] = value
+      }
+      emit()
+    },
+  }
+}
+
 export function usageCents(usage: ModelUsage, day = utcSpendDay()): number {
   if (typeof usage.costUsd === "number" && Number.isFinite(usage.costUsd)) {
     return usage.costUsd * 100
