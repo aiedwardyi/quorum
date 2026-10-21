@@ -57,6 +57,13 @@ export const MODEL_PRICES: Record<string, ModelPrice> = {
     source: GOOGLE,
     checked: "2026-10-17",
   },
+  "gemini-2.5-flash": {
+    input: 0.3,
+    output: 2.5,
+    cacheRead: 0.03,
+    source: GOOGLE,
+    checked: "2026-10-21",
+  },
   "sonar-pro": { input: 3, output: 15, request: 0.006, source: PERPLEXITY, checked: "2026-10-17" },
   "sonar-reasoning-pro": {
     input: 2,
