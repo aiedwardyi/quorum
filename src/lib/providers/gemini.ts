@@ -4,7 +4,13 @@ import type { Message } from "@/types"
 import { getVertexConfig } from "@/lib/vertex-config"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { loadGoogleApplicationCredentialsJson } from "@/lib/google-credentials"
-import { streamUsage, type ExactUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
+import {
+  streamUsage,
+  usageCents,
+  type ExactUsage,
+  type ModelUsage,
+  type UsageSink,
+} from "@/lib/host-cost"
 
 const GOOGLE_AI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -31,6 +37,30 @@ export function geminiThinking(thinkHard: boolean) {
   return thinkHard ? GEMINI_LIGHT_THINKING : GEMINI_NO_THINKING
 }
 
+// 3.8 shares Google's global capacity pool and can 429 or stall for a minute; 2.5 Flash then answers.
+export const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash"
+// 3.8's first text normally lands in ~2s; CloudFront cuts a silent response at 30s.
+export const GEMINI_FIRST_TEXT_MS = 8_000
+export const GEMINI_THINK_HARD_FIRST_TEXT_MS = 15_000
+
+// After a 3.8 failure this instance skips 3.8 for a while instead of waiting out each stall.
+const GEMINI_PRIMARY_COOLDOWN_MS = 120_000
+let primaryCoolUntil = 0
+
+export function geminiPrimaryCooling(): boolean {
+  return Date.now() < primaryCoolUntil
+}
+
+export function noteGeminiPrimaryFailure(): void {
+  primaryCoolUntil = Date.now() + GEMINI_PRIMARY_COOLDOWN_MS
+}
+
+// 2.5 rejects thinkingLevel, so think hard gets a token budget instead.
+export function vertexThinking(modelName: string, thinkHard: boolean) {
+  if (modelName === GEMINI_MODEL) return geminiThinking(thinkHard)
+  return { thinkingConfig: { thinkingBudget: thinkHard ? 1024 : 0 } }
+}
+
 type GeminiUsageMetadata = {
   promptTokenCount?: number
   candidatesTokenCount?: number
@@ -52,24 +82,23 @@ function geminiExact(meta: GeminiUsageMetadata | undefined): ExactUsage {
   return out
 }
 
-export function geminiUsage(meta: GeminiUsageMetadata | undefined): ModelUsage | undefined {
+export function geminiUsage(
+  meta: GeminiUsageMetadata | undefined,
+  model = GEMINI_MODEL
+): ModelUsage | undefined {
   const exact = geminiExact(meta)
   if (exact.inputTokens === undefined && exact.outputTokens === undefined) return undefined
   return {
-    model: GEMINI_MODEL,
+    model,
     inputTokens: exact.inputTokens ?? 0,
     outputTokens: exact.outputTokens ?? 0,
     cacheReadTokens: exact.cacheReadTokens ?? 0,
   }
 }
 
-function addUsage(a: ModelUsage, b: ModelUsage): ModelUsage {
-  return {
-    model: b.model,
-    inputTokens: a.inputTokens + b.inputTokens,
-    outputTokens: a.outputTokens + b.outputTokens,
-    cacheReadTokens: (a.cacheReadTokens ?? 0) + (b.cacheReadTokens ?? 0),
-  }
+// Priced per model, since the fallback runs on a different model than the first attempt.
+export function addUsage(a: ModelUsage, b: ModelUsage): ModelUsage {
+  return { ...b, costUsd: (usageCents(a) + usageCents(b)) / 100 }
 }
 
 /** Answer text only; thought parts never reach the user. */
@@ -97,10 +126,10 @@ export function createVertexAI() {
   return new VertexAI(opts)
 }
 
-function getModel() {
+export function getVertexModel(modelName: string) {
   const vertexAI = createVertexAI()
   return vertexAI.getGenerativeModel({
-    model: GEMINI_MODEL,
+    model: modelName,
     safetySettings: [
       {
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -312,6 +341,7 @@ async function* withTimeout<T>(
 }
 
 async function* runGeminiStream(
+  modelName: string,
   systemPrompt: string,
   messages: Message[],
   signal: AbortSignal | undefined,
@@ -319,14 +349,14 @@ async function* runGeminiStream(
   thinkHard: boolean,
   onUsage?: UsageSink
 ): AsyncGenerator<string> {
-  const model = getModel()
+  const model = getVertexModel(modelName)
   const contents = buildContents(messages)
-  const usage = streamUsage(GEMINI_MODEL, systemPrompt + buildUserPrompt(messages), onUsage)
+  const usage = streamUsage(modelName, systemPrompt + buildUserPrompt(messages), onUsage)
 
   const result = await model.generateContentStream({
     systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
     contents,
-    generationConfig: { maxOutputTokens: maxTokens, ...geminiThinking(thinkHard) },
+    generationConfig: { maxOutputTokens: maxTokens, ...vertexThinking(modelName, thinkHard) },
   })
   usage.started()
 
@@ -340,10 +370,43 @@ async function* runGeminiStream(
   }
 }
 
-// Streaming (used by chat route).
-// Vertex occasionally returns a stream with no text candidates (safety filter,
-// transient model issue). When that happens we retry the upstream call once
-// before giving up, since these empties are usually a single-sample fluke.
+/** First text from the stream, or null if it errors, ends empty, or misses the deadline. */
+async function firstTextWithin(
+  iterator: AsyncIterator<string>,
+  timeoutMs: number
+): Promise<string | null> {
+  const next = iterator.next()
+  next.catch(() => {})
+  let timerId: ReturnType<typeof setTimeout> | undefined
+  try {
+    const result = await Promise.race<IteratorResult<string> | "timeout">([
+      next,
+      new Promise<"timeout">((resolve) => {
+        timerId = setTimeout(() => resolve("timeout"), timeoutMs)
+      }),
+    ])
+    if (result === "timeout") {
+      console.warn(
+        `[gemini] ${GEMINI_MODEL} no text in ${timeoutMs}ms; using ${GEMINI_FALLBACK_MODEL}`
+      )
+      return null
+    }
+    if (result.done) {
+      console.warn(`[gemini] ${GEMINI_MODEL} empty reply; using ${GEMINI_FALLBACK_MODEL}`)
+      return null
+    }
+    return result.value
+  } catch (err) {
+    const msg = redactSecrets(err instanceof Error ? err.message : String(err))
+    console.warn(`[gemini] ${GEMINI_MODEL} failed; using ${GEMINI_FALLBACK_MODEL}:`, msg)
+    return null
+  } finally {
+    clearTimeout(timerId)
+  }
+}
+
+// Streaming (used by chat route). A Vertex 3.8 call that errors, stalls, or
+// comes back empty is redone once on the fallback model.
 export async function* streamGemini(
   systemPrompt: string,
   messages: Message[],
@@ -367,37 +430,62 @@ export async function* streamGemini(
     return
   }
 
-  let yielded = false
+  if (geminiPrimaryCooling()) {
+    yield* runGeminiStream(
+      GEMINI_FALLBACK_MODEL,
+      systemPrompt,
+      messages,
+      signal,
+      maxTokens,
+      thinkHard,
+      onUsage
+    )
+    return
+  }
+
   let firstUsage: ModelUsage | undefined
+  let primaryLive = true
+  // An abandoned stall can still report later; it must not overwrite the fallback's usage.
   const firstSink: UsageSink = (u) => {
+    if (!primaryLive) return
     firstUsage = u
     onUsage?.(u)
   }
-  for await (const text of runGeminiStream(
+  const primary = runGeminiStream(
+    GEMINI_MODEL,
     systemPrompt,
     messages,
     signal,
     maxTokens,
     thinkHard,
     firstSink
-  )) {
-    yielded = true
-    yield text
+  )[Symbol.asyncIterator]()
+  const first = await firstTextWithin(
+    primary,
+    thinkHard ? GEMINI_THINK_HARD_FIRST_TEXT_MS : GEMINI_FIRST_TEXT_MS
+  )
+  if (first !== null) {
+    yield first
+    while (true) {
+      const { done, value } = await primary.next()
+      if (done) return
+      yield value
+    }
   }
-  if (yielded || signal?.aborted) return
+  primaryLive = false
+  if (signal?.aborted) return
+  noteGeminiPrimaryFailure()
 
-  // First attempt yielded nothing - retry once
   const retrySink: UsageSink = (u) => onUsage?.(firstUsage ? addUsage(firstUsage, u) : u)
-  for await (const text of runGeminiStream(
+  yield* runGeminiStream(
+    GEMINI_FALLBACK_MODEL,
     systemPrompt,
     messages,
     signal,
     maxTokens,
     thinkHard,
     retrySink
-  )) {
-    yield text
-  }
+  )
 }
 
 async function* streamGeminiWithApiKey(

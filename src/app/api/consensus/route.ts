@@ -1,25 +1,24 @@
 /** Consensus verdict route - tries Gemini, Claude, GPT, then Perplexity. */
 import { NextRequest, NextResponse } from "next/server"
 import type { Message, Locale, ResponseLength, Provider } from "@/types"
-import {
-  HarmCategory,
-  HarmBlockThreshold,
-  SchemaType,
-  type ResponseSchema,
-} from "@google-cloud/vertexai"
+import { SchemaType, type ResponseSchema } from "@google-cloud/vertexai"
 import { validateVerdictResult } from "@/lib/validate-verdict"
 import { getVerdictPrompt, getVerdictSourcesBlock } from "@/lib/verdict-prompt"
 import { sanitizeSources } from "@/lib/web-sources"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import {
+  GEMINI_FALLBACK_MODEL,
   GEMINI_LIGHT_THINKING,
   GEMINI_MODEL,
   GEMINI_NO_THINKING,
-  createVertexAI,
   geminiAnswerText,
   geminiUsage,
   generateGeminiVerdictWithApiKey,
   getConfiguredGeminiApiKey,
+  geminiPrimaryCooling,
+  getVertexModel,
+  noteGeminiPrimaryFailure,
+  vertexThinking,
 } from "@/lib/providers/gemini"
 import { generateClaudeVerdict } from "@/lib/providers/claude"
 import { generateGptVerdict } from "@/lib/providers/gpt"
@@ -112,6 +111,11 @@ const HEDGING_PHRASES = [
 ]
 
 const MAX_MESSAGE_CHARS = 2000
+
+const VERDICT_DEADLINE_MS = 27_000
+// A stalled 3.8 verdict is redone on 2.5 Flash; both together leave the rest for the next provider.
+const GEMINI_VERDICT_PRIMARY_MS = 12_000
+const GEMINI_VERDICT_BUDGET_MS = 20_000
 
 function stripFileContent(content: string): string {
   const fileMarker = "--- File:"
@@ -264,19 +268,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Pro can legitimately take 2+ minutes; long Flash needs headroom past medium.
-    // Amplify may still cut at ~30s - client maps 504 to a plain-language timeout.
-    const VERDICT_TIMEOUT_MS = useProModel
-      ? 120_000
-      : responseLength === "long"
-        ? 55_000
-        : responseLength === "short"
-          ? 30_000
-          : 45_000
-    // Think hard shares one deadline across fallback providers and the JSON-repair retry.
-    const thinkHardDeadline = startTime + THINK_HARD_VERDICT_MS
-    const timeoutFor = () =>
-      thinkHard ? Math.max(0, thinkHardDeadline - Date.now()) : VERDICT_TIMEOUT_MS
+    // One deadline across fallback providers and the JSON-repair retry: CloudFront cuts a
+    // silent response at 30s, so a later provider only helps if it starts well before that.
+    const deadline = startTime + (thinkHard ? THINK_HARD_VERDICT_MS : VERDICT_DEADLINE_MS)
+    const timeoutFor = () => Math.max(0, deadline - Date.now())
 
     const generateRaw = async (
       candidate: ConsensusCandidate,
@@ -365,37 +360,47 @@ export async function POST(req: NextRequest) {
 
           if (signal.aborted) throw new Error("Verdict generation timed out")
 
-          const vertexAI = createVertexAI()
-          const model = vertexAI.getGenerativeModel({
-            model: verdictModelName,
-            safetySettings: [
-              {
-                category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          const vertexVerdict = async (modelName: string) => {
+            // Vertex SDK has no request-level AbortSignal; timeout still races the promise.
+            const result = await getVertexModel(modelName).generateContent({
+              systemInstruction: {
+                role: "system",
+                parts: [{ text: verdictPrompt }],
               },
-              {
-                category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+              contents: [
+                {
+                  role: "user",
+                  parts: [{ text: userPrompt }],
+                },
+              ],
+              generationConfig: {
+                ...verdictGenerationConfig,
+                ...vertexThinking(modelName, thinkHard),
               },
-            ],
-          })
-          // Vertex SDK has no request-level AbortSignal; timeout still races the promise.
-          const result = await model.generateContent({
-            systemInstruction: {
-              role: "system",
-              parts: [{ text: verdictPrompt }],
-            },
-            contents: [
-              {
-                role: "user",
-                parts: [{ text: userPrompt }],
-              },
-            ],
-            generationConfig: verdictGenerationConfig,
-          })
-          const usage = geminiUsage(result.response.usageMetadata)
-          if (usage) onUsage?.(usage)
-          return geminiAnswerText(result.response.candidates?.[0]?.content?.parts)
+            })
+            const usage = geminiUsage(result.response.usageMetadata, modelName)
+            if (usage) onUsage?.(usage)
+            const text = geminiAnswerText(result.response.candidates?.[0]?.content?.parts)
+            if (!text) throw new Error("empty response")
+            return text
+          }
+          if (geminiPrimaryCooling()) return vertexVerdict(GEMINI_FALLBACK_MODEL)
+          try {
+            return await withTimeout(
+              () => vertexVerdict(verdictModelName),
+              GEMINI_VERDICT_PRIMARY_MS,
+              `${verdictModelName} verdict`
+            )
+          } catch (err) {
+            if (signal.aborted) throw err
+            noteGeminiPrimaryFailure()
+            const msg = redactSecrets(err instanceof Error ? err.message : String(err))
+            console.warn(
+              `[verdict] ${verdictModelName} failed; trying ${GEMINI_FALLBACK_MODEL}:`,
+              msg
+            )
+            return vertexVerdict(GEMINI_FALLBACK_MODEL)
+          }
         },
         timeoutMs,
         "Verdict generation"
@@ -404,14 +409,19 @@ export async function POST(req: NextRequest) {
 
     let lastError: unknown
     let lastFailedProvider: Provider | undefined
-    for (const candidate of candidates) {
+    for (const [index, candidate] of candidates.entries()) {
       const source = candidate.apiKey ? "user-key" : "server"
+      const hasNext = index < candidates.length - 1
+      const callTimeout = () =>
+        candidate.provider === "gemini" && hasNext
+          ? Math.min(timeoutFor(), GEMINI_VERDICT_BUDGET_MS - (Date.now() - startTime))
+          : timeoutFor()
       console.log(
         `[verdict] Trying provider=${candidate.provider} tier=${verdictTier} thinkHard=${thinkHard} source=${source} for ${aiMessages.length} AI messages, locale=${locale}, effective=${effectiveLocale}, responseLength=${responseLength}, previousVerdicts=${previousVerdicts.length}`
       )
 
       try {
-        const raw = await generateRaw(candidate, verdictUserPrompt, timeoutFor())
+        const raw = await generateRaw(candidate, verdictUserPrompt, callTimeout())
 
         const generateElapsed = Date.now() - startTime
         console.log(
@@ -442,7 +452,7 @@ export async function POST(req: NextRequest) {
           const retryRaw = await generateRaw(
             candidate,
             `The following JSON is malformed. Fix it and return ONLY valid JSON, no other text:\n\n${cleaned}`,
-            timeoutFor()
+            callTimeout()
           )
           const retryCleaned = extractJson(retryRaw)
           try {
