@@ -13,6 +13,10 @@ export interface ComposerFile {
 
 // Models still get the picture; the marker keeps text-only follow-ups honest.
 export const NO_TEXT_IMAGE = "[Image with no readable text]"
+// A bare header reads as a blank file to the models, so say where the text is.
+export const TEXT_NOT_READ = "[Text not extracted; read it from the image]"
+// How long Send waits for pending OCR, so fast sends keep exact words for the verdict.
+export const OCR_GRACE_MS = 4000
 // Creep target while OCR runs; stays short of 100 until the real result lands.
 const CREEP_CEILING = 90
 const CREEP_RATE = 0.1
@@ -49,13 +53,34 @@ export function composeMessage(
   for (const f of files) {
     if (!isSendable(f)) continue
     const header = `--- File: ${f.name} ---`
-    // OCR still running: send the picture without its text rather than a false no-text marker.
-    blocks.push(f.ocrPending ? header : `${header}\n${fileText(f) || NO_TEXT_IMAGE}`)
+    blocks.push(`${header}\n${f.ocrPending ? TEXT_NOT_READ : fileText(f) || NO_TEXT_IMAGE}`)
     if (f.image) images.push(f.image)
   }
   const typed = text.trim()
   if (!typed && blocks.length === 0) return null
   return { text: [typed, ...blocks].filter(Boolean).join("\n\n"), images }
+}
+
+/** Values of the promises that settle within `ms`; the rest stay undefined. */
+export async function settleWithin<T>(
+  pending: (Promise<T> | undefined)[],
+  ms: number
+): Promise<(T | undefined)[]> {
+  const out: (T | undefined)[] = pending.map(() => undefined)
+  const all = Promise.all(
+    pending.map((p, i) =>
+      p?.then(
+        (v) => {
+          out[i] = v
+        },
+        () => {}
+      )
+    )
+  )
+  let timer: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([all, new Promise((resolve) => (timer = setTimeout(resolve, ms)))])
+  clearTimeout(timer)
+  return [...out]
 }
 
 /** Attach waits only for the session; Send also waits for files still parsing and a send in flight. */
