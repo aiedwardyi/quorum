@@ -7,6 +7,7 @@ import { Locale, Provider, ResponseLength, Theme } from "@/types"
 import ThreadDropdown from "@/components/ThreadDropdown"
 import ConfirmDialog from "@/components/ConfirmDialog"
 import ModelToggleGroup from "@/components/ModelToggleGroup"
+import QuorumMark from "@/components/QuorumMark"
 import {
   Sun,
   Moon,
@@ -191,7 +192,11 @@ export default function ChatHeader({
             }
             className="text-sm sm:text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2 hover:opacity-70 transition-opacity"
           >
-            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-sm bg-zinc-900 dark:bg-zinc-100 shrink-0" />
+            <QuorumMark
+              className="w-4.5 h-4.5 sm:w-5 sm:h-5 shrink-0"
+              ringClassName="text-zinc-900 dark:text-zinc-100"
+              tailClassName="text-emerald-600 dark:text-emerald-400"
+            />
             Quorum
           </button>
           {isLoggedIn && onNewDebate && (

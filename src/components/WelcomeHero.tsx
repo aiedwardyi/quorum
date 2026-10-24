@@ -13,6 +13,7 @@ import {
   setClientKey,
   shouldUseClientKeys,
 } from "@/lib/client-api-keys"
+import QuorumMark from "@/components/QuorumMark"
 
 const suggestions = {
   en: [
@@ -214,30 +215,11 @@ function LogoMark() {
           transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 3, ease: "easeInOut" }}
         />
 
-        {/* Q mark */}
-        <svg
-          width="36"
-          height="36"
-          viewBox="0 0 24 24"
-          fill="none"
+        <QuorumMark
           className="relative z-10 w-8 h-8 sm:w-9 sm:h-9"
-        >
-          <circle
-            cx="12"
-            cy="11.4"
-            r="6.9"
-            stroke="currentColor"
-            strokeWidth="3.3"
-            className="text-white dark:text-zinc-900"
-          />
-          <path
-            d="M13.95 14.19L17.45 19.18"
-            stroke="currentColor"
-            strokeWidth="3.3"
-            strokeLinecap="round"
-            className="text-emerald-400 dark:text-emerald-600"
-          />
-        </svg>
+          ringClassName="text-white dark:text-zinc-900"
+          tailClassName="text-emerald-400 dark:text-emerald-600"
+        />
       </div>
     </motion.div>
   )
