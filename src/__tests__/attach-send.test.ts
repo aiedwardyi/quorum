@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest"
 import {
   NO_TEXT_IMAGE,
+  capPictures,
   composeMessage,
+  composerLocks,
   creepProgress,
   localizeStatus,
   tileState,
@@ -18,6 +20,9 @@ const rx: ComposerFile = {
   parsed: { text: "처방전", usedOCR: true },
   image: { name: "rx.jpg", data: "UlhSWA==" },
 }
+const rxReading: ComposerFile = { name: "rx.jpg", ocrPending: true, image: rx.image }
+const pdfParsing: ComposerFile = { name: "a.pdf", parsing: true }
+const pic = (n: number) => new File(["x"], `p${n}.jpg`, { type: "image/jpeg" })
 
 describe("composeMessage", () => {
   it("sends typed text even when every attached file has no text", () => {
@@ -58,6 +63,49 @@ describe("composeMessage", () => {
 
   it("waits while a file is still reading", () => {
     expect(composeMessage("", [{ ...rx, parsing: true }])).toBeNull()
+  })
+
+  it("sends a picture without its OCR text while OCR runs, and with it once read", () => {
+    expect(composeMessage("translate this", [rxReading])).toEqual({
+      text: "translate this\n\n--- File: rx.jpg ---",
+      images: [rx.image],
+    })
+    expect(composeMessage("translate this", [rx])?.text).toBe(
+      "translate this\n\n--- File: rx.jpg ---\n처방전"
+    )
+  })
+})
+
+describe("composerLocks", () => {
+  it("keeps attach enabled while files are reading", () => {
+    expect(composerLocks("", [pdfParsing, { ...rx, parsing: true }], false).attachDisabled).toBe(
+      false
+    )
+    expect(composerLocks("", [], true).attachDisabled).toBe(true)
+  })
+
+  it("lets a picture send before its OCR finishes", () => {
+    expect(composerLocks("", [rxReading], false).sendDisabled).toBe(false)
+  })
+
+  it("still blocks Send while a PDF is parsing", () => {
+    expect(composerLocks("hi", [rxReading, pdfParsing], false).sendDisabled).toBe(true)
+  })
+})
+
+describe("capPictures", () => {
+  it("keeps the first 4 pictures and flags the rest", () => {
+    const { files, capped } = capPictures([], [1, 2, 3, 4, 5].map(pic))
+    expect(files.map((f) => f.name)).toEqual(["p1.jpg", "p2.jpg", "p3.jpg", "p4.jpg"])
+    expect(capped).toBe(true)
+  })
+
+  it("counts pictures already attached and never caps other files", () => {
+    const attached = [rx, rxReading, { ...rx, name: "c.jpg" }, blankPdf]
+    const incoming = [pic(4), new File(["x"], "notes.pdf"), pic(5)]
+    const { files, capped } = capPictures(attached, incoming)
+    expect(files.map((f) => f.name)).toEqual(["p4.jpg", "notes.pdf"])
+    expect(capped).toBe(true)
   })
 })
 

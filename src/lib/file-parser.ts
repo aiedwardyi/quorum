@@ -56,9 +56,12 @@ function joinPDFPages(pages: Array<string | null | undefined>): string {
     .join("\n\n")
 }
 
+export function isTooLarge(file: File): boolean {
+  return file.size / (1024 * 1024) > MAX_FILE_SIZE_MB
+}
+
 export async function parseFile(file: File, options?: ParseOptions): Promise<ParseResult> {
-  const sizeMB = file.size / (1024 * 1024)
-  if (sizeMB > MAX_FILE_SIZE_MB) {
+  if (isTooLarge(file)) {
     return { text: "", warning: "too_large" }
   }
 

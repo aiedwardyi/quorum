@@ -1,10 +1,12 @@
 /** What Send does with the composer's text and attached files. */
 import type { Locale, MessageImage } from "@/types"
 import { IMAGE_EXTENSIONS, type ParseResult } from "@/lib/file-parser"
+import { MAX_IMAGES_PER_REQUEST } from "@/lib/image-parts"
 
 export interface ComposerFile {
   name: string
   parsing?: boolean
+  ocrPending?: boolean
   parsed?: ParseResult
   image?: MessageImage
 }
@@ -46,12 +48,34 @@ export function composeMessage(
   const images: MessageImage[] = []
   for (const f of files) {
     if (!isSendable(f)) continue
-    blocks.push(`--- File: ${f.name} ---\n${fileText(f) || NO_TEXT_IMAGE}`)
+    const header = `--- File: ${f.name} ---`
+    // OCR still running: send the picture without its text rather than a false no-text marker.
+    blocks.push(f.ocrPending ? header : `${header}\n${fileText(f) || NO_TEXT_IMAGE}`)
     if (f.image) images.push(f.image)
   }
   const typed = text.trim()
   if (!typed && blocks.length === 0) return null
   return { text: [typed, ...blocks].filter(Boolean).join("\n\n"), images }
+}
+
+/** Attach waits only for the session; Send also waits for files still parsing. */
+export function composerLocks(text: string, files: ComposerFile[], sessionLoading: boolean) {
+  return {
+    attachDisabled: sessionLoading,
+    sendDisabled: sessionLoading || files.some((f) => f.parsing) || !composeMessage(text, files),
+  }
+}
+
+/** Incoming files within the per-message picture limit; `capped` when a picture was left out. */
+export function capPictures(
+  attached: ComposerFile[],
+  incoming: File[]
+): { files: File[]; capped: boolean } {
+  let room =
+    MAX_IMAGES_PER_REQUEST -
+    attached.filter((f) => isImageName(f.name) && tileState(f) !== "skipped").length
+  const files = incoming.filter((f) => !isImageName(f.name) || room-- > 0)
+  return { files, capped: files.length < incoming.length }
 }
 
 const KO_STATUS: [RegExp, string][] = [
