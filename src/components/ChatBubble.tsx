@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect, type ComponentProps } from "react"
 import { Copy, Check, File, FileText, ImageIcon } from "lucide-react"
-import { Message, Provider, Locale, ResponseLength } from "@/types"
+import { Message, MessageImage, Provider, Locale, ResponseLength } from "@/types"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import ReactMarkdown from "react-markdown"
@@ -165,12 +165,28 @@ const ModelIcon = ({ provider, className }: { provider: Provider; className?: st
   }
 }
 
-function AttachmentCard({ file, locale }: { file: MessageAttachment; locale: Locale }) {
+function AttachmentCard({
+  file,
+  image,
+  locale,
+}: {
+  file: MessageAttachment
+  image?: MessageImage
+  locale: Locale
+}) {
   const [open, setOpen] = useState(false)
   const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
   const Icon = IMAGE_EXTENSIONS.has(ext) ? ImageIcon : ext === "pdf" ? FileText : File
   return (
-    <div className="w-64 max-w-full rounded-xl border border-current/20 bg-current/5">
+    <div className="w-64 max-w-full overflow-hidden rounded-xl border border-current/20 bg-current/5">
+      {image && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`data:image/jpeg;base64,${image.data}`}
+          alt={file.name}
+          className="block w-full max-h-48 object-cover border-b border-current/15"
+        />
+      )}
       <div className="flex items-center gap-2 px-3 py-2">
         <Icon className="w-4 h-4 shrink-0 opacity-80" />
         <span className="flex-1 min-w-0 truncate text-[13px] font-medium">{file.name}</span>
@@ -192,14 +208,27 @@ function AttachmentCard({ file, locale }: { file: MessageAttachment; locale: Loc
   )
 }
 
-function UserContent({ content, locale }: { content: string; locale: Locale }) {
+function UserContent({
+  content,
+  images,
+  locale,
+}: {
+  content: string
+  images?: MessageImage[]
+  locale: Locale
+}) {
   const { text, files } = splitAttachments(content)
   if (files.length === 0) return content
   return (
     <div className="flex flex-col gap-2">
       {text && <div>{text}</div>}
       {files.map((file, i) => (
-        <AttachmentCard key={i} file={file} locale={locale} />
+        <AttachmentCard
+          key={i}
+          file={file}
+          image={images?.find((img) => img.name === file.name)}
+          locale={locale}
+        />
       ))}
     </div>
   )
@@ -582,7 +611,7 @@ export default function ChatBubble({
               }
             >
               {isUser ? (
-                <UserContent content={message.content} locale={locale} />
+                <UserContent content={message.content} images={message.images} locale={locale} />
               ) : isActive ? (
                 // While the bubble is streaming or still draining the
                 // smoothed buffer, render plain text instead of

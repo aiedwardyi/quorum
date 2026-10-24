@@ -3,6 +3,7 @@ import OpenAI from "openai"
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { streamUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
+import { THREAD_LEAD, THREAD_TAIL, openAiContent, threadParts } from "@/lib/image-parts"
 
 function getClient(userApiKey?: string) {
   const apiKey = userApiKey || process.env.OPENAI_API_KEY
@@ -58,7 +59,10 @@ export async function* streamGPT(
         ...params,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userContent },
+          {
+            role: "user",
+            content: openAiContent(threadParts(messages, THREAD_LEAD, THREAD_TAIL), "low"),
+          },
         ],
         stream: true,
         // Usage arrives in a final chunk with no choices.

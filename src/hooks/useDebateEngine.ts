@@ -1,7 +1,15 @@
 "use client"
 
 import { useReducer, useCallback, useRef, useEffect } from "react"
-import type { Message, Provider, VerdictResult, Locale, ResponseLength, WebSource } from "@/types"
+import type {
+  Message,
+  MessageImage,
+  Provider,
+  VerdictResult,
+  Locale,
+  ResponseLength,
+  WebSource,
+} from "@/types"
 import { USER_API_KEY_PROVIDERS } from "@/types"
 import { cleanResponse, sanitizeHeadings } from "@/lib/clean-response"
 import { hasDirectUrlReference, prioritizePerplexity } from "@/lib/url-access"
@@ -21,6 +29,7 @@ import {
   withFastFallback,
 } from "@/lib/think-hard"
 import { sanitizeSources, searchQueryFor } from "@/lib/web-sources"
+import { capImages, stripImages } from "@/lib/image-parts"
 
 export { isFailedPanelistRow, providersWithReplies }
 
@@ -169,7 +178,7 @@ function fetchConsensus(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      messages,
+      messages: stripImages(messages),
       locale,
       responseLength,
       ...(thinkHard ? { thinkHard: true } : {}),
@@ -585,7 +594,7 @@ export function useDebateEngine(config: {
   // Read per request so a toggle mid-thread applies to the next call.
   const thinkHardRef = useRef(thinkHard)
   const handleSendRef = useRef<
-    (text: string, target: Provider | "all", models: Provider[]) => void
+    (text: string, target: Provider | "all", models: Provider[], images?: MessageImage[]) => void
   >(() => {})
 
   // Keep refs in sync with state/config
@@ -675,7 +684,7 @@ export function useDebateEngine(config: {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              messages: getApiMessages(allMessages),
+              messages: capImages(getApiMessages(allMessages)),
               provider,
               locale,
               responseLength,
@@ -913,7 +922,12 @@ export function useDebateEngine(config: {
   /* ---- handleSendWithModels ---- */
 
   const handleSendWithModels = useCallback(
-    async (text: string, target: Provider | "all", models: Provider[]) => {
+    async (
+      text: string,
+      target: Provider | "all",
+      models: Provider[],
+      images: MessageImage[] = []
+    ) => {
       // Claim a new session - any in-flight debate with old ID will bail
       const thisSession = ++sessionIdRef.current
       try {
@@ -957,6 +971,7 @@ export function useDebateEngine(config: {
           displayName: "You",
           content: text,
           timestamp: new Date(),
+          ...(images.length ? { images } : {}),
         }
 
         if (state.showSummary) {
@@ -1134,8 +1149,8 @@ export function useDebateEngine(config: {
   /* ---- handleSend (public, uses current activeModels) ---- */
 
   const handleSend = useCallback(
-    (text: string, target: Provider | "all") => {
-      handleSendWithModels(text, target, state.activeModels)
+    (text: string, target: Provider | "all", images?: MessageImage[]) => {
+      handleSendWithModels(text, target, state.activeModels, images)
     },
     [handleSendWithModels, state.activeModels]
   )
