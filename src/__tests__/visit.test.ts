@@ -93,9 +93,9 @@ describe("visit beacon", () => {
     vi.unstubAllGlobals()
   })
 
-  it("sends a stable random id once per UTC day", async () => {
+  it("sends a stable random id once per day", async () => {
     await sendDailyVisit(new Date("2026-10-17T01:00:00Z"))
-    await sendDailyVisit(new Date("2026-10-17T23:00:00Z"))
+    await sendDailyVisit(new Date("2026-10-17T14:00:00Z"))
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const id = JSON.parse(fetchMock.mock.calls[0][1].body).id
     expect(id).toMatch(/^[0-9a-f-]{36}$/)
@@ -103,6 +103,14 @@ describe("visit beacon", () => {
     await sendDailyVisit(new Date("2026-10-18T00:00:00Z"))
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).id).toBe(id)
+  })
+
+  it("pings again after Seoul midnight and not before", async () => {
+    await sendDailyVisit(new Date("2026-10-24T01:00:00Z"))
+    await sendDailyVisit(new Date("2026-10-24T14:59:59Z"))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await sendDailyVisit(new Date("2026-10-24T15:00:00Z"))
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it("fails silently and retries on the next load", async () => {

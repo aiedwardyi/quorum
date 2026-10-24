@@ -85,14 +85,14 @@ describe("admin stats", () => {
     expect(clampDays("30")).toBe(30)
   })
 
-  it("zero-fills UTC days oldest to today with null tracking when nothing is logged", async () => {
+  it("zero-fills Seoul days oldest to today with null tracking when nothing is logged", async () => {
     const res = await get("?days=3")
     expect(res.status).toBe(200)
     expect(res.headers.get("Cache-Control")).toBe("no-store")
     const body = await res.json()
     expect(body).toEqual({
       generatedAt: "2026-10-17T03:12:00.000Z",
-      timezone: "UTC",
+      timezone: "Asia/Seoul",
       budget: { dailyCapCents: 4000, todayCountedCents: 0 },
       tracking: { costSince: null, visitorsSince: null },
       totals: { users: 0 },
@@ -115,6 +115,14 @@ describe("admin stats", () => {
     expect(days[89].day).toBe("2026-10-17")
   })
 
+  it("ends on today's Seoul date once UTC is still on yesterday", async () => {
+    vi.setSystemTime(new Date("2026-10-17T15:00:00.000Z"))
+    const body = await (await get("?days=2")).json()
+    expect(body.timezone).toBe("Asia/Seoul")
+    expect(body.days.map((d: { day: string }) => d.day)).toEqual(["2026-10-17", "2026-10-18"])
+    expect(spendFindUnique.mock.calls[0][0]).toEqual({ where: { day: "2026-10-18" } })
+  })
+
   it("rolls up cost, calls, visitors and sign-ups per day", async () => {
     costFindMany.mockResolvedValue([
       { day: "2026-10-17", provider: "claude", cents: 20.123, calls: 10 },
@@ -126,8 +134,8 @@ describe("admin stats", () => {
     visitGroupBy.mockResolvedValue([{ day: "2026-10-17", _count: { _all: 3 } }])
     visitFindFirst.mockResolvedValue({ day: "2026-10-17" })
     userFindMany.mockResolvedValue([
-      { createdAt: new Date("2026-10-16T23:59:59.000Z") },
-      { createdAt: new Date("2026-10-17T00:00:00.000Z") },
+      { createdAt: new Date("2026-10-16T14:59:59.000Z") },
+      { createdAt: new Date("2026-10-16T15:00:00.000Z") },
     ])
     userCount.mockResolvedValue(4)
     spendFindUnique.mockResolvedValue({ day: "2026-10-17", centsUsed: 1230 })
@@ -156,7 +164,7 @@ describe("admin stats", () => {
     ])
     expect(costFindMany.mock.calls[0][0]).toEqual({ where: { day: { gte: "2026-10-16" } } })
     expect(userFindMany.mock.calls[0][0]).toEqual({
-      where: { createdAt: { gte: new Date("2026-10-16T00:00:00.000Z") } },
+      where: { createdAt: { gte: new Date("2026-10-15T15:00:00.000Z") } },
       select: { createdAt: true },
     })
   })

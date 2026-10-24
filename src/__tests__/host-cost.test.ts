@@ -16,6 +16,7 @@ import { claudeUsage } from "@/lib/providers/claude"
 import { geminiUsage } from "@/lib/providers/gemini"
 import { gptUsage, streamGPT } from "@/lib/providers/gpt"
 import { perplexityUsage } from "@/lib/providers/perplexity"
+import { seoulDay } from "@/lib/seoul-day"
 import type { Message } from "@/types"
 
 const DAY = "2026-10-17"
@@ -108,10 +109,10 @@ describe("log host cost", () => {
     else process.env.DATABASE_URL = previousDatabaseUrl
   })
 
-  it("adds cents and one call to the UTC day row for the provider", async () => {
+  it("adds cents and one call to the Seoul day row for the provider", async () => {
     logHostCost("search", 0.5)
     await vi.waitFor(() => expect(upsertMock).toHaveBeenCalledTimes(1))
-    const day = new Date().toISOString().slice(0, 10)
+    const day = seoulDay()
     expect(upsertMock.mock.calls[0][0]).toEqual({
       where: { day_provider: { day, provider: "search" } },
       create: { day, provider: "search", cents: 0.5, calls: 1 },
