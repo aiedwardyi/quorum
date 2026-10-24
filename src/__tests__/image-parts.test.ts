@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   MAX_IMAGE_CHARS_PER_REQUEST,
   capImages,
+  fitImages,
   modelImage,
   threadParts,
   withTextOnlyRetry,
@@ -139,6 +140,37 @@ describe("modelImage", () => {
     const { calls } = stubCanvas(512, 512)
     await modelImage(new File(["x"], "icon.png", { type: "image/png" }))
     expect(calls).toEqual(["fill #fff", "draw"])
+  })
+})
+
+describe("fitImages", () => {
+  const chars = (images: MessageImage[]) => images.reduce((n, i) => n + i.data.length, 0)
+  const pictures = (size: number) =>
+    [1, 2, 3, 4].map((n) => ({
+      file: new File(["x"], `p${n}.jpg`, { type: "image/jpeg" }),
+      image: img(`p${n}.jpg`, size),
+    }))
+
+  it("shrinks 4 large pictures of one message until they all fit", async () => {
+    // Encoded size tracks pixels times quality, like a real JPEG.
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({ fillRect: () => {}, drawImage: () => {} }),
+      toDataURL: (_: string, q: number) =>
+        "data:image/jpeg;base64," + "A".repeat(Math.round(canvas.width * canvas.height * q)),
+    }
+    vi.stubGlobal("createImageBitmap", async () => ({ width: 4000, height: 3000, close: () => {} }))
+    vi.stubGlobal("document", { createElement: () => canvas })
+    const out = await fitImages(pictures(1_600_000))
+    expect(out.map((i) => i.name)).toEqual(["p1.jpg", "p2.jpg", "p3.jpg", "p4.jpg"])
+    expect(chars(out)).toBeLessThanOrEqual(MAX_IMAGE_CHARS_PER_REQUEST)
+    expect(names(capImages([user("a", out)]))).toHaveLength(4)
+  })
+
+  it("leaves pictures that already fit as they are", async () => {
+    const small = pictures(1000)
+    expect(await fitImages(small)).toEqual(small.map((p) => p.image))
   })
 })
 

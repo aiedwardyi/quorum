@@ -7,15 +7,27 @@ export const MODEL_IMAGE_QUALITY = 0.85
 export const MAX_IMAGES_PER_REQUEST = 4
 export const MAX_IMAGE_CHARS_PER_REQUEST = 3 * 1024 * 1024
 const IMAGE_MIME = "image/jpeg" as const
+// Smaller encodes, tried in order, when one message's pictures overflow the request budget.
+const FIT_STEPS: [side: number, quality: number][] = [
+  [MODEL_IMAGE_SIDE, 0.7],
+  [1280, 0.7],
+  [1024, 0.65],
+  [768, 0.6],
+  [512, 0.5],
+]
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/
 
 export const THREAD_LEAD = "Here is the discussion so far:\n\n"
 export const THREAD_TAIL = "\n\nPlease respond to the discussion above."
 
 /** Model copy of an attached image, separate from OCR's larger one. */
-export async function modelImage(file: File): Promise<MessageImage> {
+export async function modelImage(
+  file: File,
+  side = MODEL_IMAGE_SIDE,
+  quality = MODEL_IMAGE_QUALITY
+): Promise<MessageImage> {
   const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, MODEL_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height))
+  const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height))
   const canvas = document.createElement("canvas")
   canvas.width = Math.round(bitmap.width * scale)
   canvas.height = Math.round(bitmap.height * scale)
@@ -28,8 +40,22 @@ export async function modelImage(file: File): Promise<MessageImage> {
   bitmap.close()
   return {
     name: file.name,
-    data: canvas.toDataURL(IMAGE_MIME, MODEL_IMAGE_QUALITY).split(",")[1],
+    data: canvas.toDataURL(IMAGE_MIME, quality).split(",")[1],
   }
+}
+
+const imageChars = (images: MessageImage[]) => images.reduce((n, i) => n + i.data.length, 0)
+
+/** One message's pictures, re-encoded smaller until together they fit the request budget. */
+export async function fitImages(
+  pictures: { file: File; image: MessageImage }[]
+): Promise<MessageImage[]> {
+  let images = pictures.map((p) => p.image)
+  for (const [side, quality] of FIT_STEPS) {
+    if (imageChars(images) <= MAX_IMAGE_CHARS_PER_REQUEST) break
+    images = await Promise.all(pictures.map((p) => modelImage(p.file, side, quality)))
+  }
+  return images
 }
 
 function isMessageImage(image: unknown): image is MessageImage {

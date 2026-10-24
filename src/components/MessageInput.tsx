@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils"
 import {
   parseFile,
+  isTooLarge,
   IMAGE_EXTENSIONS,
   SUPPORTED_EXTENSIONS,
   type ParseResult,
@@ -25,9 +26,11 @@ import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
 import { shouldSendOnKey } from "@/lib/send-key"
 import { pastedFiles } from "@/lib/paste-files"
 import { THINK_HARD_COPY } from "@/lib/think-hard"
-import { modelImage } from "@/lib/image-parts"
+import { fitImages, modelImage } from "@/lib/image-parts"
 import {
+  capPictures,
   composeMessage,
+  composerLocks,
   creepProgress,
   isImageName,
   localizeStatus,
@@ -54,6 +57,7 @@ const translations = {
     imageError: (name: string) => `"${name}" couldn't be opened`,
     imageDone: (name: string) => `"${name}" text read from image`,
     skipped: "No text, won't be sent",
+    pictureLimit: "Up to 4 pictures per message.",
   },
   ko: {
     placeholder: "메시지를 입력하세요...",
@@ -75,6 +79,7 @@ const translations = {
     imageError: (name: string) => `"${name}" 파일을 열 수 없습니다`,
     imageDone: (name: string) => `"${name}" 이미지 텍스트 인식 완료`,
     skipped: "텍스트 없음, 전송 안 됨",
+    pictureLimit: "사진은 메시지당 4장까지 첨부할 수 있습니다.",
   },
 }
 
@@ -83,6 +88,7 @@ interface AttachedFile {
   file: File
   preview?: string
   parsing?: boolean
+  ocrPending?: boolean
   parseStatus?: string
   parseProgress?: number
   parsed?: ParseResult
@@ -150,18 +156,24 @@ export default function MessageInput({
 
   const composerFiles = attachedFiles.map((f) => ({ ...f, name: f.file.name }))
   const anyParsing = attachedFiles.some((f) => f.parsing)
+  const { attachDisabled, sendDisabled } = composerLocks(text, composerFiles, sessionLoading)
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const message = composeMessage(text, composerFiles)
-    if (anyParsing || !message || disabled || sessionLoading) return
+    if (sendDisabled || !message || disabled) return
 
-    onSend(message.text, "all", message.images)
+    const pictures = attachedFiles.flatMap((f) =>
+      !f.parsing && f.image ? [{ file: f.file, image: f.image }] : []
+    )
     setText("")
     attachedFiles.forEach((f) => {
       if (f.preview) URL.revokeObjectURL(f.preview)
     })
+    // Cleared now, not on the next render, so late OCR results find their file gone.
+    attachedFilesRef.current = []
     setAttachedFiles([])
     if (textareaRef.current) textareaRef.current.style.height = "auto"
+    onSend(message.text, "all", await fitImages(pictures).catch(() => message.images))
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -231,21 +243,33 @@ export default function MessageInput({
     if (hasUnsupported) {
       setFileError(t.unsupported)
     }
-    if (supported.length === 0) return
-    const newFiles = supported.map((file) => ({
+    const { files: allowed, capped } = capPictures(
+      attachedFilesRef.current.map((f) => ({ ...f, name: f.file.name })),
+      supported
+    )
+    if (capped) setFileError(t.pictureLimit)
+    if (allowed.length === 0) return
+    const newFiles = allowed.map((file) => ({
       id: Math.random().toString(36).substr(2, 9),
       file,
       preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
       parsing: true,
       parseProgress: 1,
     }))
+    // Ahead of the render so back-to-back attaches count each other against the limit.
+    attachedFilesRef.current = [...attachedFilesRef.current, ...newFiles]
     setAttachedFiles((prev) => [...prev, ...newFiles])
 
     // Parse each file immediately and show warnings at attach time
     newFiles.forEach(async (af) => {
-      const parsed = await parseFile(af.file, {
+      const attached = () => attachedFilesRef.current.some((f) => f.id === af.id)
+      const isImage = isImageName(af.file.name)
+      const pending =
+        isImage && !isTooLarge(af.file) ? modelImage(af.file).catch(() => undefined) : undefined
+      const parsing = parseFile(af.file, {
         isAnonymous,
         onProgress: (status, progress) => {
+          if (!attached()) return
           setAttachedFiles((prev) =>
             prev.map((f) =>
               f.id === af.id
@@ -259,17 +283,20 @@ export default function MessageInput({
           )
         },
         onApiKeyRequired: (provider) => {
+          if (!attached()) return
           setFileError(getMissingApiKeyMessage(provider, locale))
           onApiKeyRequired?.(provider)
         },
       })
-      const isImage = isImageName(af.file.name)
-      const image =
-        isImage && parsed.warning !== "too_large"
-          ? await modelImage(af.file).catch(() => undefined)
-          : undefined
-      // Bail if file was removed while parsing
-      if (!attachedFilesRef.current.some((f) => f.id === af.id)) return
+      const image = await pending
+      if (image && attached()) {
+        setAttachedFiles((prev) =>
+          prev.map((f) => (f.id === af.id ? { ...f, parsing: false, ocrPending: true, image } : f))
+        )
+      }
+      const parsed = await parsing
+      // Bail if file was removed (or sent) while parsing
+      if (!attached()) return
       const noText = parsed.warning === "empty" || parsed.warning === "parse_error"
       const warningMsg =
         image && noText
@@ -289,7 +316,9 @@ export default function MessageInput({
         setFileNote((isImage ? t.imageDone : t.ocrDone)(af.file.name))
       setAttachedFiles((prev) =>
         prev.map((f) =>
-          f.id === af.id ? { ...f, parsing: false, parseStatus: undefined, parsed, image } : f
+          f.id === af.id
+            ? { ...f, parsing: false, ocrPending: false, parseStatus: undefined, parsed, image }
+            : f
         )
       )
     })
@@ -312,8 +341,6 @@ export default function MessageInput({
       return prev.filter((f) => f.id !== id)
     })
   }
-
-  const sendDisabled = anyParsing || !composeMessage(text, composerFiles) || sessionLoading
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 pt-1 pb-3">
@@ -396,7 +423,11 @@ export default function MessageInput({
                           )}
                         />
                       )}
-                      {file.parsing && (
+                      {file.parsing && Icon === ImageIcon ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-zinc-900/60">
+                          <Loader2 className="w-5 h-5 animate-spin text-blue-500 dark:text-blue-400" />
+                        </div>
+                      ) : file.parsing ? (
                         <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-zinc-900/80">
                           <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
                             <circle
@@ -423,7 +454,7 @@ export default function MessageInput({
                             {progress}%
                           </span>
                         </div>
-                      )}
+                      ) : null}
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span
@@ -500,7 +531,7 @@ export default function MessageInput({
                   e.stopPropagation()
                   fileInputRef.current?.click()
                 }}
-                disabled={anyParsing || sessionLoading}
+                disabled={attachDisabled}
                 title={t.attach}
                 aria-label={t.attach}
                 className="p-2 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all active:scale-95 disabled:opacity-50"
