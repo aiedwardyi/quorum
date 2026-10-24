@@ -534,7 +534,7 @@ export default function WelcomeHero({
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 sm:px-6 py-8 sm:py-12 gap-6 sm:gap-8">
       <div className="space-y-6 sm:space-y-8 max-w-2xl w-full">
-        {/* -- Sparkle icon -- */}
+        {/* -- Logo mark -- */}
         <div className="flex justify-center">
           <LogoMark />
         </div>
