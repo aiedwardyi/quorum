@@ -1,4 +1,4 @@
-/** Client-side PDF/DOCX/Excel/text extraction for AI prompts. */
+/** Client-side PDF/DOCX/Excel/image/text extraction for AI prompts. */
 
 import type { Provider } from "@/types"
 import { parse402FromResponse } from "@/lib/api-key-errors"
@@ -17,7 +17,20 @@ const IMAGE_HEAVY_OPS_THRESHOLD = 4
 const SPARSE_TEXT_WITH_IMAGE_THRESHOLD = 300
 // Text-dense pages skip image detection entirely - getOperatorList cannot flip the outcome.
 const DENSE_TEXT_THRESHOLD = 2000
-export const SUPPORTED_EXTENSIONS = new Set(["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"])
+const MAX_IMAGE_SIDE = 2000
+const IMAGE_JPEG_QUALITY = 0.9
+// No HEIC: Chrome and Firefox can't decode it.
+export const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"])
+export const SUPPORTED_EXTENSIONS = new Set([
+  "pdf",
+  "docx",
+  "xlsx",
+  "xls",
+  "txt",
+  "md",
+  "csv",
+  ...IMAGE_EXTENSIONS,
+])
 
 export type ParseWarning = "truncated" | "empty" | "too_large" | "parse_error"
 
@@ -53,20 +66,21 @@ export async function parseFile(file: File, options?: ParseOptions): Promise<Par
 
   let result: string
   try {
-    if (ext === "pdf") {
-      const pdfResult = await parsePDF(file, options)
-      if (pdfResult.usedOCR) {
-        if (!pdfResult.text.trim()) return { text: "", warning: "empty", usedOCR: true }
-        if (pdfResult.text.length > MAX_FILE_CHARS) {
+    if (ext === "pdf" || IMAGE_EXTENSIONS.has(ext)) {
+      const scanResult =
+        ext === "pdf" ? await parsePDF(file, options) : await parseImage(file, options)
+      if (scanResult.usedOCR) {
+        if (!scanResult.text.trim()) return { text: "", warning: "empty", usedOCR: true }
+        if (scanResult.text.length > MAX_FILE_CHARS) {
           return {
-            text: pdfResult.text.slice(0, MAX_FILE_CHARS) + "\n[...file truncated]",
+            text: scanResult.text.slice(0, MAX_FILE_CHARS) + "\n[...file truncated]",
             warning: "truncated",
             usedOCR: true,
           }
         }
-        return { text: pdfResult.text, usedOCR: true }
+        return { text: scanResult.text, usedOCR: true }
       }
-      result = pdfResult.text
+      result = scanResult.text
     } else if (ext === "docx") result = await parseDOCX(file)
     else if (ext === "xlsx" || ext === "xls") result = await parseExcel(file)
     else if (ext === "txt" || ext === "md" || ext === "csv") result = await parseText(file)
@@ -88,6 +102,77 @@ export async function parseFile(file: File, options?: ParseOptions): Promise<Par
 
 async function parseText(file: File): Promise<string> {
   return file.text()
+}
+
+async function requestOCR(
+  base64: string,
+  options?: ParseOptions,
+  mimeType?: string
+): Promise<string> {
+  const userApiKey = options?.isAnonymous ? getClientKey("gemini") : ""
+  const accessCode = getAccessCode()
+  const res = await fetch("/api/ocr", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      images: [base64],
+      ...(mimeType ? { mimeType } : {}),
+      ...(userApiKey ? { userApiKey } : {}),
+      ...(accessCode ? { accessCode } : {}),
+    }),
+  })
+
+  if (res.status === 402) {
+    const blocked = await parse402FromResponse(res)
+    if (blocked?.kind === "no_key" && blocked.provider) {
+      options?.onApiKeyRequired?.(blocked.provider)
+    }
+    throw new Error("OCR API key required")
+  }
+  if (!res.ok) throw new Error(`OCR API error: ${res.status}`)
+  const { text: ocrText } = await res.json()
+  return (ocrText ?? "").trim()
+}
+
+async function parseImage(
+  file: File,
+  options?: ParseOptions
+): Promise<{ text: string; usedOCR: boolean }> {
+  options?.onProgress?.("Reading image...", 2)
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  const ctx = canvas.getContext("2d")
+  if (!ctx) throw new Error("Canvas 2D context unavailable")
+  // JPEG has no alpha, so transparent screenshots would turn black.
+  ctx.fillStyle = "#fff"
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  const base64 = canvas.toDataURL("image/jpeg", IMAGE_JPEG_QUALITY).split(",")[1]
+
+  try {
+    options?.onProgress?.("Reading text...", 20)
+    const text = await requestOCR(base64, options, "image/jpeg")
+    options?.onProgress?.("Done", 100)
+    return { text, usedOCR: true }
+  } catch (err) {
+    console.error("[file-parser] Gemini OCR failed, falling back to Tesseract:", err)
+    options?.onProgress?.("Fallback OCR...", 70)
+
+    const { createWorker } = await import("tesseract.js")
+    const worker = await createWorker("kor+eng")
+    try {
+      const {
+        data: { text },
+      } = await worker.recognize(canvas)
+      return { text: text.trim(), usedOCR: true }
+    } finally {
+      await worker.terminate()
+    }
+  }
 }
 
 async function parsePDF(
@@ -231,34 +316,13 @@ async function parsePDF(
 
   // OCR one page at a time so the recovered text can be placed back into the
   // original document order.
-  const userApiKey = options?.isAnonymous ? getClientKey("gemini") : ""
-  const accessCode = getAccessCode()
   try {
     for (let idx = 0; idx < renderedPages.length; idx++) {
       const { pageNumber, base64 } = renderedPages[idx]
       const pct = Math.round(25 + ((idx + 1) / renderedPages.length) * 70)
       options?.onProgress?.(`Reading page ${idx + 1}/${renderedPages.length}`, pct - 5)
 
-      const res = await fetch("/api/ocr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          images: [base64],
-          ...(userApiKey ? { userApiKey } : {}),
-          ...(accessCode ? { accessCode } : {}),
-        }),
-      })
-
-      if (res.status === 402) {
-        const blocked = await parse402FromResponse(res)
-        if (blocked?.kind === "no_key" && blocked.provider) {
-          options?.onApiKeyRequired?.(blocked.provider)
-        }
-        throw new Error("OCR API key required")
-      }
-      if (!res.ok) throw new Error(`OCR API error: ${res.status}`)
-      const { text: ocrText } = await res.json()
-      const trimmed = (ocrText ?? "").trim()
+      const trimmed = await requestOCR(base64, options)
       if (trimmed) pages[pageNumber - 1] = trimmed
 
       options?.onProgress?.(`Reading page ${idx + 1}/${renderedPages.length}`, pct)

@@ -55,6 +55,36 @@ export function noteGeminiPrimaryFailure(): void {
   primaryCoolUntil = Date.now() + GEMINI_PRIMARY_COOLDOWN_MS
 }
 
+/** One-shot call on 3.8, redone on 2.5 Flash if it fails or misses `primaryMs`. */
+export async function withGeminiFallback<T>(
+  run: (modelName: string) => Promise<T>,
+  primaryMs: number,
+  label: string,
+  signal?: AbortSignal
+): Promise<T> {
+  if (geminiPrimaryCooling()) return run(GEMINI_FALLBACK_MODEL)
+  let timerId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      run(GEMINI_MODEL),
+      new Promise<never>((_, reject) => {
+        timerId = setTimeout(
+          () => reject(new Error(`${GEMINI_MODEL} ${label} timed out`)),
+          primaryMs
+        )
+      }),
+    ])
+  } catch (err) {
+    if (signal?.aborted) throw err
+    noteGeminiPrimaryFailure()
+    const msg = redactSecrets(err instanceof Error ? err.message : String(err))
+    console.warn(`[${label}] ${GEMINI_MODEL} failed; trying ${GEMINI_FALLBACK_MODEL}:`, msg)
+    return run(GEMINI_FALLBACK_MODEL)
+  } finally {
+    clearTimeout(timerId)
+  }
+}
+
 // 2.5 rejects thinkingLevel, so think hard gets a token budget instead.
 export function vertexThinking(modelName: string, thinkHard: boolean) {
   if (modelName === GEMINI_MODEL) return geminiThinking(thinkHard)

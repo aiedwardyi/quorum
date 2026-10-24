@@ -6,6 +6,7 @@ const streamMock = vi.hoisted(() => vi.fn())
 const contentMock = vi.hoisted(() => vi.fn())
 const claudeVerdictMock = vi.hoisted(() => vi.fn())
 const candidatesMock = vi.hoisted(() => vi.fn())
+const logUsageMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@google-cloud/vertexai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@google-cloud/vertexai")>()),
@@ -29,7 +30,7 @@ vi.mock("@/lib/host-spend", () => ({
 }))
 vi.mock("@/lib/host-cost", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/host-cost")>()),
-  logHostUsage: vi.fn(),
+  logHostUsage: logUsageMock,
 }))
 vi.mock("@/lib/providers/claude", () => ({
   streamClaude: vi.fn(),
@@ -39,6 +40,10 @@ vi.mock("@/lib/providers/gpt", () => ({ streamGPT: vi.fn(), generateGptVerdict: 
 vi.mock("@/lib/providers/perplexity", () => ({
   streamPerplexity: vi.fn(),
   generatePerplexityVerdict: vi.fn(),
+}))
+vi.mock("@/lib/server-provider-keys", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server-provider-keys")>()),
+  resolveUserProviderApiKey: async () => ({}),
 }))
 vi.mock("@/lib/consensus-resolve", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/consensus-resolve")>()),
@@ -51,6 +56,7 @@ import { NextRequest } from "next/server"
 let GEMINI_FIRST_TEXT_MS: number
 let streamGemini: typeof import("@/lib/providers/gemini").streamGemini
 let consensusPOST: typeof import("@/app/api/consensus/route").POST
+let ocrPOST: typeof import("@/app/api/ocr/route").POST
 
 const messages: Message[] = [
   { id: "u1", sender: "user", displayName: "You", content: "E11.9?", timestamp: new Date(0) },
@@ -89,8 +95,8 @@ async function drain(gen: AsyncGenerator<string>): Promise<string> {
   return out
 }
 
-function post(body: unknown) {
-  return new NextRequest("http://localhost/api/consensus", {
+function post(body: unknown, path = "/api/consensus") {
+  return new NextRequest(`http://localhost${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -101,12 +107,14 @@ beforeEach(async () => {
   vi.resetModules()
   ;({ GEMINI_FIRST_TEXT_MS, streamGemini } = await import("@/lib/providers/gemini"))
   ;({ POST: consensusPOST } = await import("@/app/api/consensus/route"))
+  ;({ POST: ocrPOST } = await import("@/app/api/ocr/route"))
   vi.stubEnv("GEMINI_API_KEY", "")
   vi.spyOn(console, "warn").mockImplementation(() => {})
   vi.spyOn(console, "error").mockImplementation(() => {})
   streamMock.mockReset()
   contentMock.mockReset()
   claudeVerdictMock.mockReset()
+  logUsageMock.mockReset()
   candidatesMock.mockReset().mockResolvedValue({
     candidates: [{ provider: "gemini" }, { provider: "claude" }],
     lookupFailed: false,
@@ -211,5 +219,64 @@ describe("Gemini verdict fallback", () => {
     const res = await pending
     expect(res.status).toBe(200)
     expect(claudeVerdictMock).toHaveBeenCalled()
+  })
+})
+
+describe("Gemini OCR", () => {
+  const ocr = (body: Record<string, unknown> = {}) =>
+    ocrPOST(post({ images: ["aGVsbG8="], ...body }, "/api/ocr"))
+  const sentMime = () => contentMock.mock.calls[0][1].contents[0].parts[2].inlineData.mimeType
+
+  it("defaults to png so PDF pages are sent as before", async () => {
+    contentMock.mockResolvedValue(contentOf("처방전"))
+    const res = await ocr()
+    await expect(res.json()).resolves.toEqual({ text: "처방전" })
+    expect(sentMime()).toBe("image/png")
+  })
+
+  it("passes an allowed image type through to Gemini", async () => {
+    contentMock.mockResolvedValue(contentOf("처방전"))
+    expect((await ocr({ mimeType: "image/jpeg" })).status).toBe(200)
+    expect(sentMime()).toBe("image/jpeg")
+  })
+
+  it.each(["image/gif", "application/pdf", 42])("rejects mime type %s", async (mimeType) => {
+    const res = await ocr({ mimeType })
+    expect(res.status).toBe(400)
+    expect(contentMock).not.toHaveBeenCalled()
+  })
+
+  it("a 3.8 rate limit is read by 2.5 Flash and logged on 2.5", async () => {
+    contentMock.mockImplementation((model: string) =>
+      model === "gemini-3.8-flash"
+        ? rateLimited()
+        : Promise.resolve({
+            response: {
+              ...contentOf("처방전").response,
+              usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 100 },
+            },
+          })
+    )
+    const res = await ocr()
+    await expect(res.json()).resolves.toEqual({ text: "처방전" })
+    expect(contentMock.mock.calls.map((c) => c[0])).toEqual([
+      "gemini-3.8-flash",
+      "gemini-2.5-flash",
+    ])
+    expect(logUsageMock).toHaveBeenCalledWith(
+      "gemini",
+      expect.objectContaining({ model: "gemini-2.5-flash" })
+    )
+  })
+
+  it("a 3.8 stall is read by 2.5 Flash well inside CloudFront's 30s", async () => {
+    vi.useFakeTimers()
+    contentMock.mockImplementation((model: string) =>
+      model === "gemini-3.8-flash" ? never() : Promise.resolve(contentOf("처방전"))
+    )
+    const pending = ocr()
+    await vi.advanceTimersByTimeAsync(15_000)
+    const res = await pending
+    await expect(res.json()).resolves.toEqual({ text: "처방전" })
   })
 })

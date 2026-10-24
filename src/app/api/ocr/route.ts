@@ -4,8 +4,11 @@ import {
   GEMINI_NO_THINKING,
   createVertexAI,
   generateGoogleAiContentWithApiKey,
+  geminiAnswerText,
   geminiUsage,
   getConfiguredGeminiApiKey,
+  vertexThinking,
+  withGeminiFallback,
 } from "@/lib/providers/gemini"
 import { logHostUsage, type UsageSink } from "@/lib/host-cost"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
@@ -28,9 +31,13 @@ function sanitizeOcrText(text: string): string {
   return cleaned
 }
 
-function getModel() {
-  return createVertexAI().getGenerativeModel({ model: GEMINI_MODEL })
+function getModel(modelName: string) {
+  return createVertexAI().getGenerativeModel({ model: modelName })
 }
+
+const OCR_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"])
+// Leaves room for a 2.5 Flash redo inside CloudFront's 30s cut.
+const OCR_PRIMARY_MS = 12_000
 
 const OCR_PROMPT = `You are an OCR engine. Extract EVERY character of text from these document page images verbatim, including text rendered as part of posters, price tables, schedules, charts, signs, and any other visual elements.
 
@@ -50,8 +57,14 @@ Your output must start with the first character of actual document text, and end
 
 export async function POST(req: NextRequest) {
   try {
-    const { images, userApiKey, accessCode } = (await req.json()) as {
+    const {
+      images,
+      mimeType = "image/png",
+      userApiKey,
+      accessCode,
+    } = (await req.json()) as {
       images: string[]
+      mimeType?: string
       userApiKey?: string
       accessCode?: string
     }
@@ -65,6 +78,9 @@ export async function POST(req: NextRequest) {
     }
     if (!images.every((img) => typeof img === "string" && img.length > 0)) {
       return NextResponse.json({ error: "Invalid images" }, { status: 400 })
+    }
+    if (!OCR_MIME_TYPES.has(mimeType)) {
+      return NextResponse.json({ error: "Unsupported image type" }, { status: 400 })
     }
 
     const { userApiKey: userGeminiApiKey, blockedResponse } = await resolveUserProviderApiKey(
@@ -80,7 +96,7 @@ export async function POST(req: NextRequest) {
       { text: `--- Page ${i + 1} ---` },
       {
         inlineData: {
-          mimeType: "image/png" as const,
+          mimeType,
           data: base64,
         },
       },
@@ -102,10 +118,9 @@ export async function POST(req: NextRequest) {
           },
           onUsage,
         })
-      : await (() => {
-          const model = getModel()
-          return model
-            .generateContent({
+      : await withGeminiFallback(
+          async (modelName) => {
+            const result = await getModel(modelName).generateContent({
               contents: [
                 {
                   role: "user",
@@ -115,17 +130,16 @@ export async function POST(req: NextRequest) {
               generationConfig: {
                 temperature: 0,
                 maxOutputTokens: 8192,
-                ...GEMINI_NO_THINKING,
+                ...vertexThinking(modelName, false),
               },
             })
-            .then((result) => {
-              const usage = geminiUsage(result.response.usageMetadata)
-              if (usage) onUsage?.(usage)
-              return (result.response.candidates?.[0]?.content?.parts ?? [])
-                .map((part) => part.text ?? "")
-                .join("")
-            })
-        })()
+            const usage = geminiUsage(result.response.usageMetadata, modelName)
+            if (usage) onUsage?.(usage)
+            return geminiAnswerText(result.response.candidates?.[0]?.content?.parts)
+          },
+          OCR_PRIMARY_MS,
+          "ocr"
+        )
     const text = sanitizeOcrText(rawText)
 
     return NextResponse.json({ text })

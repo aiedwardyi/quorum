@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useLayoutEffect, type ComponentProps } from "react"
-import { Copy, Check } from "lucide-react"
+import { Copy, Check, File, FileText, ImageIcon } from "lucide-react"
 import { Message, Provider, Locale, ResponseLength } from "@/types"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
@@ -11,6 +11,8 @@ import { useSmoothStream } from "@/hooks/useSmoothStream"
 import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
 import { stripHeadingMarkersForPlainText, trimUnclosedTrailingMarkdown } from "@/lib/clean-response"
 import { THINK_HARD_COPY } from "@/lib/think-hard"
+import { IMAGE_EXTENSIONS } from "@/lib/file-parser"
+import { splitAttachments, type MessageAttachment } from "@/lib/message-attachments"
 import VerdictSkeleton from "@/components/VerdictSkeleton"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => (
@@ -29,6 +31,10 @@ const mdComponents = {
 const thinkingText = { en: "is thinking...", ko: "생각 중..." }
 const showLessText = { en: "Show less", ko: "접기" }
 const showMoreText = { en: "...", ko: "..." }
+const attachmentLabels = {
+  en: { show: "Show text", hide: "Hide text" },
+  ko: { show: "텍스트 보기", hide: "텍스트 숨기기" },
+}
 const copyLabels = {
   en: { copy: "Copy", copied: "Copied" },
   ko: { copy: "복사", copied: "복사됨" },
@@ -157,6 +163,46 @@ const ModelIcon = ({ provider, className }: { provider: Provider; className?: st
     default:
       return null
   }
+}
+
+function AttachmentCard({ file, locale }: { file: MessageAttachment; locale: Locale }) {
+  const [open, setOpen] = useState(false)
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
+  const Icon = IMAGE_EXTENSIONS.has(ext) ? ImageIcon : ext === "pdf" ? FileText : File
+  return (
+    <div className="w-64 max-w-full rounded-xl border border-current/20 bg-current/5">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <Icon className="w-4 h-4 shrink-0 opacity-80" />
+        <span className="flex-1 min-w-0 truncate text-[13px] font-medium">{file.name}</span>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="shrink-0 text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+        >
+          {open ? attachmentLabels[locale].hide : attachmentLabels[locale].show}
+        </button>
+      </div>
+      {open && (
+        <div className="max-h-64 overflow-y-auto border-t border-current/15 px-3 py-2 text-[13px] leading-relaxed">
+          {file.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UserContent({ content, locale }: { content: string; locale: Locale }) {
+  const { text, files } = splitAttachments(content)
+  if (files.length === 0) return content
+  return (
+    <div className="flex flex-col gap-2">
+      {text && <div>{text}</div>}
+      {files.map((file, i) => (
+        <AttachmentCard key={i} file={file} locale={locale} />
+      ))}
+    </div>
+  )
 }
 
 export default function ChatBubble({
@@ -536,7 +582,7 @@ export default function ChatBubble({
               }
             >
               {isUser ? (
-                message.content
+                <UserContent content={message.content} locale={locale} />
               ) : isActive ? (
                 // While the bubble is streaming or still draining the
                 // smoothed buffer, render plain text instead of
