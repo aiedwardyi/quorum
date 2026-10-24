@@ -182,8 +182,8 @@ const ModelIcon = ({ provider, size = 14 }: { provider: Provider; size?: number 
   }
 }
 
-/* -- Animated sparkle icon with shimmer -- */
-function SparkleIcon() {
+/* -- Animated Q mark with shimmer -- */
+function LogoMark() {
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0, rotate: -45 }}
@@ -214,7 +214,7 @@ function SparkleIcon() {
           transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 3, ease: "easeInOut" }}
         />
 
-        {/* Sparkle SVG */}
+        {/* Q mark */}
         <svg
           width="36"
           height="36"
@@ -222,12 +222,20 @@ function SparkleIcon() {
           fill="none"
           className="relative z-10 w-8 h-8 sm:w-9 sm:h-9"
         >
-          <motion.path
-            d="M12 2L13.09 8.26L18 6L14.74 10.91L21 12L14.74 13.09L18 18L13.09 15.74L12 22L10.91 15.74L6 18L9.26 13.09L3 12L9.26 10.91L6 6L10.91 8.26L12 2Z"
-            fill="currentColor"
+          <circle
+            cx="12"
+            cy="11.4"
+            r="6.9"
+            stroke="currentColor"
+            strokeWidth="3.3"
             className="text-white dark:text-zinc-900"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <path
+            d="M13.95 14.19L17.45 19.18"
+            stroke="currentColor"
+            strokeWidth="3.3"
+            strokeLinecap="round"
+            className="text-emerald-400 dark:text-emerald-600"
           />
         </svg>
       </div>
@@ -546,7 +554,7 @@ export default function WelcomeHero({
       <div className="space-y-6 sm:space-y-8 max-w-2xl w-full">
         {/* -- Sparkle icon -- */}
         <div className="flex justify-center">
-          <SparkleIcon />
+          <LogoMark />
         </div>
 
         {/* -- Title + subtitle -- */}
