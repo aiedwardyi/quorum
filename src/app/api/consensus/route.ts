@@ -7,7 +7,6 @@ import { getVerdictPrompt, getVerdictSourcesBlock } from "@/lib/verdict-prompt"
 import { sanitizeSources } from "@/lib/web-sources"
 import { isPredominantlyKorean } from "@/lib/detect-language"
 import {
-  GEMINI_FALLBACK_MODEL,
   GEMINI_LIGHT_THINKING,
   GEMINI_MODEL,
   GEMINI_NO_THINKING,
@@ -15,10 +14,9 @@ import {
   geminiUsage,
   generateGeminiVerdictWithApiKey,
   getConfiguredGeminiApiKey,
-  geminiPrimaryCooling,
   getVertexModel,
-  noteGeminiPrimaryFailure,
   vertexThinking,
+  withGeminiFallback,
 } from "@/lib/providers/gemini"
 import { generateClaudeVerdict } from "@/lib/providers/claude"
 import { generateGptVerdict } from "@/lib/providers/gpt"
@@ -384,23 +382,7 @@ export async function POST(req: NextRequest) {
             if (!text) throw new Error("empty response")
             return text
           }
-          if (geminiPrimaryCooling()) return vertexVerdict(GEMINI_FALLBACK_MODEL)
-          try {
-            return await withTimeout(
-              () => vertexVerdict(verdictModelName),
-              GEMINI_VERDICT_PRIMARY_MS,
-              `${verdictModelName} verdict`
-            )
-          } catch (err) {
-            if (signal.aborted) throw err
-            noteGeminiPrimaryFailure()
-            const msg = redactSecrets(err instanceof Error ? err.message : String(err))
-            console.warn(
-              `[verdict] ${verdictModelName} failed; trying ${GEMINI_FALLBACK_MODEL}:`,
-              msg
-            )
-            return vertexVerdict(GEMINI_FALLBACK_MODEL)
-          }
+          return withGeminiFallback(vertexVerdict, GEMINI_VERDICT_PRIMARY_MS, "verdict", signal)
         },
         timeoutMs,
         "Verdict generation"
