@@ -8,6 +8,7 @@ import { redactSecrets } from "@/lib/redact-secrets"
 import { resolveUserProviderApiKey } from "@/lib/server-provider-keys"
 import { capCostWrite, logHostUsage, type ModelUsage } from "@/lib/host-cost"
 import { THINK_HARD_EXTRA_TOKENS, withThinkHardDeadlines } from "@/lib/think-hard"
+import { capImages, withTextOnlyRetry } from "@/lib/image-parts"
 import type { Message, Provider, Locale, ResponseLength } from "@/types"
 
 const VALID_PROVIDERS: Provider[] = ["gemini", "perplexity", "claude", "gpt"]
@@ -305,7 +306,9 @@ export async function POST(request: Request) {
       })
     }
 
-    const inputMessages = messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
+    const inputMessages = capImages(
+      messages.filter((m) => m.sender !== "system" && m.sender !== "verdict")
+    )
     // Detect language from USER messages only - one model hallucinating Korean would otherwise cascade the whole debate into Korean.
     const userOnlyMessages = inputMessages.filter((m) => m.sender === "user")
     const forceKorean = validatedLocale !== "ko" && isPredominantlyKorean(userOnlyMessages)
@@ -372,16 +375,22 @@ export async function POST(request: Request) {
         }
 
         try {
-          const providerStream = streamFn(
-            systemPrompt,
+          const providerStream = withTextOnlyRetry(
+            (sent) =>
+              streamFn(
+                systemPrompt,
+                sent,
+                providerSignal,
+                maxTokens,
+                userApiKey,
+                thinkHard,
+                (u) => {
+                  usage = u
+                }
+              ),
             inputMessages,
-            providerSignal,
-            maxTokens,
-            userApiKey,
-            thinkHard,
-            (u) => {
-              usage = u
-            }
+            `chat/${provider}`,
+            providerSignal
           )
           for await (const chunk of thinkHard
             ? withThinkHardDeadlines(providerStream)

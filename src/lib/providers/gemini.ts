@@ -11,6 +11,7 @@ import {
   type ModelUsage,
   type UsageSink,
 } from "@/lib/host-cost"
+import { THREAD_LEAD, THREAD_TAIL, geminiParts, threadParts } from "@/lib/image-parts"
 
 const GOOGLE_AI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -194,15 +195,11 @@ export function getVertexModel(modelName: string) {
 // Packing everything into a single labeled user message makes the
 // speaker-attribution explicit in-text, and Gemini just responds as
 // itself per the system prompt. No more identity bleed.
-function buildContents(messages: Message[]) {
+function buildContents(messages: Message[]): GoogleAiContent[] {
   return [
     {
-      role: "user" as const,
-      parts: [
-        {
-          text: buildUserPrompt(messages),
-        },
-      ],
+      role: "user",
+      parts: geminiParts(threadParts(messages, THREAD_LEAD, THREAD_TAIL)),
     },
   ]
 }
@@ -227,17 +224,12 @@ function googleAiUrl(
 
 function buildGoogleAiBody(
   systemPrompt: string,
-  userPrompt: string,
+  contents: GoogleAiContent[],
   generationConfig?: Record<string, unknown>
 ) {
   return {
     systemInstruction: { role: "system", parts: [{ text: systemPrompt }] },
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: userPrompt }],
-      },
-    ],
+    contents,
     ...(generationConfig ? { generationConfig } : {}),
   }
 }
@@ -533,7 +525,7 @@ async function* streamGeminiWithApiKey(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(
-      buildGoogleAiBody(systemPrompt, userPrompt, {
+      buildGoogleAiBody(systemPrompt, buildContents(messages), {
         maxOutputTokens: maxTokens,
         ...geminiThinking(thinkHard),
       })

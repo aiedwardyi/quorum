@@ -3,6 +3,7 @@ import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { createThinkStripper } from "@/lib/strip-think"
 import { streamUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
+import { THREAD_LEAD, THREAD_TAIL, openAiContent, threadParts } from "@/lib/image-parts"
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions"
 
@@ -10,13 +11,11 @@ function buildMessages(systemPrompt: string, messages: Message[]) {
   // Perplexity requires strictly alternating user/assistant roles.
   // In a group chat we have multiple AI messages back-to-back,
   // so we pack the entire thread into one user message instead.
-  const thread = messages.map((m) => `[${m.displayName}]: ${m.content}`).join("\n\n")
-
   return [
     { role: "system" as const, content: systemPrompt },
     {
       role: "user" as const,
-      content: `Here is the discussion so far:\n\n${thread}\n\nPlease respond to the discussion above.`,
+      content: openAiContent(threadParts(messages, THREAD_LEAD, THREAD_TAIL)),
     },
   ]
 }
@@ -64,7 +63,10 @@ export async function* streamPerplexity(
 ): AsyncGenerator<string> {
   const model = thinkHard ? "sonar-reasoning-pro" : "sonar-pro"
   const sent = buildMessages(systemPrompt, messages)
-  const usage = streamUsage(model, sent.map((m) => m.content).join(""), onUsage)
+  const promptText = threadParts(messages, THREAD_LEAD, THREAD_TAIL)
+    .map((p) => ("text" in p ? p.text : ""))
+    .join("")
+  const usage = streamUsage(model, systemPrompt + promptText, onUsage)
   const response = await fetch(PERPLEXITY_URL, {
     method: "POST",
     headers: getHeaders(userApiKey),

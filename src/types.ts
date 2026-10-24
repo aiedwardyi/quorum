@@ -37,6 +37,13 @@ export type Message = {
   failed?: boolean
   /** Think hard failed, so this is the fast-mode answer. */
   quickFallback?: boolean
+  images?: MessageImage[]
+}
+
+export type MessageImage = {
+  name: string
+  /** Base64 JPEG, client memory only - never saved with the thread. */
+  data: string
 }
 
 export type WebSource = {

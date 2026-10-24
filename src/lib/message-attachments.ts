@@ -20,3 +20,9 @@ export function splitAttachments(content: string): {
     })),
   }
 }
+
+/** Saved-thread title: the typed text, else the first file's name. */
+export function threadTitle(content: string): string {
+  const { text, files } = splitAttachments(content)
+  return (text || files[0]?.name || content).slice(0, 80)
+}

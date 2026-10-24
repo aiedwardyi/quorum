@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import type { Message } from "@/types"
 import { redactSecrets } from "@/lib/redact-secrets"
 import { streamUsage, type ModelUsage, type UsageSink } from "@/lib/host-cost"
+import { claudeImage } from "@/lib/image-parts"
 
 function getClient(userApiKey?: string) {
   const apiKey = userApiKey || process.env.ANTHROPIC_API_KEY
@@ -34,6 +35,20 @@ export function buildUserContent(messages: Message[]): Anthropic.TextBlockParam[
   }
   blocks.push({ type: "text", text: "\n\nPlease respond to the discussion above." })
   return blocks
+}
+
+// Images follow their message's text block; its breakpoint moves to the last image so the cached prefix holds them.
+export function buildClaudeContent(messages: Message[]): Anthropic.ContentBlockParam[] {
+  const blocks = buildUserContent(messages)
+  if (!messages.some((m) => m.images?.length)) return blocks
+  return blocks.flatMap((block, i) => {
+    const images = messages[i]?.images ?? []
+    if (!images.length) return [block]
+    const { cache_control, ...text } = block
+    const parts: Anthropic.ImageBlockParam[] = images.map(claudeImage)
+    if (cache_control) parts[parts.length - 1].cache_control = cache_control
+    return [text, ...parts]
+  })
 }
 
 // Opus 5.5 can't turn thinking off; low effort keeps it light.
@@ -72,10 +87,13 @@ export async function* streamClaude(
 ): AsyncGenerator<string> {
   const client = getClient(userApiKey)
   const params = claudeModelParams(thinkHard)
-  const content = buildUserContent(messages)
+  const content = buildClaudeContent(messages)
   const usage = streamUsage(
     params.model,
-    systemPrompt + content.map((b) => b.text).join(""),
+    systemPrompt +
+      buildUserContent(messages)
+        .map((b) => b.text)
+        .join(""),
     onUsage
   )
 

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useRef, useEffect } from "react"
-import { Provider, Locale } from "@/types"
+import { Provider, Locale, type MessageImage } from "@/types"
 import {
   Send,
   Square,
@@ -25,6 +25,14 @@ import { getMissingApiKeyMessage } from "@/lib/api-key-errors"
 import { shouldSendOnKey } from "@/lib/send-key"
 import { pastedFiles } from "@/lib/paste-files"
 import { THINK_HARD_COPY } from "@/lib/think-hard"
+import { modelImage } from "@/lib/image-parts"
+import {
+  composeMessage,
+  creepProgress,
+  isImageName,
+  localizeStatus,
+  tileState,
+} from "@/lib/attach-send"
 
 const translations = {
   en: {
@@ -35,15 +43,17 @@ const translations = {
     remove: "Remove",
     drop: "Drop files to attach",
     parsing: "Reading files...",
-    unsupported: "Supported: PDF, DOCX, Excel, images, and text files",
+    unsupported: "Supported: PDF, DOCX, Excel, images (PNG, JPG, WebP), and text files",
     truncated: (name: string) => `"${name}" is too long - only the first part was included`,
     empty: (name: string) => `"${name}" has no readable text - it may be a scanned image`,
     too_large: (name: string) => `"${name}" exceeds the 50MB file size limit`,
     parse_error: (name: string) =>
       `"${name}" could not be read - the file may be corrupted or password-protected`,
     ocrDone: (name: string) => `"${name}" scanned via OCR`,
-    imageEmpty: (name: string) => `"${name}" has no readable text`,
+    imageNoText: (name: string) => `"${name}" has no text. The models will look at the picture.`,
+    imageError: (name: string) => `"${name}" couldn't be opened`,
     imageDone: (name: string) => `"${name}" text read from image`,
+    skipped: "No text, won't be sent",
   },
   ko: {
     placeholder: "메시지를 입력하세요...",
@@ -53,7 +63,7 @@ const translations = {
     remove: "삭제",
     drop: "파일을 놓아 첨부",
     parsing: "파일 읽는 중...",
-    unsupported: "지원 형식: PDF, DOCX, Excel, 이미지, 텍스트 파일",
+    unsupported: "지원 형식: PDF, DOCX, Excel, 이미지(PNG, JPG, WebP), 텍스트 파일",
     truncated: (name: string) => `"${name}" 파일이 너무 길어 앞부분만 포함되었습니다`,
     empty: (name: string) =>
       `"${name}" 파일에 읽을 수 있는 텍스트가 없습니다 - 스캔 이미지일 수 있음`,
@@ -61,8 +71,10 @@ const translations = {
     parse_error: (name: string) =>
       `"${name}" 파일을 읽을 수 없습니다 (손상되었거나 암호가 설정되어 있을 수 있음)`,
     ocrDone: (name: string) => `"${name}" OCR 스캔 완료`,
-    imageEmpty: (name: string) => `"${name}" 이미지에 읽을 수 있는 텍스트가 없습니다`,
+    imageNoText: (name: string) => `"${name}" 텍스트 없음 - 모델이 사진을 직접 봅니다`,
+    imageError: (name: string) => `"${name}" 파일을 열 수 없습니다`,
     imageDone: (name: string) => `"${name}" 이미지 텍스트 인식 완료`,
+    skipped: "텍스트 없음, 전송 안 됨",
   },
 }
 
@@ -74,6 +86,7 @@ interface AttachedFile {
   parseStatus?: string
   parseProgress?: number
   parsed?: ParseResult
+  image?: MessageImage
 }
 
 export default function MessageInput({
@@ -89,7 +102,7 @@ export default function MessageInput({
   thinkHard,
   onToggleThinkHard,
 }: {
-  onSend: (text: string, target: Provider | "all") => void
+  onSend: (text: string, target: Provider | "all", images?: MessageImage[]) => void
   onStop: () => void
   disabled: boolean
   locale: Locale
@@ -135,28 +148,14 @@ export default function MessageInput({
     }
   }, [])
 
+  const composerFiles = attachedFiles.map((f) => ({ ...f, name: f.file.name }))
+  const anyParsing = attachedFiles.some((f) => f.parsing)
+
   const handleSend = () => {
-    const anyParsing = attachedFiles.some((f) => f.parsing)
-    if (anyParsing || (!text.trim() && attachedFiles.length === 0) || disabled || sessionLoading)
-      return
+    const message = composeMessage(text, composerFiles)
+    if (anyParsing || !message || disabled || sessionLoading) return
 
-    let messageText = text.trim()
-
-    if (attachedFiles.length > 0) {
-      const fileContents = attachedFiles
-        .filter((af) => af.parsed?.text && !af.parsed.text.startsWith("[Unsupported"))
-        .map((af) => `--- File: ${af.file.name} ---\n${af.parsed!.text}`)
-
-      if (fileContents.length === 0) return
-
-      messageText = messageText
-        ? `${messageText}\n\n${fileContents.join("\n\n")}`
-        : fileContents.join("\n\n")
-    }
-
-    if (!messageText) return
-
-    onSend(messageText, "all")
+    onSend(message.text, "all", message.images)
     setText("")
     attachedFiles.forEach((f) => {
       if (f.preview) URL.revokeObjectURL(f.preview)
@@ -202,6 +201,19 @@ export default function MessageInput({
     return () => clearTimeout(timer)
   }, [fileNote])
 
+  // OCR is one long request; creep the ring so it never looks frozen.
+  useEffect(() => {
+    if (!anyParsing) return
+    const timer = setInterval(() => {
+      setAttachedFiles((prev) =>
+        prev.map((f) =>
+          f.parsing ? { ...f, parseProgress: creepProgress(f.parseProgress ?? 1) } : f
+        )
+      )
+    }, 500)
+    return () => clearInterval(timer)
+  }, [anyParsing])
+
   const addFiles = (incoming: File[]) => {
     // Auth still resolving: block attach so OCR isn't started with the wrong
     // anonymous snapshot (parseFile would call /api/ocr without the browser key).
@@ -236,7 +248,13 @@ export default function MessageInput({
         onProgress: (status, progress) => {
           setAttachedFiles((prev) =>
             prev.map((f) =>
-              f.id === af.id ? { ...f, parseStatus: status, parseProgress: progress } : f
+              f.id === af.id
+                ? {
+                    ...f,
+                    parseStatus: status,
+                    parseProgress: Math.max(f.parseProgress ?? 1, progress ?? 1),
+                  }
+                : f
             )
           )
         },
@@ -245,25 +263,33 @@ export default function MessageInput({
           onApiKeyRequired?.(provider)
         },
       })
+      const isImage = isImageName(af.file.name)
+      const image =
+        isImage && parsed.warning !== "too_large"
+          ? await modelImage(af.file).catch(() => undefined)
+          : undefined
       // Bail if file was removed while parsing
       if (!attachedFilesRef.current.some((f) => f.id === af.id)) return
-      const isImage = IMAGE_EXTENSIONS.has(af.file.name.split(".").pop()?.toLowerCase() ?? "")
+      const noText = parsed.warning === "empty" || parsed.warning === "parse_error"
       const warningMsg =
-        parsed.warning === "empty"
-          ? (isImage ? t.imageEmpty : t.empty)(af.file.name)
-          : parsed.warning === "too_large"
-            ? t.too_large(af.file.name)
-            : parsed.warning === "parse_error"
-              ? t.parse_error(af.file.name)
-              : parsed.warning === "truncated"
-                ? t.truncated(af.file.name)
-                : null
+        image && noText
+          ? null
+          : parsed.warning === "empty"
+            ? t.empty(af.file.name)
+            : parsed.warning === "too_large"
+              ? t.too_large(af.file.name)
+              : parsed.warning === "parse_error"
+                ? (isImage ? t.imageError : t.parse_error)(af.file.name)
+                : parsed.warning === "truncated"
+                  ? t.truncated(af.file.name)
+                  : null
       if (warningMsg) setFileError(warningMsg)
-      if (parsed.usedOCR && !parsed.warning)
+      if (image && noText) setFileNote(t.imageNoText(af.file.name))
+      else if (parsed.usedOCR && !parsed.warning)
         setFileNote((isImage ? t.imageDone : t.ocrDone)(af.file.name))
       setAttachedFiles((prev) =>
         prev.map((f) =>
-          f.id === af.id ? { ...f, parsing: false, parseStatus: undefined, parsed } : f
+          f.id === af.id ? { ...f, parsing: false, parseStatus: undefined, parsed, image } : f
         )
       )
     })
@@ -287,8 +313,7 @@ export default function MessageInput({
     })
   }
 
-  const anyParsing = attachedFiles.some((f) => f.parsing)
-  const sendDisabled = anyParsing || (!text.trim() && attachedFiles.length === 0) || sessionLoading
+  const sendDisabled = anyParsing || !composeMessage(text, composerFiles) || sessionLoading
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 pt-1 pb-3">
@@ -350,10 +375,11 @@ export default function MessageInput({
 
           {attachedFiles.length > 0 && (
             <div className="flex flex-wrap gap-2 p-3 border-b border-zinc-100 dark:border-zinc-800">
-              {attachedFiles.map((file) => {
+              {attachedFiles.map((file, index) => {
                 const ext = file.file.name.split(".").pop()?.toLowerCase() ?? ""
                 const Icon = IMAGE_EXTENSIONS.has(ext) ? ImageIcon : ext === "pdf" ? FileText : File
                 const progress = Math.max(1, Math.min(100, Math.round(file.parseProgress ?? 1)))
+                const skipped = tileState(composerFiles[index]) === "skipped"
                 return (
                   <div
                     key={file.id}
@@ -403,11 +429,7 @@ export default function MessageInput({
                       <span
                         className={cn(
                           "text-xs font-medium truncate",
-                          file.parsed?.warning === "empty" ||
-                            file.parsed?.warning === "too_large" ||
-                            file.parsed?.warning === "parse_error"
-                            ? "text-amber-500"
-                            : "text-zinc-700 dark:text-zinc-300"
+                          skipped ? "text-amber-500" : "text-zinc-700 dark:text-zinc-300"
                         )}
                       >
                         {file.file.name}
@@ -417,10 +439,16 @@ export default function MessageInput({
                           "text-[10px] truncate",
                           file.parseStatus
                             ? "text-blue-500 dark:text-blue-400"
-                            : "text-zinc-400 dark:text-zinc-500 uppercase"
+                            : skipped
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-zinc-400 dark:text-zinc-500 uppercase"
                         )}
                       >
-                        {file.parseStatus ?? ext}
+                        {file.parseStatus
+                          ? localizeStatus(file.parseStatus, locale)
+                          : skipped
+                            ? t.skipped
+                            : ext}
                       </span>
                     </div>
                     <button

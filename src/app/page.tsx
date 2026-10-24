@@ -4,7 +4,15 @@ import { Suspense, useCallback, useRef, useEffect, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { THEMES } from "@/types"
-import type { Provider, Locale, ResponseLength, Theme, Message, VerdictResult } from "@/types"
+import type {
+  Provider,
+  Locale,
+  ResponseLength,
+  Theme,
+  Message,
+  MessageImage,
+  VerdictResult,
+} from "@/types"
 import { useDebateEngine, SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
 import ChatThread from "@/components/ChatThread"
 import MessageInput from "@/components/MessageInput"
@@ -19,6 +27,7 @@ import { getApiKeyPromptMessage } from "@/lib/api-key-errors"
 import { shouldUseClientKeys, isSessionResolving, isFirstRunKeyless } from "@/lib/client-api-keys"
 import { authEnabled } from "@/lib/deploy-config"
 import { THINK_HARD_STORAGE_KEY, parseStoredThinkHard } from "@/lib/think-hard"
+import { threadTitle } from "@/lib/message-attachments"
 
 // Keep in sync with DEFAULT_MODELS in useDebateEngine.ts.
 const DEFAULT_MODELS: Provider[] = ["perplexity", "claude", "gpt", "gemini"]
@@ -61,11 +70,11 @@ function ChatPageContent() {
     onApiKeyRequired: handleApiKeyRequired,
   })
   const handleDirectSend = useCallback(
-    (text: string, target: Provider | "all") => {
+    (text: string, target: Provider | "all", images?: MessageImage[]) => {
       // Auth still resolving: don't send yet. MessageInput keeps the typed text and
       // the empty-state prompt stays clickable, so nothing fires without its key.
       if (isSessionResolving(authEnabled(), status)) return
-      handleSend(text, target)
+      handleSend(text, target, images)
     },
     [handleSend, status]
   )
@@ -323,7 +332,7 @@ function ChatPageContent() {
         creatingThreadRef.current = true
         persistence
           .createThread({
-            title: firstUserMsg.content.slice(0, 80),
+            title: threadTitle(firstUserMsg.content),
             models: state.activeModels,
             rounds: maxRounds,
             responseLength,
