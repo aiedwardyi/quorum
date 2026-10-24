@@ -91,6 +91,10 @@ describe("composerLocks", () => {
   it("still blocks Send while a PDF is parsing", () => {
     expect(composerLocks("hi", [rxReading, pdfParsing], false).sendDisabled).toBe(true)
   })
+
+  it("blocks Send while a previous send is still fitting its pictures", () => {
+    expect(composerLocks("next", [], false, true).sendDisabled).toBe(true)
+  })
 })
 
 describe("capPictures", () => {

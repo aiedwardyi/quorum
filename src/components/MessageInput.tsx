@@ -126,6 +126,9 @@ export default function MessageInput({
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [fileNote, setFileNote] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+  // Ref too: two fast Enters share one render, so state alone lets both through.
+  const sendingRef = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>([])
@@ -156,11 +159,18 @@ export default function MessageInput({
 
   const composerFiles = attachedFiles.map((f) => ({ ...f, name: f.file.name }))
   const anyParsing = attachedFiles.some((f) => f.parsing)
-  const { attachDisabled, sendDisabled } = composerLocks(text, composerFiles, sessionLoading)
+  const { attachDisabled, sendDisabled } = composerLocks(
+    text,
+    composerFiles,
+    sessionLoading,
+    sending
+  )
 
   const handleSend = async () => {
     const message = composeMessage(text, composerFiles)
-    if (sendDisabled || !message || disabled) return
+    if (sendDisabled || sendingRef.current || !message || disabled) return
+    sendingRef.current = true
+    setSending(true)
 
     const pictures = attachedFiles.flatMap((f) =>
       !f.parsing && f.image ? [{ file: f.file, image: f.image }] : []
@@ -173,7 +183,10 @@ export default function MessageInput({
     attachedFilesRef.current = []
     setAttachedFiles([])
     if (textareaRef.current) textareaRef.current.style.height = "auto"
-    onSend(message.text, "all", await fitImages(pictures).catch(() => message.images))
+    const images = await fitImages(pictures).catch(() => message.images)
+    sendingRef.current = false
+    setSending(false)
+    onSend(message.text, "all", images)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

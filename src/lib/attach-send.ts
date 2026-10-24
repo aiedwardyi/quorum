@@ -58,11 +58,17 @@ export function composeMessage(
   return { text: [typed, ...blocks].filter(Boolean).join("\n\n"), images }
 }
 
-/** Attach waits only for the session; Send also waits for files still parsing. */
-export function composerLocks(text: string, files: ComposerFile[], sessionLoading: boolean) {
+/** Attach waits only for the session; Send also waits for files still parsing and a send in flight. */
+export function composerLocks(
+  text: string,
+  files: ComposerFile[],
+  sessionLoading: boolean,
+  sending = false
+) {
   return {
     attachDisabled: sessionLoading,
-    sendDisabled: sessionLoading || files.some((f) => f.parsing) || !composeMessage(text, files),
+    sendDisabled:
+      sessionLoading || sending || files.some((f) => f.parsing) || !composeMessage(text, files),
   }
 }
 
