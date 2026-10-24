@@ -13,6 +13,7 @@ import {
   setClientKey,
   shouldUseClientKeys,
 } from "@/lib/client-api-keys"
+import QuorumMark from "@/components/QuorumMark"
 
 const suggestions = {
   en: [
@@ -182,8 +183,8 @@ const ModelIcon = ({ provider, size = 14 }: { provider: Provider; size?: number 
   }
 }
 
-/* -- Animated sparkle icon with shimmer -- */
-function SparkleIcon() {
+/* -- Animated Q mark with shimmer -- */
+function LogoMark() {
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0, rotate: -45 }}
@@ -214,22 +215,11 @@ function SparkleIcon() {
           transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 3, ease: "easeInOut" }}
         />
 
-        {/* Sparkle SVG */}
-        <svg
-          width="36"
-          height="36"
-          viewBox="0 0 24 24"
-          fill="none"
+        <QuorumMark
           className="relative z-10 w-8 h-8 sm:w-9 sm:h-9"
-        >
-          <motion.path
-            d="M12 2L13.09 8.26L18 6L14.74 10.91L21 12L14.74 13.09L18 18L13.09 15.74L12 22L10.91 15.74L6 18L9.26 13.09L3 12L9.26 10.91L6 6L10.91 8.26L12 2Z"
-            fill="currentColor"
-            className="text-white dark:text-zinc-900"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          />
-        </svg>
+          ringClassName="text-white dark:text-zinc-900"
+          tailClassName="text-emerald-400 dark:text-emerald-600"
+        />
       </div>
     </motion.div>
   )
@@ -544,9 +534,9 @@ export default function WelcomeHero({
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-4 sm:px-6 py-8 sm:py-12 gap-6 sm:gap-8">
       <div className="space-y-6 sm:space-y-8 max-w-2xl w-full">
-        {/* -- Sparkle icon -- */}
+        {/* -- Logo mark -- */}
         <div className="flex justify-center">
-          <SparkleIcon />
+          <LogoMark />
         </div>
 
         {/* -- Title + subtitle -- */}
