@@ -1,11 +1,13 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import {
   NO_TEXT_IMAGE,
+  TEXT_NOT_READ,
   capPictures,
   composeMessage,
   composerLocks,
   creepProgress,
   localizeStatus,
+  settleWithin,
   tileState,
   type ComposerFile,
 } from "@/lib/attach-send"
@@ -65,14 +67,29 @@ describe("composeMessage", () => {
     expect(composeMessage("", [{ ...rx, parsing: true }])).toBeNull()
   })
 
-  it("sends a picture without its OCR text while OCR runs, and with it once read", () => {
+  it("sends a picture with a not-read marker while OCR runs, and its text once read", () => {
     expect(composeMessage("translate this", [rxReading])).toEqual({
-      text: "translate this\n\n--- File: rx.jpg ---",
+      text: `translate this\n\n--- File: rx.jpg ---\n${TEXT_NOT_READ}`,
       images: [rx.image],
     })
     expect(composeMessage("translate this", [rx])?.text).toBe(
       "translate this\n\n--- File: rx.jpg ---\n처방전"
     )
+  })
+})
+
+describe("settleWithin", () => {
+  it("keeps results that land in time and gives up on the rest", async () => {
+    vi.useFakeTimers()
+    const late = new Promise<string>((resolve) => setTimeout(() => resolve("late"), 9000))
+    const settled = settleWithin([Promise.resolve("fast"), undefined, late], 4000)
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(await settled).toEqual(["fast", undefined, undefined])
+    vi.useRealTimers()
+  })
+
+  it("returns at once when nothing is pending", async () => {
+    expect(await settleWithin([undefined, undefined], 60_000)).toEqual([undefined, undefined])
   })
 })
 

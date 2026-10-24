@@ -34,6 +34,8 @@ import {
   creepProgress,
   isImageName,
   localizeStatus,
+  OCR_GRACE_MS,
+  settleWithin,
   tileState,
 } from "@/lib/attach-send"
 
@@ -129,6 +131,7 @@ export default function MessageInput({
   const [sending, setSending] = useState(false)
   // Ref too: two fast Enters share one render, so state alone lets both through.
   const sendingRef = useRef(false)
+  const ocrRef = useRef(new Map<string, Promise<ParseResult>>())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>([])
@@ -172,6 +175,8 @@ export default function MessageInput({
     sendingRef.current = true
     setSending(true)
 
+    const typed = text
+    const sent = composerFiles
     const pictures = attachedFiles.flatMap((f) =>
       !f.parsing && f.image ? [{ file: f.file, image: f.image }] : []
     )
@@ -183,10 +188,22 @@ export default function MessageInput({
     attachedFilesRef.current = []
     setAttachedFiles([])
     if (textareaRef.current) textareaRef.current.style.height = "auto"
-    const images = await fitImages(pictures).catch(() => message.images)
+    const [reads, images] = await Promise.all([
+      settleWithin(
+        sent.map((f) => (f.ocrPending ? ocrRef.current.get(f.id) : undefined)),
+        OCR_GRACE_MS
+      ),
+      fitImages(pictures).catch(() => message.images),
+    ])
+    sent.forEach((f) => ocrRef.current.delete(f.id))
+    const final =
+      composeMessage(
+        typed,
+        sent.map((f, i) => (reads[i] ? { ...f, parsed: reads[i], ocrPending: false } : f))
+      ) ?? message
     sendingRef.current = false
     setSending(false)
-    onSend(message.text, "all", images)
+    onSend(final.text, "all", images)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -301,6 +318,7 @@ export default function MessageInput({
           onApiKeyRequired?.(provider)
         },
       })
+      ocrRef.current.set(af.id, parsing)
       const image = await pending
       if (image && attached()) {
         setAttachedFiles((prev) =>
@@ -348,6 +366,7 @@ export default function MessageInput({
   }
 
   const removeFile = (id: string) => {
+    ocrRef.current.delete(id)
     setAttachedFiles((prev) => {
       const removed = prev.find((f) => f.id === id)
       if (removed?.preview) URL.revokeObjectURL(removed.preview)
@@ -596,7 +615,7 @@ export default function MessageInput({
                   disabled={sendDisabled}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium rounded-lg transition-colors shadow-sm"
                 >
-                  {anyParsing ? (
+                  {anyParsing || sending ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       {t.parsing}
