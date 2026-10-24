@@ -465,7 +465,7 @@ export default function MessageInput({
                 }}
                 className="hidden"
                 multiple
-                accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv,.png,.jpg,.jpeg,.webp,.heic,.heif"
+                accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv,.png,.jpg,.jpeg,.webp"
               />
               <button
                 onClick={(e) => {

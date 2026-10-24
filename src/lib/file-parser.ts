@@ -19,7 +19,8 @@ const SPARSE_TEXT_WITH_IMAGE_THRESHOLD = 300
 const DENSE_TEXT_THRESHOLD = 2000
 const MAX_IMAGE_SIDE = 2000
 const IMAGE_JPEG_QUALITY = 0.9
-export const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp", "heic", "heif"])
+// No HEIC: Chrome and Firefox can't decode it.
+export const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"])
 export const SUPPORTED_EXTENSIONS = new Set([
   "pdf",
   "docx",

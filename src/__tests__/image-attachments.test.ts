@@ -74,7 +74,7 @@ describe("image attachments", () => {
     vi.stubGlobal("createImageBitmap", async () => {
       throw new Error("decode failed")
     })
-    expect(await parseFile(photo("rx.heic"))).toEqual({ text: "", warning: "parse_error" })
+    expect(await parseFile(photo("rx.jpg"))).toEqual({ text: "", warning: "parse_error" })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
