@@ -1,8 +1,9 @@
-/** Real host-key cost per UTC day and provider: reported usage x list price. BYOK is never logged. */
+/** Real host-key cost per Seoul day and provider: reported usage x list price. BYOK is never logged. */
 import type { Provider } from "@/types"
 import { prisma } from "@/lib/prisma"
-import { hasDatabase, utcSpendDay } from "@/lib/host-spend"
+import { hasDatabase } from "@/lib/host-spend"
 import { SEARCH_REQUEST_USD, ratesFor, requestFeeUsd } from "@/lib/model-prices"
+import { seoulDay } from "@/lib/seoul-day"
 
 export type CostProvider = Provider | "search"
 
@@ -67,7 +68,7 @@ export function streamUsage(model: string, prompt: string, onUsage?: UsageSink) 
   }
 }
 
-export function usageCents(usage: ModelUsage, day = utcSpendDay()): number {
+export function usageCents(usage: ModelUsage, day = seoulDay()): number {
   if (typeof usage.costUsd === "number" && Number.isFinite(usage.costUsd)) {
     return usage.costUsd * 100
   }
@@ -96,7 +97,7 @@ export const COST_WRITE_CAP_MS = 2_000
 export async function logHostCost(provider: CostProvider, cents: number): Promise<void> {
   if (!hasDatabase()) return
   try {
-    const day = utcSpendDay()
+    const day = seoulDay()
     const safe = Number.isFinite(cents) && cents > 0 ? cents : 0
     await prisma.hostCostDay.upsert({
       where: { day_provider: { day, provider } },

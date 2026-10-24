@@ -20,8 +20,8 @@ import {
   getHostSpendStatus,
   releaseHostSpend,
   tryReserveHostSpend,
-  utcSpendDay,
 } from "@/lib/host-spend"
+import { seoulDay } from "@/lib/seoul-day"
 
 describe("host spend", () => {
   let previousBudget: string | undefined
@@ -58,7 +58,7 @@ describe("host spend", () => {
     process.env.HOST_KEY_DAILY_BUDGET_USD = "0"
     await expect(tryReserveHostSpend(3)).resolves.toEqual({
       ok: false,
-      day: utcSpendDay(),
+      day: seoulDay(),
       cents: 3,
     })
     expect(updateManyMock).not.toHaveBeenCalled()
@@ -68,7 +68,7 @@ describe("host spend", () => {
     updateManyMock.mockResolvedValue({ count: 1 })
     await expect(tryReserveHostSpend(10)).resolves.toEqual({
       ok: true,
-      day: utcSpendDay(),
+      day: seoulDay(),
       cents: 10,
     })
     expect(upsertMock).toHaveBeenCalledWith(
@@ -79,7 +79,7 @@ describe("host spend", () => {
     expect(updateManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          day: utcSpendDay(),
+          day: seoulDay(),
           centsUsed: { lte: 2490 },
         }),
         data: { centsUsed: { increment: 10 } },
@@ -121,7 +121,7 @@ describe("host spend", () => {
   it("reports remaining budget in status", async () => {
     findUniqueMock.mockResolvedValue({ centsUsed: 400 })
     await expect(getHostSpendStatus()).resolves.toEqual({
-      day: utcSpendDay(),
+      day: seoulDay(),
       centsUsed: 400,
       budgetCents: 2500,
       remainingCents: 2100,

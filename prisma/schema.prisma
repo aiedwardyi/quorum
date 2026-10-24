@@ -26,14 +26,14 @@ model User {
   updatedAt     DateTime  @updatedAt
 }
 
-// UTC day rollup for host-key spend estimates (BYOK excluded).
+// Seoul day rollup for host-key spend estimates (BYOK excluded).
 model HostSpendDay {
   day       String   @id
   centsUsed Int      @default(0)
   updatedAt DateTime @updatedAt
 }
 
-// UTC day rollup of real host-key cost per provider (BYOK excluded).
+// Seoul day rollup of real host-key cost per provider (BYOK excluded).
 model HostCostDay {
   day       String
   provider  String
@@ -44,7 +44,7 @@ model HostCostDay {
   @@id([day, provider])
 }
 
-// One row per browser per UTC day: sha256(day + ":" + random browser id). No IP, no cookie.
+// One row per browser per Seoul day: sha256(day + ":" + random browser id). No IP, no cookie.
 model DailyVisitor {
   hash String @id
   day  String

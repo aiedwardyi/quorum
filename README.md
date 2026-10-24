@@ -178,7 +178,7 @@ With `NEXT_PUBLIC_AUTH_ENABLED=true` and `REQUIRE_USER_API_KEYS=true`, each new 
 
 ### Host-key daily budget
 
-`HOST_KEY_DAILY_BUDGET_USD` (default **25**) caps estimated spend on host keys for free debates and access codes. When the budget is hit, host keys stop for the UTC day; BYOK still works. This is an app-side stop, independent of provider dashboards.
+`HOST_KEY_DAILY_BUDGET_USD` (default **25**) caps estimated spend on host keys for free debates and access codes. When the budget is hit, host keys stop for the day (resets at 00:00 Seoul); BYOK still works. This is an app-side stop, independent of provider dashboards.
 
 `STATS_API_TOKEN` (optional) turns on `GET /api/admin/stats` with `Authorization: Bearer <token>`: daily host-key cost, visitors and sign-ups. Unset, the endpoint is a 404.
 

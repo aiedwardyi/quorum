@@ -1,7 +1,8 @@
 /** Anonymous daily visitor count: stores only sha256(day + ":" + browser id). No IP, no cookie. */
 import { createHash } from "node:crypto"
 import { prisma } from "@/lib/prisma"
-import { hasDatabase, utcSpendDay } from "@/lib/host-spend"
+import { hasDatabase } from "@/lib/host-spend"
+import { seoulDay } from "@/lib/seoul-day"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
   if (typeof id !== "string" || !UUID.test(id)) return new Response(null, { status: 400 })
   if (!hasDatabase()) return new Response(null, { status: 204 })
 
-  const day = utcSpendDay()
+  const day = seoulDay()
   try {
     await prisma.dailyVisitor.createMany({
       data: [{ hash: visitHash(day, id), day }],

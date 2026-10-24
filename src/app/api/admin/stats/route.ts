@@ -2,7 +2,8 @@
 import { createHash, timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getDailyBudgetCents, hasDatabase, utcSpendDay } from "@/lib/host-spend"
+import { getDailyBudgetCents, hasDatabase } from "@/lib/host-spend"
+import { seoulDay } from "@/lib/seoul-day"
 
 const DEFAULT_DAYS = 14
 const MAX_DAYS = 90
@@ -44,9 +45,9 @@ export async function GET(req: Request) {
 
   const count = clampDays(new URL(req.url).searchParams.get("days"))
   const now = new Date()
-  const today = utcSpendDay(now)
-  const firstMs = Date.parse(`${today}T00:00:00.000Z`) - (count - 1) * DAY_MS
-  const days = Array.from({ length: count }, (_, i) => utcSpendDay(new Date(firstMs + i * DAY_MS)))
+  const today = seoulDay(now)
+  const firstMs = Date.parse(`${today}T00:00:00.000+09:00`) - (count - 1) * DAY_MS
+  const days = Array.from({ length: count }, (_, i) => seoulDay(new Date(firstMs + i * DAY_MS)))
   const rows = new Map<string, DayRow>(
     days.map((day) => [
       day,
@@ -90,7 +91,7 @@ export async function GET(req: Request) {
         if (row) row.visitors = v._count._all
       }
       for (const u of signups) {
-        const row = rows.get(utcSpendDay(u.createdAt))
+        const row = rows.get(seoulDay(u.createdAt))
         if (row) row.signups += 1
       }
       tracking.costSince = firstCost?.day ?? null
@@ -106,7 +107,7 @@ export async function GET(req: Request) {
   return NextResponse.json(
     {
       generatedAt: now.toISOString(),
-      timezone: "UTC",
+      timezone: "Asia/Seoul",
       budget,
       tracking,
       totals: { users },

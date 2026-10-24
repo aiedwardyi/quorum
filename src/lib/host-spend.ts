@@ -1,6 +1,7 @@
 /** App-side daily budget for host (server) API keys. BYOK is never counted. */
 import type { Provider } from "@/types"
 import { prisma } from "@/lib/prisma"
+import { seoulDay } from "@/lib/seoul-day"
 
 // Default $25/day. Override with HOST_KEY_DAILY_BUDGET_USD. Set 0 to block host keys.
 const DEFAULT_BUDGET_USD = 25
@@ -38,10 +39,6 @@ export function estimateHostCallCents(provider: Provider, units = 1, thinkHard =
   return (thinkHard ? THINK_HARD_ESTIMATE_CENTS : ESTIMATE_CENTS)[provider] * n
 }
 
-export function utcSpendDay(now = new Date()): string {
-  return now.toISOString().slice(0, 10)
-}
-
 export type HostSpendStatus = {
   day: string
   centsUsed: number
@@ -58,7 +55,7 @@ export function hasDatabase(): boolean {
 }
 
 export async function getHostSpendStatus(): Promise<HostSpendStatus> {
-  const day = utcSpendDay()
+  const day = seoulDay()
   const budgetCents = getDailyBudgetCents()
   if (!hasDatabase()) {
     return { day, centsUsed: 0, budgetCents, remainingCents: budgetCents }
@@ -75,7 +72,7 @@ export async function getHostSpendStatus(): Promise<HostSpendStatus> {
 
 /** Atomically reserve estimated cents for one host-key call. */
 export async function tryReserveHostSpend(cents: number): Promise<HostSpendReserveResult> {
-  const day = utcSpendDay()
+  const day = seoulDay()
   if (cents <= 0) return { ok: true, day, cents: 0 }
   const budgetCents = getDailyBudgetCents()
   if (budgetCents <= 0) return { ok: false, day, cents }
