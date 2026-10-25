@@ -13,6 +13,7 @@ import {
   Loader2,
   Brain,
   Check,
+  Plus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -60,6 +61,8 @@ const translations = {
     imageDone: (name: string) => `"${name}" text read from image`,
     skipped: "No text, won't be sent",
     pictureLimit: "Up to 4 pictures per message.",
+    newLabel: "New",
+    newTitle: "New discussion",
   },
   ko: {
     placeholder: "메시지를 입력하세요...",
@@ -82,6 +85,8 @@ const translations = {
     imageDone: (name: string) => `"${name}" 이미지 텍스트 인식 완료`,
     skipped: "텍스트 없음, 전송 안 됨",
     pictureLimit: "사진은 메시지당 4장까지 첨부할 수 있습니다.",
+    newLabel: "새 토론",
+    newTitle: "새 토론",
   },
 }
 
@@ -109,6 +114,7 @@ export default function MessageInput({
   sessionLoading,
   thinkHard,
   onToggleThinkHard,
+  onNewDiscussion,
 }: {
   onSend: (text: string, target: Provider | "all", images?: MessageImage[]) => void
   onStop: () => void
@@ -121,6 +127,7 @@ export default function MessageInput({
   sessionLoading: boolean
   thinkHard: boolean
   onToggleThinkHard: () => void
+  onNewDiscussion?: () => void
 }) {
   const [text, setText] = useState("")
   const [isDragging, setIsDragging] = useState(false)
@@ -589,6 +596,23 @@ export default function MessageInput({
                 <Brain className="w-3.5 h-3.5" />
                 {thinkHardCopy.label}
               </button>
+              {onNewDiscussion && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onNewDiscussion()
+                    textareaRef.current?.focus()
+                  }}
+                  disabled={disabled}
+                  aria-label={t.newTitle}
+                  title={t.newTitle}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="max-[359px]:hidden">{t.newLabel}</span>
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">

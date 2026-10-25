@@ -13,6 +13,7 @@ import { stripHeadingMarkersForPlainText, trimUnclosedTrailingMarkdown } from "@
 import { THINK_HARD_COPY } from "@/lib/think-hard"
 import { IMAGE_EXTENSIONS } from "@/lib/file-parser"
 import { splitAttachments, type MessageAttachment } from "@/lib/message-attachments"
+import type { VerdictAnswer } from "@/lib/verdict-answers"
 import VerdictSkeleton from "@/components/VerdictSkeleton"
 const SummaryCard = dynamic(() => import("@/components/SummaryCard"), {
   loading: () => (
@@ -30,7 +31,7 @@ const mdComponents = {
 
 const thinkingText = { en: "is thinking...", ko: "생각 중..." }
 const showLessText = { en: "Show less", ko: "접기" }
-const showMoreText = { en: "...", ko: "..." }
+const showMoreText = { en: "Show full answer", ko: "전체 답변 보기" }
 const attachmentLabels = {
   en: { show: "Show text", hide: "Hide text" },
   ko: { show: "텍스트 보기", hide: "텍스트 숨기기" },
@@ -243,6 +244,9 @@ export default function ChatBubble({
   responseLength = "short",
   thinkHard = false,
   onNewDiscussion,
+  answers,
+  onOpenAnswer,
+  openRequest,
 }: {
   message: Message
   isTyping?: boolean
@@ -256,8 +260,14 @@ export default function ChatBubble({
   responseLength?: ResponseLength
   thinkHard?: boolean
   onNewDiscussion?: () => void
+  answers?: VerdictAnswer[]
+  onOpenAnswer?: (id: string) => void
+  openRequest?: { id: string } | null
 }) {
   const [expanded, setExpanded] = useState(false)
+  useEffect(() => {
+    if (openRequest?.id === message.id) setExpanded(true)
+  }, [openRequest, message.id])
   const contentRef = useRef<HTMLDivElement>(null)
   const [isOverflowing, setIsOverflowing] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -471,6 +481,25 @@ export default function ChatBubble({
           inline
           onNewDiscussion={onNewDiscussion}
           note={message.quickFallback ? THINK_HARD_COPY[locale].fellBack : undefined}
+          answerLinks={
+            answers?.length && onOpenAnswer
+              ? answers.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => onOpenAnswer(a.id)}
+                    aria-label={a.displayName}
+                    title={a.displayName}
+                    className={cn(
+                      "relative flex items-center justify-center w-7 h-7 rounded-full border border-[var(--summary-callout-border)] bg-[var(--summary-callout-bg)] transition-opacity hover:opacity-70 cursor-pointer before:absolute before:-inset-2",
+                      modelColors[a.provider]
+                    )}
+                  >
+                    <ModelIcon provider={a.provider} />
+                  </button>
+                ))
+              : undefined
+          }
         />
       </div>
     )
@@ -489,8 +518,9 @@ export default function ChatBubble({
 
   return (
     <div
+      data-message-id={message.id}
       className={cn(
-        "group flex w-full mb-4 animate-bubble-in",
+        "group flex w-full mb-4 scroll-mt-4 animate-bubble-in",
         isUser ? "justify-end" : "justify-start"
       )}
     >
@@ -646,9 +676,9 @@ export default function ChatBubble({
                   background: "linear-gradient(transparent, var(--background))",
                 }}
                 onClick={() => setExpanded(true)}
-                aria-label={locale === "ko" ? "더 보기" : "Show more"}
+                aria-label={showMoreText[locale]}
               >
-                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors">
+                <span className="px-2.5 py-0.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-[var(--background)] text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors">
                   {showMoreText[locale]}
                 </span>
               </button>
