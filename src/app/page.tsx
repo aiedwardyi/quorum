@@ -651,6 +651,7 @@ function ChatPageContent() {
             setThinkHard(!thinkHard)
             localStorage.setItem(THINK_HARD_STORAGE_KEY, String(!thinkHard))
           }}
+          onNewDiscussion={state.messages.length > 0 ? handleNewDebate : undefined}
         />
       </div>
 

@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Message, Provider, Locale, ResponseLength } from "@/types"
 import ChatBubble from "@/components/ChatBubble"
 import WelcomeHero from "@/components/WelcomeHero"
 import { SYSTEM_MESSAGES } from "@/hooks/useDebateEngine"
+import { answersByVerdict } from "@/lib/verdict-answers"
 
 export default function ChatThread({
   messages,
@@ -45,6 +46,21 @@ export default function ChatThread({
     [messages]
   )
   const prevUserMessageCountRef = useRef(userMessageCount)
+
+  const verdictAnswers = useMemo(() => answersByVerdict(messages), [messages])
+  const [openRequest, setOpenRequest] = useState<{ id: string } | null>(null)
+
+  const openAnswer = (id: string) => {
+    const el = contentRef.current?.querySelector(`[data-message-id="${id}"]`)
+    if (!el) return
+    // Opening the answer grows the thread; keep the follow-scroll from pulling back to the bottom.
+    verdictScrollActiveRef.current = true
+    setTimeout(() => {
+      verdictScrollActiveRef.current = false
+    }, 1200)
+    setOpenRequest({ id })
+    el.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
 
   // Follow-scroll via ResizeObserver rather than chunk arrival: the smooth-stream
   // drain grows the bubble between chunks with no ChatThread re-render, which is
@@ -234,6 +250,9 @@ export default function ChatThread({
             responseLength={responseLength}
             thinkHard={thinkHard}
             onNewDiscussion={onNewDiscussion}
+            answers={verdictAnswers.get(msg.id)}
+            onOpenAnswer={openAnswer}
+            openRequest={openRequest}
           />
         ))}
         <div ref={bottomRef} className="h-4" />

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { VerdictResult, Locale } from "@/types"
 import { motion } from "framer-motion"
 import { CheckCircle2, AlertTriangle, Info, RefreshCw, Copy, Check } from "lucide-react"
@@ -23,6 +23,7 @@ const translations = {
     analysis: "Analysis",
     keyTakeaways: "Key Takeaways",
     actionItems: "Next Steps",
+    readAnswers: "Read each answer",
   },
   ko: {
     verdict: "최종 판결",
@@ -41,6 +42,7 @@ const translations = {
     analysis: "분석",
     keyTakeaways: "핵심 요약",
     actionItems: "다음 단계",
+    readAnswers: "AI별 답변 보기",
   },
 }
 
@@ -62,12 +64,14 @@ export default function SummaryCard({
   locale,
   inline = false,
   note,
+  answerLinks,
 }: {
   result: VerdictResult
   onNewDiscussion?: () => void
   locale: Locale
   inline?: boolean
   note?: string
+  answerLinks?: ReactNode
 }) {
   const t = translations[locale]
   const [copied, setCopied] = useState(false)
@@ -166,6 +170,15 @@ export default function SummaryCard({
       </div>
 
       <div className="relative space-y-6">
+        {answerLinks && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <span className="text-xs font-medium" style={{ color: "var(--summary-muted-text)" }}>
+              {t.readAnswers}
+            </span>
+            <div className="flex items-center gap-4">{answerLinks}</div>
+          </div>
+        )}
+
         {/* THE ANSWER - hero text */}
         <div
           className={`rounded-2xl border-l-4 ${colors.border} px-5 py-4`}
